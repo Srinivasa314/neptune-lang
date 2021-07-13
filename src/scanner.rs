@@ -1,0 +1,813 @@
+// This file contains the scanner which does lexing and automatic statement separator insertion
+
+use serde::{Deserialize, Serialize};
+use unicode_segmentation::UnicodeSegmentation;
+pub struct Scanner<'a> {
+    source: &'a str,
+    tokens: Vec<Token<'a>>,
+    start: usize,   //Start of the current token being scanned
+    current: usize, //Current end of the current token being scanned
+    line: u32,
+    brackets: Vec<TokenType>, // keeps track of all brackets within which the scanner is currently nested
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+pub enum TokenType {
+    LeftParen,
+    RightParen,
+    LeftSquareBracket,
+    RightSquareBracket,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    StatementSeparator,
+    Slash,
+    Star,
+    Colon,
+    HashBrace,
+    DotDot,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    // Literals.
+    Identifier,
+    String(String),
+    IntLiteral(i32),
+    FloatLiteral(f64),
+    Symbol(String),
+    // Keywords.
+    And,
+    Break,
+    Class,
+    Continue,
+    Else,
+    Extends,
+    False,
+    For,
+    Fun,
+    If,
+    In,
+    Null,
+    Or,
+    Return,
+    Super,
+    This,
+    True,
+    Let,
+    While,
+    Const,
+    //Other types
+    BeginString,
+    EndString,
+    Error(String),
+    Eof,
+}
+
+//Returns corresponding keyword tokens for string
+fn get_keyword(s: &str) -> Option<TokenType> {
+    match s {
+        "and" => Some(TokenType::And),
+        "break" => Some(TokenType::Break),
+        "class" => Some(TokenType::Class),
+        "continue" => Some(TokenType::Continue),
+        "else" => Some(TokenType::Else),
+        "extends" => Some(TokenType::Extends),
+        "false" => Some(TokenType::False),
+        "for" => Some(TokenType::For),
+        "fun" => Some(TokenType::Fun),
+        "if" => Some(TokenType::If),
+        "in" => Some(TokenType::In),
+        "null" => Some(TokenType::Null),
+        "or" => Some(TokenType::Or),
+        "return" => Some(TokenType::Return),
+        "super" => Some(TokenType::Super),
+        "this" => Some(TokenType::This),
+        "true" => Some(TokenType::True),
+        "let" => Some(TokenType::Let),
+        "while" => Some(TokenType::While),
+        "const" => Some(TokenType::Const),
+        _ => None,
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct Token<'a> {
+    pub token_type: TokenType,
+    pub inner: &'a str,
+    pub line: u32,
+}
+
+impl<'a> Token<'a> {
+    pub fn dummy_token() -> Token<'static> {
+        Token {
+            token_type: TokenType::Eof,
+            inner: "",
+            line: 0,
+        }
+    }
+}
+
+impl<'a> Scanner<'a> {
+    pub fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            tokens: vec![],
+            start: 0,
+            current: 0,
+            line: 1,
+            brackets: vec![],
+        }
+    }
+
+    pub fn scan_tokens(mut self) -> Vec<Token<'a>> {
+        while self.scan_token() {
+            self.start = self.current;
+        }
+        self.tokens.push(Token {
+            token_type: TokenType::Eof,
+            inner: "",
+            line: self.line,
+        });
+        self.tokens
+    }
+
+    //Scans one or more tokens returns false if it reaches end of file
+    fn scan_token(&mut self) -> bool {
+        let c = match self.advance() {
+            Some(c) => c,
+            None => return false,
+        };
+        match c {
+            b'\0' => self.error("Nul character in file".to_string()),
+            b'@' => self.symbol(),
+            b':' => self.add_token(TokenType::Colon),
+            b'#' => {
+                //Is it a hashmap expression?
+                if self.peek() == Some(b'{') {
+                    self.advance();
+                    self.add_token(TokenType::HashBrace);
+                    self.brackets.push(TokenType::HashBrace)
+                } else {
+                    self.error("Unexpected #".to_string())
+                }
+            }
+            b'(' => {
+                self.add_token(TokenType::LeftParen);
+                self.brackets.push(TokenType::LeftParen);
+            }
+            b')' => {
+                self.add_token(TokenType::RightParen);
+                self.brackets.pop();
+            }
+            b'[' => {
+                self.add_token(TokenType::LeftSquareBracket);
+                self.brackets.push(TokenType::LeftSquareBracket);
+            }
+            b']' => {
+                self.add_token(TokenType::RightSquareBracket);
+                self.brackets.pop();
+            }
+            b'{' => {
+                self.add_token(TokenType::LeftBrace);
+                self.brackets.push(TokenType::LeftBrace);
+            }
+            b'}' => {
+                self.add_token(TokenType::RightBrace);
+                self.brackets.pop();
+            }
+            b',' => self.add_token(TokenType::Comma),
+            b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
+            b'-' => self.add_token(TokenType::Minus),
+            b'+' => self.add_token(TokenType::Plus),
+            b';' => self.add_token(TokenType::StatementSeparator),
+            b'*' => self.add_token(TokenType::Star),
+            b'!' => self.add_token_if_match(b'=', TokenType::BangEqual, TokenType::Bang),
+            b'=' => self.add_token_if_match(b'=', TokenType::EqualEqual, TokenType::Equal),
+            b'>' => self.add_token_if_match(b'=', TokenType::GreaterEqual, TokenType::Greater),
+            b'<' => self.add_token_if_match(b'=', TokenType::LessEqual, TokenType::Less),
+            b'/' => {
+                //Single line comment
+                if self.match_char(b'/') {
+                    while self.peek() != Some(b'\n') && self.peek() != None {
+                        self.advance();
+                    }
+                }
+                //Multiline comment
+                else if self.match_char(b'*') {
+                    let mut depth = 1;
+                    while depth != 0 && self.peek() != None {
+                        if self.peek() == Some(b'\n') {
+                            self.line += 1;
+                        }
+                        if self.peek() == Some(b'/') && self.peek_next() == Some(b'*') {
+                            depth += 1;
+                            self.advance();
+                        } else if self.peek() == Some(b'*') && self.peek_next() == Some(b'/') {
+                            depth -= 1;
+                            self.advance();
+                        }
+                        self.advance();
+                    }
+                    if depth != 0 {
+                        self.error("Unterminated multiline comment".to_string());
+                    }
+                } else {
+                    self.add_token(TokenType::Slash)
+                }
+            }
+            b' ' | b'\r' | b'\t' => {}
+            b'\n' => {
+                self.line += 1;
+                /*
+                Automatic Statement Seperator Insertion
+                When newline is encountered if its previous token is RightParen|RightBrace|Identifier
+                |IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
+                and it is not followed by whitespaces and a dot (to allow method chaining) and it is not inside brackets(except block) then insert semicolon.
+
+                Disadvantages:
+                    for statements like if and for { must be on the same line
+                */
+                if self.brackets.is_empty()
+                    || matches!(self.brackets.last(), Some(TokenType::LeftBrace))
+                {
+                    if let Some(token) = self.tokens.last() {
+                        match token.token_type {
+                            TokenType::RightParen
+                            | TokenType::RightBrace
+                            | TokenType::RightSquareBracket
+                            | TokenType::Identifier
+                            | TokenType::IntLiteral(_)
+                            | TokenType::FloatLiteral(_)
+                            | TokenType::False
+                            | TokenType::Null
+                            | TokenType::Return
+                            | TokenType::Super
+                            | TokenType::This
+                            | TokenType::True
+                            | TokenType::EndString
+                            | TokenType::Symbol(_)
+                            | TokenType::Break
+                            | TokenType::Continue => {
+                                let l = self.line - 1;
+                                self.consume_whitespaces();
+                                if self.peek() != Some(b'.') {
+                                    self.tokens.push(Token {
+                                        token_type: TokenType::StatementSeparator,
+                                        inner: "\n",
+                                        line: l,
+                                    })
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            b'"' => self.string(b'"'),
+            b'\'' => self.string(b'\''),
+            c => {
+                if isdigit(c) {
+                    self.number(c);
+                } else if isalpha(c) {
+                    self.identifier();
+                } else {
+                    let c = (&self.source[(self.current - 1)..])
+                        .graphemes(true)
+                        .next()
+                        .unwrap();
+                    let len = c.len();
+                    self.error(format!("Unexpected character '{}'", c));
+                    self.current += len - 1;
+                }
+            }
+        };
+        true
+    }
+
+    fn string(&mut self, delim: u8) {
+        /*
+        It adds BeginString and initialises a vector storing the bytes of the current string token to be added.
+        For each byte it adds it to the vector except
+        '\(' => It adds a string token for the bytes in the vector and clears it
+        then adds BeginInterpolation and tracks until ( and ) are balanced and recursively calls the scanner
+        to tokenize the tokens in between ( and ) and then adds EndInterpolation
+        '\' => It looks at the next character and then adds the required byte to the vector
+        At the end it adds a string token for the remaining bytes and adds EndString
+        */
+        self.add_token(TokenType::BeginString);
+        self.start += 1;
+        let mut s: Vec<u8> = vec![];
+        while self.peek() != Some(delim) && self.peek() != None {
+            if self.peek() == Some(b'\n') {
+                self.line += 1;
+                s.push(b'\n');
+                self.advance();
+            }
+            //Interpolation
+            else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'(') {
+                let str = String::from_utf8(s).unwrap();
+                if !str.is_empty() {
+                    self.add_token(TokenType::String(str));
+                }
+                s = vec![];
+                self.advance(); //Consume \
+                let scanner;
+                let inner_len;
+                match balance_brackets(&self.source[self.current..]) {
+                    Some(s) => {
+                        scanner = {
+                            inner_len = s.len();
+                            Scanner::new(s)
+                        }
+                    }
+                    None => {
+                        scanner = {
+                            inner_len = self.source.len() - self.current;
+                            Scanner::new(&self.source[self.current..])
+                        }
+                    }
+                }
+                // Patch line numbers of tokens and errors generated by the nested scanner as the nested scanner
+                // starts from line number 1
+                let mut tokens = scanner.scan_tokens();
+                for token in &mut tokens {
+                    token.line = self.line + token.line - 1;
+                }
+                self.line = tokens.pop().unwrap().line;
+                self.tokens.append(&mut tokens);
+                self.current += inner_len;
+                self.start = self.current;
+            } else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'u') {
+                self.advance();
+                self.advance();
+                if self.match_char(b'{') {
+                    let start = self.current;
+                    while self.peek() != None
+                        && self.peek() != Some(delim)
+                        && self.peek() != Some(b'}')
+                    {
+                        self.advance();
+                    }
+                    if self.peek() == Some(delim) || self.peek() == None {
+                        self.error("Unterminated unicode escape sequence".to_string());
+                    } else {
+                        match parse_int::parse::<u32>(&format!(
+                            "0x{}",
+                            &self.source[start..self.current]
+                        )) {
+                            Ok(n) => {
+                                if let Some(c) = char::from_u32(n) {
+                                    for i in c.to_string().bytes() {
+                                        s.push(i);
+                                    }
+                                } else {
+                                    self.error(format!(
+                                        "Cannot convert {} to a unicode character",
+                                        &self.source[start..self.current]
+                                    ));
+                                }
+                            }
+                            Err(_) => self.error(format!(
+                                "Cannot parse {} in unicode escape sequence",
+                                &self.source[start..self.current]
+                            )),
+                        }
+                        self.advance();
+                    }
+                } else {
+                    self.error("Unicode character not given".to_string());
+                }
+            }
+            //Escape sequence
+            else if self.peek() == Some(b'\\') {
+                if let Some(c) = self.peek_next() {
+                    let to_add = match c {
+                        b'\\' => b'\\',
+                        b'n' => b'\n',
+                        b'r' => b'\r',
+                        b'\'' => b'\'',
+                        b'"' => b'"',
+                        b'0' => b'\0',
+                        b't' => b'\t',
+                        c => {
+                            self.error(format!("Invalid escape sequence \\{}", c as char));
+                            c
+                        }
+                    };
+                    s.push(to_add);
+                } else {
+                    self.error("Unterminated \\".to_string());
+                }
+                self.advance();
+                if self.peek() != None {
+                    self.advance();
+                }
+            } else {
+                s.push(self.advance().unwrap());
+            }
+        }
+        let str = String::from_utf8(s).unwrap();
+        if !str.is_empty() {
+            self.add_token(TokenType::String(str));
+        }
+        if self.peek() != None {
+            self.start = self.current;
+            self.advance();
+            self.add_token(TokenType::EndString);
+        }
+    }
+
+    //A number can be either decimal,octal or hexadecimal
+    //A octal number starts wiyh 0o
+    //A hexadecimal number starts with 0x
+    //A number cannot start with 0
+    //Only decimal numbers can be floating point
+    //Floating point numbers can be of the form {x}.{y} or {x}e{y} or {x}.{y}e{z}
+    //This function checks if there is .. whenever it scans . in order to stop scanning
+    //and make it a range
+    fn number(&mut self, c: u8) {
+        let mut errors = vec![];
+        let mut is_float = false;
+        let mut can_float = true;
+        let mut handled_e = false;
+        let mut is_range = false;
+        let mut is_hex = false;
+        if c == b'0' {
+            match self.peek() {
+                Some(b'x') => {
+                    can_float = false;
+                    is_hex = true;
+                    self.advance();
+                }
+                Some(b'o') => {
+                    can_float = false;
+                    self.advance();
+                }
+                Some(b'0'..=b'9') => {
+                    errors.push("Use 0o for octal".to_string());
+                }
+                _ => {}
+            }
+        }
+        while self
+            .peek()
+            .map_or(false, |c| is_valid_num_char(c, is_hex) || c == b'_')
+        {
+            self.advance();
+        }
+        if self.peek() == Some(b'.') {
+            if self.peek_next() == Some(b'.') {
+                is_range = true;
+            } else if self
+                .peek_next()
+                .map_or(false, |c| is_valid_num_char(c, false))
+            {
+                if !can_float {
+                    errors.push("Can use floating numbers only in decimals".to_string());
+                    self.advance();
+                }
+                self.advance();
+                is_float = true;
+            } else if self.peek_next() == None {
+                errors.push("Expect number after .".to_string());
+            }
+        } else if self.peek() == Some(b'e') {
+            handled_e = true;
+            if !can_float {
+                errors.push("Can use floating numbers only in decimals".to_string());
+                self.advance();
+            } else if self
+                .peek_next()
+                .map_or(false, |c| is_valid_num_char(c, is_hex))
+            {
+                self.advance();
+                is_float = true;
+            } else if self.peek_next() == None {
+                errors.push("Expect number after e".to_string());
+            }
+        }
+        while self
+            .peek()
+            .map_or(false, |c| is_valid_num_char(c, is_hex) || c == b'_')
+        {
+            self.advance();
+        }
+        if self.peek() == Some(b'e') && !handled_e && !is_range {
+            if !can_float {
+                errors.push("Can use floating numbers only in decimals".to_string());
+                self.advance();
+            } else if self
+                .peek_next()
+                .map_or(false, |c| is_valid_num_char(c, is_hex))
+            {
+                self.advance();
+            } else if self.peek_next() == None {
+                errors.push("Expect number after e".to_string());
+            }
+        }
+        while self
+            .peek()
+            .map_or(false, |c| is_valid_num_char(c, is_hex) || c == b'_')
+        {
+            self.advance();
+        }
+        let string = &self.source[self.start..self.current];
+        if is_float {
+            let token = if errors.is_empty() {
+                match parse_int::parse(string) {
+                    Ok(f) => f,
+                    Err(_) => {
+                        self.error(format!("Cannot parse float {}", string));
+                        0.0
+                    }
+                }
+            } else {
+                for i in errors {
+                    self.error(format!("{} for {}", i, string));
+                }
+                0.0
+            };
+            self.add_token(TokenType::FloatLiteral(token));
+        } else {
+            let token = if errors.is_empty() {
+                match parse_int::parse(string) {
+                    Ok(f) => f,
+                    Err(_) => {
+                        self.error(format!("Cannot parse integer {}", string));
+                        0
+                    }
+                }
+            } else {
+                for i in errors {
+                    self.error(format!("{} for {}", i, string));
+                }
+                0
+            };
+            self.add_token(TokenType::IntLiteral(token));
+        }
+    }
+
+    fn identifier(&mut self) {
+        while self.peek().map_or(false, isalnum) {
+            self.advance();
+        }
+        let ttype = match get_keyword(&self.source[self.start..self.current]) {
+            Some(t) => t,
+            None => TokenType::Identifier,
+        };
+        self.add_token(ttype);
+    }
+
+    fn symbol(&mut self) {
+        if !self.peek().map_or(false, isalpha) {
+            match self.peek() {
+                Some(c) => {
+                    self.error(format!("Invalid character {} after @ in symbol", c as char));
+                }
+                None => self.error("Unexpected end of file after @".to_string()),
+            }
+        }
+        while self.peek().map_or(false, isalnum) {
+            self.advance();
+        }
+        self.add_token(TokenType::Symbol(
+            self.source[self.start + 1..self.current].to_string(),
+        ));
+    }
+
+    fn match_char(&mut self, expected: u8) -> bool {
+        if self.peek() == None || self.source.as_bytes()[self.current] != expected {
+            false
+        } else {
+            self.current += 1;
+            true
+        }
+    }
+
+    fn add_token_if_match(&mut self, expected: u8, if_match: TokenType, if_not_match: TokenType) {
+        if self.match_char(expected) {
+            self.add_token(if_match)
+        } else {
+            self.add_token(if_not_match)
+        }
+    }
+    //Increments current and returns the previous character
+    fn advance(&mut self) -> Option<u8> {
+        let c = self.peek();
+        self.current += 1;
+        c
+    }
+
+    //Gives the current character
+    fn peek(&self) -> Option<u8> {
+        if self.current >= self.source.len() {
+            None
+        } else {
+            Some(self.source.as_bytes()[self.current])
+        }
+    }
+    //Gives the character after the current character
+    fn peek_next(&self) -> Option<u8> {
+        if self.current + 1 >= self.source.len() {
+            None
+        } else {
+            Some(self.source.as_bytes()[self.current + 1])
+        }
+    }
+
+    fn consume_whitespaces(&mut self) {
+        loop {
+            match self.peek() {
+                Some(b' ') | Some(b'\t') | Some(b'\r') => {
+                    self.advance();
+                }
+                Some(b'\n') => {
+                    self.line += 1;
+                    self.advance();
+                }
+                _ => return,
+            }
+        }
+    }
+
+    fn add_token(&mut self, token_type: TokenType) {
+        self.tokens.push(Token {
+            token_type,
+            inner: &self.source[self.start..self.current],
+            line: self.line,
+        })
+    }
+
+    fn error(&mut self, message: String) {
+        self.tokens.push(Token {
+            token_type: TokenType::Error(message),
+            inner: "",
+            line: self.line,
+        });
+    }
+}
+
+fn is_valid_num_char(c: u8, is_hex: bool) -> bool {
+    if is_hex {
+        isalnum(c)
+    } else {
+        isdigit(c)
+    }
+}
+
+fn isalpha(c: u8) -> bool {
+    (b'a'..=b'z').contains(&c) || (b'A'..=b'Z').contains(&c) || c == b'_'
+}
+
+fn isdigit(c: u8) -> bool {
+    (b'0'..=b'9').contains(&c)
+}
+
+fn isalnum(c: u8) -> bool {
+    isalpha(c) || isdigit(c)
+}
+
+/* Returns a substring starting from the beginning of the string such that all brackets are balanced
+   If brackets cannot be balanced then None is returned. Can be used for REPL, parsing string interpolation,etc.
+*/
+pub fn balance_brackets(s: &str) -> Option<&str> {
+    let mut depth = 0;
+    let mut index = 0;
+    while index < s.len() {
+        match s.as_bytes()[index] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            b'{' => depth += 1,
+            b'}' => depth -= 1,
+            b'[' => depth += 1,
+            b']' => depth -= 1,
+            c @ b'"' | c @ b'\'' => {
+                index += 1; //Consume start of string
+                while index < s.len() {
+                    match s.as_bytes()[index] {
+                        b'\\' => {
+                            // is \ the last character
+                            if index + 1 >= s.len() {
+                                return None;
+                            } else {
+                                index += 1;
+                                if s.as_bytes()[index] == b'(' {
+                                    //balance brackets within the interpolation
+                                    match balance_brackets(&s[index..]) {
+                                        None => return None,
+                                        Some(sub) => index += sub.len() - 1, //make the index at )
+                                    }
+                                }
+                            }
+                        }
+                        x if x == c => break, //Break;Do not consume end of string as index+=1 is done below
+                        _ => {}
+                    }
+                    index += 1
+                }
+                //Are we at end
+                if index == s.len() {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+        if depth == 0 {
+            return Some(&s[..index + 1]);
+        }
+        index += 1;
+    }
+    //Depth isnt zero
+    None
+}
+/*
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    #[test]
+    fn test() {
+        if std::env::var("GENERATE_TESTS").is_ok() {
+            fn gen_json(name: &str) {
+                let s = String::from_utf8(
+                    std::fs::read(format!("tests/scanner_tests/{}.ag", name)).unwrap(),
+                )
+                .unwrap();
+                let s = Scanner::new(&s);
+                let tokens = s.scan_tokens();
+                assert!(
+                    !tokens
+                        .iter()
+                        .any(|t| matches!(t.token_type, TokenType::Error(_))),
+                    "tokens: {:?}\nerrors: {:?}",
+                    tokens,
+                    tokens
+                        .iter()
+                        .filter(|t| matches!(t.token_type, TokenType::Error(_)))
+                );
+                std::fs::write(
+                    format!("tests/scanner_tests/{}.json", name),
+                    serde_json::to_string(&tokens).unwrap(),
+                )
+                .unwrap();
+            }
+            let tests: Vec<String> =
+                serde_json::from_str(include_str!("../tests/scanner_tests/tests.json")).unwrap();
+            for i in tests {
+                gen_json(&i);
+            }
+        } else {
+            let tests: Vec<String> =
+                serde_json::from_str(include_str!("../tests/scanner_tests/tests.json")).unwrap();
+
+            for test in tests {
+                let s1 = String::from_utf8(
+                    fs::read(format!("tests/scanner_tests/{}.ag", test)).unwrap(),
+                )
+                .unwrap();
+                let s2 = String::from_utf8(
+                    fs::read(format!("tests/scanner_tests/{}.json", test)).unwrap(),
+                )
+                .unwrap();
+                let s = Scanner::new(&s1);
+                let tokens = s.scan_tokens();
+                assert_eq!(serde_json::to_string(&tokens).unwrap(), s2);
+                assert!(
+                    !tokens
+                        .iter()
+                        .any(|t| matches!(t.token_type, TokenType::Error(_))),
+                    "errors :{:?}",
+                    tokens
+                        .iter()
+                        .filter(|t| matches!(t.token_type, TokenType::Error(_)))
+                )
+            }
+        }
+    }
+    #[test]
+    fn error() {
+        if !std::env::var("GENERATE_TESTS").is_ok() {
+            let errors: Vec<String> =
+                serde_json::from_str(include_str!("../tests/scanner_tests/errors.json")).unwrap();
+            for error in errors {
+                let s = String::from_utf8(
+                    fs::read(format!("tests/scanner_tests/{}.ag", error)).unwrap(),
+                )
+                .unwrap();
+                assert!(Scanner::new(&s)
+                    .scan_tokens()
+                    .iter()
+                    .any(|t| matches!(t.token_type, TokenType::Error(_))))
+            }
+        }
+    }
+}
+*/
