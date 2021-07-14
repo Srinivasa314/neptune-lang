@@ -94,15 +94,20 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
 
 #[derive(Debug)]
 pub enum Expr {
-    Literal(TokenType),
     Binary {
         left: Box<Expr>,
         op: TokenType,
         right: Box<Expr>,
+        line: u32,
     },
     Unary {
         op: TokenType,
         right: Box<Expr>,
+        line: u32,
+    },
+    Literal {
+        inner: TokenType,
+        line: u32,
     },
 }
 
@@ -178,6 +183,10 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
 
     fn error_at_previous(&self, message: String) -> CompileError {
         Self::error(message, self.previous.clone())
+    }
+
+    fn line(&self) -> u32 {
+        self.previous.line
     }
 
     fn consume(&mut self, ttype: TokenType, message: String) -> ParseResult<()> {
@@ -334,6 +343,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         Ok(Expr::Unary {
             op,
             right: Box::new(self.parse_precedence(Precedence::Unary)?),
+            line: self.line(),
         })
     }
 
@@ -341,10 +351,18 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         let op = self.previous.token_type.clone();
         let right =
             Box::new(self.parse_precedence((get_precedence(&op) as u8 + 1).try_into().unwrap())?);
-        Ok(Expr::Binary { left, op, right })
+        Ok(Expr::Binary {
+            left,
+            op,
+            right,
+            line: self.line(),
+        })
     }
 
     fn literal(&self) -> ParseResult<Expr> {
-        Ok(Expr::Literal(self.previous.token_type.clone()))
+        Ok(Expr::Literal {
+            inner: self.previous.token_type.clone(),
+            line: self.line(),
+        })
     }
 }

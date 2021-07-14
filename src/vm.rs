@@ -1,4 +1,17 @@
-use crate::{Function, bytecode::{BytecodeReader, Op}, gc, value::Value};
+use crate::{
+    bytecode::{BytecodeReader, Op},
+    gc::{self, GCAllocator},
+    value::Value,
+    Function,
+};
+
+struct VM {
+    gc: GCAllocator,
+}
+
+impl VM {
+    pub fn run(&mut self){todo!()}
+}
 
 pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String> {
     let mut accumulator = Value::empty();
@@ -12,7 +25,7 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
         match bytecode.read_op() {
             Op::AddRegister => {
                 let lhs = accumulator;
-                let rhs = gc.get_local(bytecode.read_u8());
+                let rhs = gc.getr(bytecode.read_u8());
                 accumulator = match (lhs.as_i32(), rhs.as_i32()) {
                     (Some(lhs), Some(rhs)) => Value::from_i32(match lhs.checked_add(rhs) {
                         Some(i) => i,
@@ -72,7 +85,7 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
                 bytecode = curr_frame.read().0;
             }
             Op::Less => {
-                let lhs = gc.get_local(bytecode.read_u8());
+                let lhs = gc.getr(bytecode.read_u8());
                 let rhs = accumulator;
                 accumulator = match (lhs.as_i32(), rhs.as_i32()) {
                     (Some(lhs), Some(rhs)) => Value::from_bool(lhs < rhs),
@@ -104,10 +117,10 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
             }
             Op::Call1Argument => {
                 let src = bytecode.read_u8();
-                let arg0 = gc.get_local(bytecode.read_u8());
+                let arg0 = gc.getr(bytecode.read_u8());
                 // We are sure that functions are always in the constant table
                 // DONT DO THIS FOR CLOSURES,etc.
-                let fun = gc.get_local(src);
+                let fun = gc.getr(src);
                 match fun.as_object() {
                     Some(fun) => match fun.cast::<Function>() {
                         Some(fun) => {
@@ -121,7 +134,7 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
                                 {
                                     return Err("overflow".to_string());
                                 }
-                                gc.set_local(0, arg0);
+                                gc.setr(0, arg0);
                                 bytecode = BytecodeReader::new(&fun.bytecode);
                             } else {
                                 return Err("call error arity wrong".to_string());
@@ -141,26 +154,26 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
                     None => return Err("getglobal error".to_string()),
                 }
             }
-            Op::LoadRegister => accumulator = gc.get_local(bytecode.read_u8()),
+            Op::LoadRegister => accumulator = gc.getr(bytecode.read_u8()),
             Op::StoreR0 => {
-                gc.set_local(0, accumulator);
+                gc.setr(0, accumulator);
             }
             Op::StoreR1 => {
-                gc.set_local(1, accumulator);
+                gc.setr(1, accumulator);
             }
             Op::StoreR2 => {
-                gc.set_local(2, accumulator);
+                gc.setr(2, accumulator);
             }
             Op::StoreR3 => {
-                gc.set_local(3, accumulator);
+                gc.setr(3, accumulator);
             }
             Op::StoreR4 => {
-                gc.set_local(4, accumulator);
+                gc.setr(4, accumulator);
             }
             Op::Move => {
                 let dest = bytecode.read_u8();
                 let src = bytecode.read_u8();
-                gc.set_local(dest, gc.get_local(src));
+                gc.setr(dest, gc.getr(src));
             }
             Op::Increment => {
                 let lhs = accumulator;

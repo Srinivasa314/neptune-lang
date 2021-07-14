@@ -728,7 +728,7 @@ pub fn balance_brackets(s: &str) -> Option<&str> {
     //Depth isnt zero
     None
 }
-/*
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -738,7 +738,7 @@ mod tests {
         if std::env::var("GENERATE_TESTS").is_ok() {
             fn gen_json(name: &str) {
                 let s = String::from_utf8(
-                    std::fs::read(format!("tests/scanner_tests/{}.ag", name)).unwrap(),
+                    std::fs::read(format!("tests/scanner_tests/{}.np", name)).unwrap(),
                 )
                 .unwrap();
                 let s = Scanner::new(&s);
@@ -770,7 +770,7 @@ mod tests {
 
             for test in tests {
                 let s1 = String::from_utf8(
-                    fs::read(format!("tests/scanner_tests/{}.ag", test)).unwrap(),
+                    fs::read(format!("tests/scanner_tests/{}.np", test)).unwrap(),
                 )
                 .unwrap();
                 let s2 = String::from_utf8(
@@ -799,7 +799,7 @@ mod tests {
                 serde_json::from_str(include_str!("../tests/scanner_tests/errors.json")).unwrap();
             for error in errors {
                 let s = String::from_utf8(
-                    fs::read(format!("tests/scanner_tests/{}.ag", error)).unwrap(),
+                    fs::read(format!("tests/scanner_tests/{}.np", error)).unwrap(),
                 )
                 .unwrap();
                 assert!(Scanner::new(&s)
@@ -810,4 +810,3 @@ mod tests {
         }
     }
 }
-*/

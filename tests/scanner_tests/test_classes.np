@@ -1,0 +1,11 @@
+class A {
+    fun f() {
+        return null
+    }
+}
+class B<A{
+    fun g() {
+        super.f()
+        this.x = 9
+    }
+}

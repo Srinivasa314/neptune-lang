@@ -1,0 +1,14 @@
+[
+    "test_arithmetic",
+    "test_basic",
+    "test_brackets",
+    "test_classes",
+    "test_comments",
+    "test_loop",
+    "test_number",
+    "test_map",
+    "test_relational",
+    "test_semicolon",
+    "test_string",
+    "test_symbol"
+]

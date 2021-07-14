@@ -1,7 +1,6 @@
 pub mod bytecode;
-pub mod bytecode_writer;
+pub mod bytecode_compiler;
 pub mod gc;
-pub mod ops;
 pub mod parser;
 pub mod scanner;
 pub mod value;

@@ -1,6 +1,6 @@
 use crate::{
     gc::Object,
-    gc::{AgString, ObjectHeader},
+    gc::{NString, ObjectHeader},
 };
 use std::marker::PhantomData;
 
@@ -221,6 +221,46 @@ impl<'a> Value<'a> {
     pub unsafe fn make_static(self) -> Value<'static> {
         std::mem::transmute(self)
     }
+
+    pub fn strict_eq(self, other: Self) -> bool {
+        if let Some(i1) = self.as_i32() {
+            if let Some(i2) = other.as_i32() {
+                i1 == i2
+            } else {
+                false
+            }
+        } else if let Some(f1) = self.as_f64() {
+            if let Some(f2) = other.as_f64() {
+                f1 == f2
+            } else {
+                false
+            }
+        } else if self.is_null() {
+            other.is_null()
+        } else if let Some(o1) = self.as_object() {
+            if let Some(o2) = other.as_object() {
+                if let Some(s1) = o1.cast::<NString>() {
+                    if let Some(s2) = o2.cast::<NString>() {
+                        s1 == s2
+                    } else {
+                        false
+                    }
+                } else {
+                    o1.ptr_eq(o2)
+                }
+            } else {
+                false
+            }
+        } else if let Some(b1) = self.as_bool() {
+            if let Some(b2) = other.as_bool() {
+                b1 == b2
+            } else {
+                false
+            }
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 impl PartialEq for Value<'_> {
@@ -245,8 +285,8 @@ impl PartialEq for Value<'_> {
             other.is_null()
         } else if let Some(o1) = self.as_object() {
             if let Some(o2) = other.as_object() {
-                if let Some(s1) = o1.cast::<AgString>() {
-                    if let Some(s2) = o2.cast::<AgString>() {
+                if let Some(s1) = o1.cast::<NString>() {
+                    if let Some(s2) = o2.cast::<NString>() {
                         s1 == s2
                     } else {
                         false

@@ -1,0 +1,18 @@
+'Hello\u{1F496}'
+'q"'
+'\"'
+'\''
+"\""
+"\(name)"
+"Hello\(name)"
+"Hello\("\()")"
+"Hello \(
+    fun(a,b)a+b
+)"
+"\n\\\r"
+"Hello \(name1)\(name2)"
+"
+multiline string 
+vhjk
+"
+"\(")")"

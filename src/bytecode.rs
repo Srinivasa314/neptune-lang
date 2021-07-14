@@ -1,8 +1,10 @@
 use crate::value::Value;
-use num_enum::TryFromPrimitive;
+use num_enum::{TryFromPrimitive, UnsafeFromPrimitive};
+use std::convert::TryFrom;
 use std::fmt;
-use std::{convert::TryInto, marker::PhantomData};
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+use std::marker::PhantomData;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, UnsafeFromPrimitive)]
 #[repr(u8)]
 pub enum Op {
     Wide,
@@ -42,10 +44,10 @@ pub enum Op {
 pub struct Bytecode {
     pub inner: Vec<u8>,
     pub constants: Vec<Value<'static>>,
+    pub lines: Vec<u32>,
 }
 
 pub struct ExceededMaxConstants;
-#[derive(Debug)]
 pub struct BytecodeMaxSizeExceeded;
 
 pub enum ConstantInsertionError {
@@ -61,8 +63,9 @@ impl From<BytecodeMaxSizeExceeded> for ConstantInsertionError {
 
 pub struct BytecodeWriter {
     b: Bytecode,
-    last_op: Vec<usize>,
-    no_registers: u16,
+    op_positions: Vec<usize>,
+    regcount: u16,
+    line: u32,
 }
 
 impl Default for BytecodeWriter {
@@ -75,31 +78,33 @@ impl BytecodeWriter {
     pub fn new() -> Self {
         Self {
             b: Bytecode::default(),
-            last_op: vec![],
-            no_registers: 0,
+            op_positions: vec![],
+            regcount: 0,
+            line: 0,
         }
     }
 
-    pub fn get_no_registers(&self) -> u16 {
-        self.no_registers
+    pub fn regcount(&self) -> u16 {
+        self.regcount
     }
 
     pub fn push_register(&mut self) -> u16 {
-        self.no_registers += 1;
-        self.no_registers - 1
+        self.regcount += 1;
+        self.regcount - 1
     }
 
     pub fn pop_register(&mut self) {
-        self.no_registers -= 1;
+        self.regcount -= 1;
     }
 
     pub fn pop_last_op(&mut self) {
-        self.last_op.pop();
-        self.b.inner.resize(*self.last_op.last().unwrap(), 0);
+        self.op_positions.pop();
+        self.b.inner.resize(*self.op_positions.last().unwrap(), 0);
     }
 
-    pub fn write_op(&mut self, op: Op) -> Result<(), BytecodeMaxSizeExceeded> {
-        self.last_op.push(self.b.inner.len());
+    pub fn write_op(&mut self, op: Op, line: u32) -> Result<(), BytecodeMaxSizeExceeded> {
+        self.op_positions.push(self.b.inner.len());
+        self.line = line;
         self.write_u8(op as u8)
     }
     pub fn write_u8(&mut self, u: u8) -> Result<(), BytecodeMaxSizeExceeded> {
@@ -107,6 +112,7 @@ impl BytecodeWriter {
             Err(BytecodeMaxSizeExceeded)
         } else {
             self.b.inner.push(u);
+            self.b.lines.push(self.line);
             Ok(())
         }
     }
@@ -154,10 +160,14 @@ impl BytecodeWriter {
     }
 
     // The lifetime is static as it should be in the constant table
-    pub fn write_value(&mut self, v: Value<'static>) -> Result<(), ConstantInsertionError> {
-        self.write_op(Op::LoadConstant)?;
+    pub fn write_value(
+        &mut self,
+        v: Value<'static>,
+        line: u32,
+    ) -> Result<(), ConstantInsertionError> {
+        self.write_op(Op::LoadConstant, line)?;
         for (i, constant) in self.b.constants.iter().enumerate() {
-            if *constant == v {
+            if constant.strict_eq(v) {
                 self.write_u16(i as u16)?;
                 return Ok(());
             }
@@ -171,30 +181,14 @@ impl BytecodeWriter {
         }
     }
 
-    pub fn last_op(&self) -> Option<Op> {
-        self.last_op
-            .get(0)
-            .cloned()
-            .map(|lo| self.b.inner[lo].try_into().unwrap())
-    }
-
-    pub fn set_last_op(&mut self, op: Op) {
-        if let Some(lo) = self.last_op.last().cloned() {
-            self.b.inner[lo] = op as u8;
-        } else {
-            panic!("Last op doesnt exist!")
-        }
-    }
-
     pub fn get_jmp_index(&self) -> Option<u16> {
-        self.last_op.last().cloned().map(|lo| (lo + 1) as u16)
+        self.op_positions.last().cloned().map(|lo| (lo + 1) as u16)
     }
 
-    pub fn get_op_index(&self) -> Option<u16> {
-        self.last_op.last().cloned().map(|lo| lo as u16)
-    }
-
-    pub fn bytecode(self) -> Bytecode {
+    pub fn bytecode(mut self) -> Bytecode {
+        self.b.inner.shrink_to_fit();
+        self.b.constants.shrink_to_fit();
+        self.b.lines.shrink_to_fit();
         self.b
     }
 }
@@ -342,77 +336,65 @@ impl<'a> BytecodeReader<'a> {
     }
 
     pub fn is_at_end(&self) -> bool {
-        self.ptr >= self.end
+        self.ptr == self.end
+    }
+
+    pub unsafe fn read<T>(&mut self) -> T {
+        debug_assert!(
+            self.ptr >= self.start
+                && self.ptr as usize + std::mem::size_of::<T>() <= self.end as usize
+        );
+        let ret = self.ptr.cast::<T>().read_unaligned();
+        self.ptr = self.ptr.add(std::mem::size_of::<T>());
+        ret
     }
 
     pub fn offset(&self) -> isize {
         unsafe { self.ptr.offset_from(self.start) }
     }
 
-    // The below functions are unsafe as they require the caller to make sure that
-    // the next item in the bytecode is what the caller wants to read and that
-    // it is not at the end
     pub unsafe fn read_op(&mut self) -> Op {
-        let op = self.ptr.cast::<Op>().read();
-        self.ptr = self.ptr.add(1);
-        op
+        let op = self.read::<u8>();
+        debug_assert!(Op::try_from(op).is_ok());
+        Op::from_unchecked(op)
     }
+
     pub unsafe fn read_u8(&mut self) -> u8 {
-        let u = self.ptr.read();
-        self.ptr = self.ptr.add(1);
-        u
+        self.read::<u8>()
     }
     pub unsafe fn read_u16(&mut self) -> u16 {
-        let ret = u16::from_ne_bytes([self.ptr.read(), self.ptr.add(1).read()]);
-        self.ptr = self.ptr.add(2);
-        ret
+        self.read::<u16>()
     }
 
     pub unsafe fn read_u32(&mut self) -> u32 {
-        let ret = u32::from_ne_bytes([
-            self.ptr.read(),
-            self.ptr.add(1).read(),
-            self.ptr.add(2).read(),
-            self.ptr.add(3).read(),
-        ]);
-        self.ptr = self.ptr.add(4);
-        ret
+        self.read::<u32>()
     }
 
     pub unsafe fn read_i8(&mut self) -> i8 {
-        let u = self.ptr.read();
-        self.ptr = self.ptr.add(1);
-        u as i8
+        self.read::<i8>()
     }
     pub unsafe fn read_i16(&mut self) -> i16 {
-        let ret = i16::from_ne_bytes([self.ptr.read(), self.ptr.add(1).read()]);
-        self.ptr = self.ptr.add(2);
-        ret
+        self.read::<i16>()
     }
 
     pub unsafe fn read_i32(&mut self) -> i32 {
-        let ret = i32::from_ne_bytes([
-            self.ptr.read(),
-            self.ptr.add(1).read(),
-            self.ptr.add(2).read(),
-            self.ptr.add(3).read(),
-        ]);
-        self.ptr = self.ptr.add(4);
-        ret
+        self.read::<i32>()
     }
 
     // The lifetime is static as it should be in the constant table
     pub unsafe fn read_value(&mut self) -> Value<'static> {
-        *self.constants.get_unchecked(self.read_u16() as usize)
+        let u = self.read_u16() as usize;
+        debug_assert!(u < self.constants.len());
+        *self.constants.get_unchecked(u)
     }
 
-    // The below functions are unsafe as they require the caller to give an offset
-    // in bounds
     pub unsafe fn jump(&mut self, offset: u16) {
-        self.ptr = self.ptr.add(offset as usize)
+        self.ptr = self.ptr.add(offset as usize);
+        debug_assert!(self.ptr < self.end);
     }
 
     pub unsafe fn back_jump(&mut self, offset: u16) {
-        self.ptr = self.ptr.sub(offset as usize)
+        self.ptr = self.ptr.sub(offset as usize);
+        debug_assert!(self.ptr >= self.start);
     }
 }

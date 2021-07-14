@@ -3,7 +3,7 @@ use std::{any::TypeId, borrow::Borrow, cell::Cell, hash::Hash, marker::PhantomDa
 
 use crate::value::Value;
 
-use self::stack::Stack;
+use self::stack::{BasePointer, Stack, StackOverflowError};
 mod stack;
 
 pub struct GCAllocator {
@@ -14,6 +14,7 @@ pub struct GCAllocator {
     symbol_table: SymbolTable,
     stack: Stack,
     globals: Vec<Cell<Value<'static>>>,
+    accumulator: Value<'static>,
 }
 
 impl Default for GCAllocator {
@@ -32,25 +33,27 @@ impl GCAllocator {
             symbol_table: SymbolTable::default(),
             stack: Stack::new(),
             globals: vec![],
+            accumulator: Value::null(),
         }
     }
-    /*
-        pub fn allocate<T: ObjectTrait>(&mut self, t: T) {
-            let o = self.allocate_internal(t);
-            self.stack
-                .push(Value::from_object(Object::from_header(unsafe {
-                    &mut *(o as *mut ObjectHeader)
-                })))
-        }
-    */
+
+    pub fn get_accum<'a>(&'a self) -> Value<'a> {
+        self.accumulator
+    }
+
+    pub fn set_accum<'a, 'b>(&'a mut self, v: Value<'b>) {
+        unsafe { self.accumulator = v.make_static() }
+    }
+
+    pub fn allocate<T: ObjectTrait>(&mut self, t: T) {
+        let o = self.allocate_internal(t);
+        self.set_accum(Value::from_object(Object::from_header(unsafe {
+            &mut *(o as *mut ObjectHeader)
+        })))
+    }
     fn collect(&mut self) {
         todo!()
     }
-    /*
-    pub fn print_stack(&self) {
-        dbg!(&self.stack);
-    }
-    */
 
     fn allocate_internal<T: ObjectTrait>(&mut self, t: T) -> *mut ObjectInner<T> {
         self.bytes_allocated += std::mem::size_of::<ObjectInner<T>>();
@@ -77,44 +80,27 @@ impl GCAllocator {
         self.constants.push(t.into());
         t
     }
-    pub fn get_bp(&self) -> *mut Value<'static> {
-        self.stack.bp.get()
+    pub fn get_bp(&self) -> BasePointer {
+        self.stack.get_bp()
     }
 
-    pub fn get_end(&self) -> *mut Value<'static> {
-        self.stack.end
+    pub unsafe fn set_bp(&self, bp: BasePointer) {
+        self.stack.set_bp(bp)
     }
 
-    // The caller must give a valid base pointer
-    pub unsafe fn set_bp(&self, bp: *mut Value<'static>) {
-        self.stack.bp.set(bp)
+    pub fn extend_bp(&self, by: u16) -> Result<(), StackOverflowError> {
+        self.stack.extend_bp(by)
     }
-    /*
-    pub unsafe fn set_sp(&self, sp: *mut Value<'static>) {
-        self.stack.sp.set(sp)
-    }
-
-    // Refer stack.rs for what the caller must do
-    pub unsafe fn pop_many(&self, amount: usize) {
-        self.stack.pop_many(amount)
-    }
-
-
-    // Refer stack.rs for what the caller must do
-    pub unsafe fn setup_fun_call(&self, arity: u8) {
-        self.stack.setup_fun_call(arity)
-    }
-    */
 
     // The lifetime is 'static as it is stored in the stack or the constants immediately
-    fn intern_internal(&mut self, s: &str) -> TypedObject<'static, AgSymbol> {
+    fn intern_internal(&mut self, s: &str) -> TypedObject<'static, Symbol> {
         match self.symbol_table.inner.get(s) {
             Some(e) => TypedObject {
                 inner: e.0.inner,
                 _marker: PhantomData,
             },
             None => TypedObject {
-                inner: self.allocate_internal(AgSymbol(AgString::from(s))),
+                inner: self.allocate_internal(Symbol(NString::from(s))),
                 _marker: PhantomData,
             },
         }
@@ -122,19 +108,19 @@ impl GCAllocator {
 
     pub fn string_constant(&mut self, s: &str) -> Value<'static> {
         if let Some(t) = self.constants.iter().find(|o| {
-            if let Some(ags) = o.cast::<AgString>() {
-                ags == s
+            if let Some(ns) = o.cast::<NString>() {
+                ns == s
             } else {
                 false
             }
         }) {
-            Value::from_object(t.as_typed_object::<AgString>().unwrap().into())
+            Value::from_object(t.as_typed_object::<NString>().unwrap().into())
         } else {
-            Value::from_object(self.make_constant(AgString::from(s)).into())
+            Value::from_object(self.make_constant(NString::from(s)).into())
         }
     }
 
-    pub fn intern_constant(&mut self, s: &str) -> TypedObject<'static, AgSymbol> {
+    pub fn intern_constant(&mut self, s: &str) -> TypedObject<'static, Symbol> {
         let sym = self.intern_internal(s);
         if !self.constants.iter().any(|o| *o == Object::from(sym)) {
             self.constants.push(sym.into());
@@ -161,32 +147,12 @@ impl GCAllocator {
             .set(v.make_static());
     }
 
-    pub unsafe fn push_global(&mut self) {
-        self.globals.push(Cell::new(Value::empty()));
+    pub unsafe fn getr<'a>(&'a self, index: u8) -> Value<'a> {
+        self.stack.getr(index)
     }
-    /*
-        // Refer stack.rs for what the caller must do
-        pub unsafe fn pop<'a>(&'a self) -> Value<'a> {
-            self.stack.pop()
-        }
 
-        // Refer stack.rs for what the caller must do
-        pub fn push<'a, 'b>(&'a self, v: Value<'b>) {
-            unsafe { self.stack.push(v.make_static()) }
-        }
-    */
-    //For the below functions valid index must be passed for it to be safe
-    
-    pub unsafe fn get_local<'a>(&'a self, index: u8) -> Value<'a> {
-        self.stack.get_local(index)
-    }
-    /*
-    pub unsafe fn get_fun<'a>(&'a self, arity: u8) -> Value<'a> {
-        self.stack.get_fun(arity)
-    }
-    */
-    pub unsafe fn set_local<'a, 'b>(&'a self, index: u8, v: Value<'b>) {
-        self.stack.set_local(index, v.make_static());
+    pub unsafe fn setr<'a, 'b>(&'a self, index: u8, v: Value<'b>) {
+        self.stack.setr(index, v.make_static());
     }
 }
 
@@ -297,13 +263,13 @@ impl<'a, T: ObjectTrait> TypedObject<'a, T> {
     }
 }
 
-pub type AgString = smartstring::SmartString<smartstring::LazyCompact>;
+pub type NString = smartstring::SmartString<smartstring::LazyCompact>;
 
-unsafe impl ObjectTrait for AgString {}
+unsafe impl ObjectTrait for NString {}
 
-pub struct AgSymbol(AgString);
+pub struct Symbol(NString);
 
-unsafe impl ObjectTrait for AgSymbol {}
+unsafe impl ObjectTrait for Symbol {}
 
 #[derive(Default)]
 struct SymbolTable {
@@ -311,7 +277,7 @@ struct SymbolTable {
 }
 
 #[derive(Clone, Copy)]
-struct SymbolTableEntry(TypedObject<'static, AgSymbol>);
+struct SymbolTableEntry(TypedObject<'static, Symbol>);
 
 impl Hash for SymbolTableEntry {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
