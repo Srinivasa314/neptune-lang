@@ -1,3 +1,4 @@
+use crate::gc::BasePointer;
 use crate::{
     bytecode::{BytecodeReader, Op},
     gc::{self, GCAllocator},
@@ -10,13 +11,15 @@ struct VM {
 }
 
 impl VM {
-    pub fn run(&mut self){todo!()}
+    pub fn run(&mut self) {
+        todo!()
+    }
 }
 
 pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String> {
     let mut accumulator = Value::empty();
     let mut frames = Vec::with_capacity(1024);
-    let frames: *mut (BytecodeReader, *mut Value<'static>) = frames.as_mut_ptr();
+    let frames: *mut (BytecodeReader, BasePointer) = frames.as_mut_ptr();
     let mut curr_frame = frames;
     let frames_end = frames.add(1024);
     let mut no_registers = function.no_registers;
@@ -126,10 +129,9 @@ pub unsafe fn run(gc: gc::GCAllocator, function: Function) -> Result<(), String>
                         Some(fun) => {
                             if 1 == fun.arity {
                                 curr_frame.write((bytecode, gc.get_bp()));
-                                gc.set_bp(gc.get_bp().add(no_registers as usize));
                                 no_registers = fun.no_registers;
                                 curr_frame = curr_frame.add(1);
-                                if gc.get_bp().add(no_registers as usize) > gc.get_end()
+                                if gc.extend_bp(1, no_registers as u16).is_err()
                                     || curr_frame > frames_end
                                 {
                                     return Err("overflow".to_string());

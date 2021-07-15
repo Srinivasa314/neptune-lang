@@ -94,7 +94,7 @@ impl BytecodeWriter {
 
 pub struct ArithmeticError;
 #[derive(Clone, Copy, Debug)]
-enum Int {
+pub enum Int {
     I8(i8),
     I16(i16),
     I32(i32),
@@ -166,7 +166,7 @@ impl From<Int> for f64 {
     }
 }
 #[derive(Debug)]
-enum ExprResult {
+pub enum ExprResult {
     Register(u16),
     Accumulator,
     Int(Int),
@@ -397,7 +397,7 @@ macro_rules! binary_op_non_commutative {
     };
 }
 impl BytecodeWriter {
-    fn evaluate(&mut self, expr: &Expr) -> Result<ExprResult, BytecodeWriterError> {
+    pub fn evaluate(&mut self, expr: &Expr) -> Result<ExprResult, BytecodeWriterError> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(Int::from(*i))),

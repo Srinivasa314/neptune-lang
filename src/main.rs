@@ -83,7 +83,7 @@ fn main() {
     println!("{:#?}", ast);
     let mut writer = BytecodeWriter::new();
     dbg!(writer.evaluate(&ast.unwrap()));
-    writer.write_op(Op::Exit);
+    writer.write_op(Op::Exit, 2);
     let bytecode = writer.bytecode();
     println!("{:?}", bytecode);
     unsafe {

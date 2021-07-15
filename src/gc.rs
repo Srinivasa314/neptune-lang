@@ -3,7 +3,8 @@ use std::{any::TypeId, borrow::Borrow, cell::Cell, hash::Hash, marker::PhantomDa
 
 use crate::value::Value;
 
-use self::stack::{BasePointer, Stack, StackOverflowError};
+pub use self::stack::BasePointer;
+use self::stack::{Stack, StackOverflowError};
 mod stack;
 
 pub struct GCAllocator {
@@ -88,8 +89,8 @@ impl GCAllocator {
         self.stack.set_bp(bp)
     }
 
-    pub fn extend_bp(&self, by: u16) -> Result<(), StackOverflowError> {
-        self.stack.extend_bp(by)
+    pub fn extend_bp(&self, by: u16, reg_count: u16) -> Result<(), StackOverflowError> {
+        self.stack.extend_bp(by, reg_count)
     }
 
     // The lifetime is 'static as it is stored in the stack or the constants immediately
