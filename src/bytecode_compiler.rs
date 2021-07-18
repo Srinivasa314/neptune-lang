@@ -440,6 +440,7 @@ impl BytecodeWriter {
                 self.locals.push(Local {
                     name: name.to_string(),
                 });
+                self.push_register();
                 match self.evaluate_expr(expr)? {
                     ExprResult::Register(reg2) => self.write_op_move(reg, reg2, *line),
                     ExprResult::Accumulator => self.write_op_store_register(reg, *line),
