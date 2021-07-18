@@ -37,6 +37,10 @@ pub enum TokenType {
     GreaterEqual,
     Less,
     LessEqual,
+    PlusEqual,
+    MinusEqual,
+    StarEqual,
+    SlashEqual,
     // Literals.
     Identifier,
     String(String),
@@ -64,9 +68,9 @@ pub enum TokenType {
     Let,
     While,
     Const,
+    Final,
     //Other types
-    BeginString,
-    EndString,
+    Interpolation(String, u8), // It stores
     Error(String),
     Eof,
 }
@@ -94,6 +98,7 @@ fn get_keyword(s: &str) -> Option<TokenType> {
         "let" => Some(TokenType::Let),
         "while" => Some(TokenType::While),
         "const" => Some(TokenType::Const),
+        "final" => Some(TokenType::Final),
         _ => None,
     }
 }
@@ -106,7 +111,7 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn dummy_token() -> Token<'static> {
+    pub fn uninit_token() -> Token<'static> {
         Token {
             token_type: TokenType::Eof,
             inner: "",
@@ -166,6 +171,10 @@ impl<'a> Scanner<'a> {
             b')' => {
                 self.add_token(TokenType::RightParen);
                 self.brackets.pop();
+                if let Some(TokenType::Interpolation(s, u)) = self.brackets.last().cloned() {
+                    self.brackets.pop();
+                    self.string(u);
+                }
             }
             b'[' => {
                 self.add_token(TokenType::LeftSquareBracket);
@@ -185,17 +194,20 @@ impl<'a> Scanner<'a> {
             }
             b',' => self.add_token(TokenType::Comma),
             b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
-            b'-' => self.add_token(TokenType::Minus),
-            b'+' => self.add_token(TokenType::Plus),
+            b'-' => self.add_token_if_match(b'=', TokenType::MinusEqual, TokenType::Minus),
+            b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),
-            b'*' => self.add_token(TokenType::Star),
+            b'*' => self.add_token_if_match(b'=', TokenType::StarEqual, TokenType::Star),
             b'!' => self.add_token_if_match(b'=', TokenType::BangEqual, TokenType::Bang),
             b'=' => self.add_token_if_match(b'=', TokenType::EqualEqual, TokenType::Equal),
             b'>' => self.add_token_if_match(b'=', TokenType::GreaterEqual, TokenType::Greater),
             b'<' => self.add_token_if_match(b'=', TokenType::LessEqual, TokenType::Less),
             b'/' => {
+                if self.match_char(b'=') {
+                    self.add_token(TokenType::SlashEqual);
+                }
                 //Single line comment
-                if self.match_char(b'/') {
+                else if self.match_char(b'/') {
                     while self.peek() != Some(b'\n') && self.peek() != None {
                         self.advance();
                     }
@@ -252,7 +264,7 @@ impl<'a> Scanner<'a> {
                             | TokenType::Super
                             | TokenType::This
                             | TokenType::True
-                            | TokenType::EndString
+                            | TokenType::String(_)
                             | TokenType::Symbol(_)
                             | TokenType::Break
                             | TokenType::Continue => {
@@ -294,15 +306,10 @@ impl<'a> Scanner<'a> {
 
     fn string(&mut self, delim: u8) {
         /*
-        It adds BeginString and initialises a vector storing the bytes of the current string token to be added.
-        For each byte it adds it to the vector except
-        '\(' => It adds a string token for the bytes in the vector and clears it
-        then adds BeginInterpolation and tracks until ( and ) are balanced and recursively calls the scanner
-        to tokenize the tokens in between ( and ) and then adds EndInterpolation
-        '\' => It looks at the next character and then adds the required byte to the vector
-        At the end it adds a string token for the remaining bytes and adds EndString
+        Strings can have normal characters or \n,\t,\r,\0,\',\",\\,\u{unicode excape sequence} and interpolation.
+        For Example, the string "abc\(d)efg\(h)ij"  will generate 
+        Interpolation(abc) LeftParen Identifier(d) RightParen Interpolation(efg) LeftParen Identifier(h) RightParen String(ij)
         */
-        self.add_token(TokenType::BeginString);
         self.start += 1;
         let mut s: Vec<u8> = vec![];
         while self.peek() != Some(delim) && self.peek() != None {
@@ -314,37 +321,11 @@ impl<'a> Scanner<'a> {
             //Interpolation
             else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'(') {
                 let str = String::from_utf8(s).unwrap();
-                if !str.is_empty() {
-                    self.add_token(TokenType::String(str));
-                }
-                s = vec![];
-                self.advance(); //Consume \
-                let scanner;
-                let inner_len;
-                match balance_brackets(&self.source[self.current..]) {
-                    Some(s) => {
-                        scanner = {
-                            inner_len = s.len();
-                            Scanner::new(s)
-                        }
-                    }
-                    None => {
-                        scanner = {
-                            inner_len = self.source.len() - self.current;
-                            Scanner::new(&self.source[self.current..])
-                        }
-                    }
-                }
-                // Patch line numbers of tokens and errors generated by the nested scanner as the nested scanner
-                // starts from line number 1
-                let mut tokens = scanner.scan_tokens();
-                for token in &mut tokens {
-                    token.line = self.line + token.line - 1;
-                }
-                self.line = tokens.pop().unwrap().line;
-                self.tokens.append(&mut tokens);
-                self.current += inner_len;
-                self.start = self.current;
+                let tok = TokenType::Interpolation(str, delim);
+                self.brackets.push(tok.clone());
+                self.add_token(tok);
+                self.advance();
+                return;
             } else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'u') {
                 self.advance();
                 self.advance();
@@ -415,13 +396,10 @@ impl<'a> Scanner<'a> {
             }
         }
         let str = String::from_utf8(s).unwrap();
-        if !str.is_empty() {
-            self.add_token(TokenType::String(str));
-        }
+        self.add_token(TokenType::String(str));
         if self.peek() != None {
             self.start = self.current;
             self.advance();
-            self.add_token(TokenType::EndString);
         }
     }
 
@@ -675,58 +653,78 @@ fn isalnum(c: u8) -> bool {
     isalpha(c) || isdigit(c)
 }
 
-/* Returns a substring starting from the beginning of the string such that all brackets are balanced
-   If brackets cannot be balanced then None is returned. Can be used for REPL, parsing string interpolation,etc.
-*/
-pub fn balance_brackets(s: &str) -> Option<&str> {
-    let mut depth = 0;
+// Checks whether brackets are balanced
+pub fn are_brackets_balanced(s: &str) -> bool {
+    fn string(
+        index: &mut usize,
+        s: &str,
+        delim: u8,
+        depths: &mut Vec<u32>,
+        delims: &mut Vec<u8>,
+    ) -> bool {
+        *index += 1; //Consume start of string
+        while *index < s.len() {
+            match s.as_bytes()[*index] {
+                b'\\' => {
+                    // is \ the last character
+                    if *index + 1 >= s.len() {
+                        return false;
+                    } else {
+                        *index += 1;
+                        if s.as_bytes()[*index] == b'(' {
+                            *index -= 1;
+                            depths.push(0);
+                            break;
+                        }
+                    }
+                }
+                x if x == delim => {
+                    delims.pop();
+                    break;
+                } //Break;Do not consume end of string as index+=1 is done below
+                _ => {}
+            }
+            *index += 1
+        }
+        *index != s.len()
+    }
+
+    let mut depths = vec![0u32];
+    let mut delims = vec![];
     let mut index = 0;
     while index < s.len() {
         match s.as_bytes()[index] {
-            b'(' => depth += 1,
-            b')' => depth -= 1,
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
-            b'[' => depth += 1,
-            b']' => depth -= 1,
-            c @ b'"' | c @ b'\'' => {
-                index += 1; //Consume start of string
-                while index < s.len() {
-                    match s.as_bytes()[index] {
-                        b'\\' => {
-                            // is \ the last character
-                            if index + 1 >= s.len() {
-                                return None;
-                            } else {
-                                index += 1;
-                                if s.as_bytes()[index] == b'(' {
-                                    //balance brackets within the interpolation
-                                    match balance_brackets(&s[index..]) {
-                                        None => return None,
-                                        Some(sub) => index += sub.len() - 1, //make the index at )
-                                    }
-                                }
-                            }
-                        }
-                        x if x == c => break, //Break;Do not consume end of string as index+=1 is done below
-                        _ => {}
+            b'(' => *depths.last_mut().unwrap() += 1,
+            b')' => {
+                *depths.last_mut().unwrap() -= 1;
+                if *depths.last().unwrap() == 0 && depths.len() > 1 {
+                    depths.pop();
+                    if !string(
+                        &mut index,
+                        s,
+                        *delims.last().unwrap(),
+                        &mut depths,
+                        &mut &mut delims,
+                    ) {
+                        return false;
                     }
-                    index += 1
                 }
-                //Are we at end
-                if index == s.len() {
-                    return None;
+            }
+            b'{' => *depths.last_mut().unwrap() += 1,
+            b'}' => *depths.last_mut().unwrap() -= 1,
+            b'[' => *depths.last_mut().unwrap() += 1,
+            b']' => *depths.last_mut().unwrap() -= 1,
+            c @ b'"' | c @ b'\'' => {
+                delims.push(c);
+                if !string(&mut index, s, c, &mut depths, &mut delims) {
+                    return false;
                 }
             }
             _ => {}
         }
-        if depth == 0 {
-            return Some(&s[..index + 1]);
-        }
         index += 1;
     }
-    //Depth isnt zero
-    None
+    depths.len() == 1 && depths[0] == 0
 }
 
 #[cfg(test)]
@@ -807,6 +805,16 @@ mod tests {
                     .iter()
                     .any(|t| matches!(t.token_type, TokenType::Error(_))))
             }
+        }
+    }
+
+    #[test]
+    fn test_brackets_balanced() {
+        for s in ["'\"", "(", "'\\({)'", "'\\", "'abc", "'\\u"] {
+            assert!(!are_brackets_balanced(s), "{}", s)
+        }
+        for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'"] {
+            assert!(are_brackets_balanced(s), "{}", s)
         }
     }
 }

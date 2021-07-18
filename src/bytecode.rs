@@ -42,30 +42,22 @@ pub enum Op {
 
 #[derive(Default)]
 pub struct Bytecode {
-    pub inner: Vec<u8>,
-    pub constants: Vec<Value<'static>>,
-    pub lines: Vec<u32>,
+    code: Vec<u8>,
+    constants: Vec<Value<'static>>,
+    lines: Vec<LineStart>,
+}
+
+struct LineStart {
+    offset: u32,
+    line: u32,
 }
 
 pub struct ExceededMaxConstants;
-pub struct BytecodeMaxSizeExceeded;
-
-pub enum ConstantInsertionError {
-    ExceededMaxConstants,
-    BytecodeMaxSizeExceeded,
-}
-
-impl From<BytecodeMaxSizeExceeded> for ConstantInsertionError {
-    fn from(_: BytecodeMaxSizeExceeded) -> Self {
-        Self::BytecodeMaxSizeExceeded
-    }
-}
 
 pub struct BytecodeWriter {
     b: Bytecode,
     op_positions: Vec<usize>,
     regcount: u16,
-    line: u32,
 }
 
 impl Default for BytecodeWriter {
@@ -80,7 +72,6 @@ impl BytecodeWriter {
             b: Bytecode::default(),
             op_positions: vec![],
             regcount: 0,
-            line: 0,
         }
     }
 
@@ -98,65 +89,73 @@ impl BytecodeWriter {
     }
 
     pub fn pop_last_op(&mut self) {
-        self.op_positions.pop();
-        self.b.inner.resize(*self.op_positions.last().unwrap(), 0);
+        let pos = self.op_positions.pop().unwrap();
+        self.b.code.resize(*self.op_positions.last().unwrap(), 0);
+        if let Some(LineStart { offset, .. }) = self.b.lines.last() {
+            if pos == *offset as usize {
+                self.b.lines.pop();
+            }
+        }
     }
 
-    pub fn write_op(&mut self, op: Op, line: u32) -> Result<(), BytecodeMaxSizeExceeded> {
-        self.op_positions.push(self.b.inner.len());
-        self.line = line;
+    pub fn write_op(&mut self, op: Op, line: u32) {
+        self.op_positions.push(self.b.code.len());
+        if let Some(LineStart {
+            line: last_line, ..
+        }) = self.b.lines.last()
+        {
+            if line == *last_line {
+                self.b.lines.push(LineStart {
+                    line,
+                    offset: self.b.code.len() as u32,
+                })
+            }
+        } else {
+            self.b.lines.push(LineStart {
+                line,
+                offset: self.b.code.len() as u32,
+            })
+        }
         self.write_u8(op as u8)
     }
-    pub fn write_u8(&mut self, u: u8) -> Result<(), BytecodeMaxSizeExceeded> {
-        if self.b.inner.len() == (1 << 16) {
-            Err(BytecodeMaxSizeExceeded)
-        } else {
-            self.b.inner.push(u);
-            self.b.lines.push(self.line);
-            Ok(())
-        }
+
+    pub fn write_u8(&mut self, u: u8) {
+        self.b.code.push(u);
     }
 
-    pub fn write_u16(&mut self, u: u16) -> Result<(), BytecodeMaxSizeExceeded> {
+    pub fn write_u16(&mut self, u: u16) {
         for byte in u.to_ne_bytes() {
-            self.write_u8(byte)?
+            self.write_u8(byte)
         }
-        Ok(())
     }
 
-    pub fn write_u32(&mut self, u: u32) -> Result<(), BytecodeMaxSizeExceeded> {
+    pub fn write_u32(&mut self, u: u32) {
         for byte in u.to_ne_bytes() {
-            self.write_u8(byte)?
-        }
-        Ok(())
-    }
-
-    pub fn write_i8(&mut self, i: i8) -> Result<(), BytecodeMaxSizeExceeded> {
-        if self.b.inner.len() == (1 << 16) {
-            Err(BytecodeMaxSizeExceeded)
-        } else {
-            self.b.inner.push(i as u8);
-            Ok(())
+            self.write_u8(byte)
         }
     }
 
-    pub fn write_i16(&mut self, i: i16) -> Result<(), BytecodeMaxSizeExceeded> {
+    pub fn write_i8(&mut self, i: i8) {
         for byte in i.to_ne_bytes() {
-            self.write_u8(byte)?
+            self.write_u8(byte)
         }
-        Ok(())
     }
 
-    pub fn write_i32(&mut self, i: i32) -> Result<(), BytecodeMaxSizeExceeded> {
+    pub fn write_i16(&mut self, i: i16) {
         for byte in i.to_ne_bytes() {
-            self.write_u8(byte)?
+            self.write_u8(byte)
         }
-        Ok(())
     }
 
-    pub fn patch_jump(&mut self, bytecode_index: u16, offset: u16) {
-        self.b.inner[bytecode_index as usize] = offset as u8;
-        self.b.inner[(bytecode_index + 1) as usize] = (offset >> 8) as u8;
+    pub fn write_i32(&mut self, i: i32) {
+        for byte in i.to_ne_bytes() {
+            self.write_u8(byte)
+        }
+    }
+
+    pub fn patch_jump(&mut self, bytecode_index: usize, offset: u16) {
+        self.b.code[bytecode_index] = offset as u8;
+        self.b.code[(bytecode_index + 1)] = (offset >> 8) as u8;
     }
 
     // The lifetime is static as it should be in the constant table
@@ -164,29 +163,29 @@ impl BytecodeWriter {
         &mut self,
         v: Value<'static>,
         line: u32,
-    ) -> Result<(), ConstantInsertionError> {
-        self.write_op(Op::LoadConstant, line)?;
+    ) -> Result<(), ExceededMaxConstants> {
+        self.write_op(Op::LoadConstant, line);
         for (i, constant) in self.b.constants.iter().enumerate() {
             if constant.strict_eq(v) {
-                self.write_u16(i as u16)?;
+                self.write_u16(i as u16);
                 return Ok(());
             }
         }
         if self.b.constants.len() == 1 << 16 {
-            Err(ConstantInsertionError::ExceededMaxConstants)
+            Err(ExceededMaxConstants)
         } else {
             self.b.constants.push(v);
-            self.write_u16((self.b.constants.len() - 1) as u16)?;
+            self.write_u16((self.b.constants.len() - 1) as u16);
             Ok(())
         }
     }
 
-    pub fn get_jmp_index(&self) -> Option<u16> {
-        self.op_positions.last().cloned().map(|lo| (lo + 1) as u16)
+    pub fn get_jmp_index(&self) -> Option<usize> {
+        self.op_positions.last().cloned().map(|lo| (lo + 1))
     }
 
     pub fn bytecode(mut self) -> Bytecode {
-        self.b.inner.shrink_to_fit();
+        self.b.code.shrink_to_fit();
         self.b.constants.shrink_to_fit();
         self.b.lines.shrink_to_fit();
         self.b
@@ -199,14 +198,22 @@ pub struct BytecodeReader<'a> {
     start: *const u8,
     end: *const u8,
     constants: &'a [Value<'static>],
+    lines: &'a [LineStart],
     _marker: PhantomData<&'a [u8]>,
 }
 
 impl fmt::Debug for Bytecode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut reader = BytecodeReader::new(self);
+        let mut lines_index = 0;
         unsafe {
             Ok(while !reader.is_at_end() {
+                if reader.offset() == reader.lines[lines_index].offset as usize {
+                    write!(f, "line {}: ", reader.lines[lines_index].line);
+                    if lines_index != reader.lines.len() - 1 {
+                        lines_index += 1
+                    };
+                }
                 write!(f, "{}: ", reader.offset())?;
                 match reader.read_op() {
                     Op::LoadInt => {
@@ -268,7 +275,7 @@ impl fmt::Debug for Bytecode {
                             f,
                             "Jump {} (to {})",
                             offset,
-                            reader.offset() + (offset as isize)
+                            reader.offset() + (offset as usize)
                         )?;
                     }
                     Op::JumpBack => {
@@ -277,7 +284,7 @@ impl fmt::Debug for Bytecode {
                             f,
                             "JumpBack {} (to {})",
                             offset,
-                            reader.offset() - (offset as isize)
+                            reader.offset() - (offset as usize)
                         )?;
                     }
                     Op::JumpIfFalse => {
@@ -286,7 +293,7 @@ impl fmt::Debug for Bytecode {
                             f,
                             "JumpIfFalse {} (to {})",
                             offset,
-                            reader.offset() + (offset as isize)
+                            reader.offset() + (offset as usize)
                         )?;
                     }
                     Op::Call1Argument => {
@@ -327,11 +334,12 @@ impl fmt::Debug for Bytecode {
 impl<'a> BytecodeReader<'a> {
     pub fn new(bytecode: &'a Bytecode) -> BytecodeReader<'a> {
         BytecodeReader {
-            ptr: bytecode.inner.as_ptr(),
+            ptr: bytecode.code.as_ptr(),
             constants: bytecode.constants.as_ref(),
             _marker: PhantomData,
-            start: bytecode.inner.as_ptr(),
-            end: unsafe { bytecode.inner.as_ptr().add(bytecode.inner.len()) },
+            start: bytecode.code.as_ptr(),
+            lines: bytecode.lines.as_ref(),
+            end: unsafe { bytecode.code.as_ptr().add(bytecode.code.len()) },
         }
     }
 
@@ -340,17 +348,14 @@ impl<'a> BytecodeReader<'a> {
     }
 
     pub unsafe fn read<T>(&mut self) -> T {
-        debug_assert!(
-            self.ptr >= self.start
-                && self.ptr as usize + std::mem::size_of::<T>() <= self.end as usize
-        );
+        debug_assert!(self.ptr >= self.start && self.ptr.add(std::mem::size_of::<T>()) <= self.end);
         let ret = self.ptr.cast::<T>().read_unaligned();
         self.ptr = self.ptr.add(std::mem::size_of::<T>());
         ret
     }
 
-    pub fn offset(&self) -> isize {
-        unsafe { self.ptr.offset_from(self.start) }
+    pub fn offset(&self) -> usize {
+        unsafe { self.ptr.offset_from(self.start) as usize }
     }
 
     pub unsafe fn read_op(&mut self) -> Op {

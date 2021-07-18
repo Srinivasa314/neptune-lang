@@ -84,11 +84,15 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::True => Precedence::None,
         TokenType::Let => Precedence::None,
         TokenType::Const => Precedence::None,
+        TokenType::Final => Precedence::None,
         TokenType::While => Precedence::None,
-        TokenType::BeginString => Precedence::None,
-        TokenType::EndString => Precedence::None,
+        TokenType::Interpolation(_, _) => Precedence::None,
         TokenType::Eof => Precedence::None,
         TokenType::Error(_) => Precedence::None,
+        TokenType::PlusEqual => Precedence::Assignment,
+        TokenType::MinusEqual => Precedence::Assignment,
+        TokenType::StarEqual => Precedence::Assignment,
+        TokenType::SlashEqual => Precedence::Assignment,
     }
 }
 
@@ -109,39 +113,47 @@ pub enum Expr {
         inner: TokenType,
         line: u32,
     },
+    Variable {
+        name: String,
+        line: u32,
+    },
+}
+
+pub enum Statement {
+    Expr(Expr),
+    VarDeclaration {
+        name: String,
+        mutability: Mutability,
+        expr: Expr,
+        line: u32,
+    },
+}
+
+pub enum Mutability {
+    Immutable,
+    Mutable,
+    Const,
 }
 
 impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
     pub fn new(tokens: Tokens) -> Self {
         Self {
             tokens,
-            current: Token::dummy_token(),
-            previous: Token::dummy_token(),
+            current: Token::uninit_token(),
+            previous: Token::uninit_token(),
             errors: vec![],
         }
     }
 
-    pub fn exp_eof(&mut self) -> ParseResult<Expr> {
-        let e = self.expression()?;
-        self.consume(TokenType::Eof, "Expect end of expression".into())?;
-        Ok(e)
-    }
-
-    pub fn parse(mut self) -> Result<Expr, Vec<CompileError>> {
+    pub fn parse(mut self) -> (Vec<Statement>, Vec<CompileError>) {
         self.advance();
-        match self.exp_eof() {
-            Ok(exp) => {
-                if self.errors.is_empty() {
-                    Ok(exp)
-                } else {
-                    Err(self.errors)
-                }
-            }
-            Err(e) => {
-                self.errors.push(e);
-                Err(self.errors)
+        let mut statements = vec![];
+        while self.current.token_type != TokenType::Eof {
+            if let Some(stmt)=self.declaration(true){
+            statements.push(stmt);
             }
         }
+        (statements, self.errors)
     }
 
     fn advance(&mut self) {
@@ -158,7 +170,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
                     break;
                 }
                 None => {
-                    self.current = Token::dummy_token();
+                    self.current = Token::uninit_token();
                     break;
                 }
             }
@@ -198,15 +210,25 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
+    fn match_token(&mut self, ttype: TokenType) -> bool {
+        if self.current.token_type == ttype {
+            false
+        } else {
+            self.advance();
+            true
+        }
+    }
+
     fn parse_precedence(&mut self, prec: Precedence) -> ParseResult<Expr> {
         self.advance();
         if let Some(mut expr) = self.prefix(self.previous.token_type.clone()) {
+            let mut expr = expr?;
             while prec as u8 <= get_precedence(&self.current.token_type) as u8 {
                 self.advance();
                 let op = self.previous.token_type.clone();
-                expr = self.infix(op, Box::new(expr?));
+                expr = self.infix(op, Box::new(expr))?;
             }
-            expr
+            Ok(expr)
         } else {
             Err(self.error_at_previous("Expect expression".into()))
         }
@@ -238,8 +260,8 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::GreaterEqual => None,
             TokenType::Less => None,
             TokenType::LessEqual => None,
-            TokenType::Identifier => Some(todo!()),
-            TokenType::String(_) => None,
+            TokenType::Identifier => Some(self.variable()),
+            TokenType::String(_) => Some(todo!()),
             TokenType::IntLiteral(_) => Some(self.literal()),
             TokenType::FloatLiteral(_) => Some(self.literal()),
             TokenType::Symbol(_) => Some(self.literal()),
@@ -262,11 +284,15 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::True => Some(self.literal()),
             TokenType::Let => None,
             TokenType::Const => None,
+            TokenType::Final => None,
             TokenType::While => None,
-            TokenType::BeginString => Some(todo!()),
-            TokenType::EndString => None,
+            TokenType::Interpolation(_, _) => Some(todo!()),
             TokenType::Eof => None,
             TokenType::Error(_) => None,
+            TokenType::PlusEqual => None,
+            TokenType::MinusEqual => None,
+            TokenType::StarEqual => None,
+            TokenType::SlashEqual => None,
         }
     }
 
@@ -290,7 +316,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::DotDot => todo!(),
             TokenType::Bang => unreachable!(),
             TokenType::BangEqual => self.binary(left),
-            TokenType::Equal => todo!(),
+            TokenType::Equal => self.binary(left),
             TokenType::EqualEqual => self.binary(left),
             TokenType::Greater => self.binary(left),
             TokenType::GreaterEqual => self.binary(left),
@@ -320,11 +346,15 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::True => unreachable!(),
             TokenType::Let => unreachable!(),
             TokenType::Const => unreachable!(),
+            TokenType::Final => unreachable!(),
             TokenType::While => unreachable!(),
-            TokenType::BeginString => unreachable!(),
-            TokenType::EndString => unreachable!(),
+            TokenType::Interpolation(_, _) => unreachable!(),
             TokenType::Eof => unreachable!(),
             TokenType::Error(_) => unreachable!(),
+            TokenType::PlusEqual => self.binary(left),
+            TokenType::MinusEqual => self.binary(left),
+            TokenType::StarEqual => self.binary(left),
+            TokenType::SlashEqual => self.binary(left),
         }
     }
 
@@ -364,5 +394,109 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             inner: self.previous.token_type.clone(),
             line: self.line(),
         })
+    }
+
+    fn synchronize(&mut self) {
+        while self.current.token_type != TokenType::Eof {
+            if self.previous.token_type == TokenType::StatementSeparator {
+                return;
+            };
+            match self.current.token_type {
+                // todo add more tokens
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Let
+                | TokenType::Const
+                | TokenType::Final
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Return => return,
+                _ => {}
+            }
+
+            self.advance();
+        }
+    }
+    fn expression_statement(&mut self) -> ParseResult<Statement> {
+        let e = self.expression()?;
+        Ok(Statement::Expr(e))
+    }
+
+    fn declaration(&mut self, needs_sep: bool) -> Option<Statement> {
+        match (|| {
+            let e = if self.match_token(TokenType::Let) {
+                self.var_declaration(Mutability::Mutable)
+            } else if self.match_token(TokenType::Final) {
+                self.var_declaration(Mutability::Immutable)
+            } else if self.match_token(TokenType::Const) {
+                self.var_declaration(Mutability::Const)
+            } else if self.match_token(TokenType::LeftBrace) {
+                self.var_declaration(Mutability::Immutable)
+            } else {
+                self.expression_statement()
+            }?;
+            if needs_sep {
+                self.consume(
+                    TokenType::StatementSeparator,
+                    "Expect newline or semicolon".into(),
+                )?;
+            }
+            Ok(e)
+        })() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                self.errors.push(e);
+                self.synchronize();
+                None
+            }
+        }
+    }
+
+    fn var_declaration(&mut self, mutability: Mutability) -> ParseResult<Statement> {
+        if TokenType::Identifier == self.current.token_type {
+            self.advance();
+            let name = self.previous.inner.into();
+            let line = self.previous.line;
+            self.consume(TokenType::Equal, "Variable must be initialized".into())?;
+            let expr = self.expression()?;
+            Ok(Statement::VarDeclaration {
+                name,
+                expr,
+                mutability,
+                line,
+            })
+        } else {
+            Err(self.error_at_current("Expect identifier".into()))
+        }
+    }
+
+    fn variable(&mut self) -> ParseResult<Expr> {
+        Ok(Expr::Variable {
+            name: self.previous.inner.into(),
+            line: self.previous.line,
+        })
+    }
+
+    fn block(&mut self) -> ParseResult<Vec<Statement>> {
+        let mut statements = vec![];
+        self.consume(TokenType::LeftBrace, "Expect { to begin block".into())?;
+        loop {
+            if let Some(stmt) = self.declaration(false) {
+                statements.push(stmt);
+            }
+            if self.match_token(TokenType::RightBrace) {
+                break;
+            } else if self.match_token(TokenType::StatementSeparator) {
+                if self.match_token(TokenType::RightBrace) {
+                    break;
+                }
+            } else {
+                return Err(self.error_at_current(
+                    "Expect newline or semicolon or right brace after statement in block".into(),
+                ));
+            }
+        }
+        Ok(statements)
     }
 }

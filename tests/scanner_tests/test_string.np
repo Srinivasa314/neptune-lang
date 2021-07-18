@@ -1,10 +1,13 @@
+''
 'Hello\u{1F496}'
 'q"'
 '\"'
 '\''
 "\""
 "\(name)"
-"Hello\(name)"
+"Hello \(name)"
+"\(name) Hello"
+"Hello \(name)!"
 "Hello\("\()")"
 "Hello \(
     fun(a,b)a+b

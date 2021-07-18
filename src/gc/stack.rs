@@ -35,11 +35,11 @@ impl Stack {
         BasePointer(self.bp)
     }
 
-    pub unsafe fn set_bp(&self, bp: BasePointer) {
+    pub unsafe fn set_bp(&mut self, bp: BasePointer) {
         self.bp = bp.0;
     }
 
-    pub fn extend_bp(&self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
+    pub fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
         let p = self.bp as usize + by as usize;
         if p + regcount as usize > self.end as usize {
             Err(StackOverflowError)

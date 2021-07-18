@@ -3,7 +3,8 @@ use std::{any::TypeId, borrow::Borrow, cell::Cell, hash::Hash, marker::PhantomDa
 
 use crate::value::Value;
 
-use self::stack::{BasePointer, Stack, StackOverflowError};
+use self::stack::Stack;
+pub use self::stack::{BasePointer, StackOverflowError};
 mod stack;
 
 pub struct GCAllocator {
@@ -14,7 +15,7 @@ pub struct GCAllocator {
     symbol_table: SymbolTable,
     stack: Stack,
     globals: Vec<Cell<Value<'static>>>,
-    accumulator: Value<'static>,
+    accumulator: Cell<Value<'static>>,
 }
 
 impl Default for GCAllocator {
@@ -33,16 +34,16 @@ impl GCAllocator {
             symbol_table: SymbolTable::default(),
             stack: Stack::new(),
             globals: vec![],
-            accumulator: Value::null(),
+            accumulator: Cell::new(Value::null()),
         }
     }
 
     pub fn get_accum<'a>(&'a self) -> Value<'a> {
-        self.accumulator
+        self.accumulator.get()
     }
 
-    pub fn set_accum<'a, 'b>(&'a mut self, v: Value<'b>) {
-        unsafe { self.accumulator = v.make_static() }
+    pub fn set_accum<'a, 'b>(&'a self, v: Value<'b>) {
+        unsafe { self.accumulator.set(v.make_static()) }
     }
 
     pub fn allocate<T: ObjectTrait>(&mut self, t: T) {
@@ -84,12 +85,12 @@ impl GCAllocator {
         self.stack.get_bp()
     }
 
-    pub unsafe fn set_bp(&self, bp: BasePointer) {
+    pub unsafe fn set_bp(&mut self, bp: BasePointer) {
         self.stack.set_bp(bp)
     }
 
-    pub fn extend_bp(&self, by: u16) -> Result<(), StackOverflowError> {
-        self.stack.extend_bp(by)
+    pub fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
+        self.stack.extend_bp(by, regcount)
     }
 
     // The lifetime is 'static as it is stored in the stack or the constants immediately
