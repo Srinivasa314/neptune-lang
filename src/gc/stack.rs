@@ -40,11 +40,11 @@ impl Stack {
     }
 
     pub fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
-        let p = self.bp as usize + by as usize;
-        if p + regcount as usize > self.end as usize {
+        let p = self.bp.wrapping_add(by as usize);
+        if p.wrapping_add(regcount as usize) > self.end {
             Err(StackOverflowError)
         } else {
-            self.bp = p as *mut Value<'static>;
+            self.bp = p;
             Ok(())
         }
     }

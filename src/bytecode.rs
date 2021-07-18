@@ -209,7 +209,7 @@ impl fmt::Debug for Bytecode {
         unsafe {
             Ok(while !reader.is_at_end() {
                 if reader.offset() == reader.lines[lines_index].offset as usize {
-                    write!(f, "line {}: ", reader.lines[lines_index].line);
+                    write!(f, "line {}: ", reader.lines[lines_index].line)?;
                     if lines_index != reader.lines.len() - 1 {
                         lines_index += 1
                     };
@@ -348,7 +348,7 @@ impl<'a> BytecodeReader<'a> {
     }
 
     pub unsafe fn read<T>(&mut self) -> T {
-        debug_assert!(self.ptr >= self.start && self.ptr.add(std::mem::size_of::<T>()) <= self.end);
+        debug_assert!(self.ptr >= self.start && self.ptr.wrapping_add(std::mem::size_of::<T>()) <= self.end);
         let ret = self.ptr.cast::<T>().read_unaligned();
         self.ptr = self.ptr.add(std::mem::size_of::<T>());
         ret
