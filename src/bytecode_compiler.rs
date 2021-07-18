@@ -1,5 +1,7 @@
 use crate::bytecode::BytecodeWriter;
+use crate::bytecode::Local;
 use crate::bytecode::Op;
+use crate::parser::Statement;
 use crate::{bytecode::ExceededMaxConstants, parser::Expr, scanner::TokenType, value::Value};
 use std::convert::TryFrom;
 use std::ops::{Add, Div, Mul, Sub};
@@ -63,6 +65,20 @@ impl BytecodeWriter {
             _ => todo!(),
         }
     }
+
+    binary_op_int!(write_op_load_int, LoadInt);
+
+    fn write_op_move(&mut self, reg1: u16, reg2: u16, line: u32) {
+        match (u8::try_from(reg1), u8::try_from(reg2)) {
+            (Ok(reg1), Ok(reg2)) => {
+                self.write_op(Op::Move, line);
+                self.write_u8(reg1);
+                self.write_u8(reg2)
+            }
+            _ => todo!(),
+        }
+    }
+
     binary_op_register!(write_op_add_register, AddRegister);
 
     binary_op_register!(write_op_subtract_register, SubtractRegister);
@@ -84,7 +100,6 @@ impl BytecodeWriter {
     }
 }
 
-pub struct ArithmeticError;
 #[derive(Clone, Copy, Debug)]
 enum Int {
     I8(i8),
@@ -158,26 +173,35 @@ impl From<Int> for f64 {
     }
 }
 #[derive(Debug)]
-enum ExprResult {
+pub enum ExprResult {
     Register(u16),
     Accumulator,
     Int(Int),
     Float(f64),
 }
+pub struct ArithmeticError;
+pub struct ExceededMaxLocals;
 #[derive(Debug)]
-pub enum BytecodeWriterError {
+pub enum BytecodeCompilerError {
     ArithmeticError,
+    ExceededMaxLocals,
     ExceededMaxConstants,
 }
-impl From<ArithmeticError> for BytecodeWriterError {
+impl From<ArithmeticError> for BytecodeCompilerError {
     fn from(_: ArithmeticError) -> Self {
-        BytecodeWriterError::ArithmeticError
+        BytecodeCompilerError::ArithmeticError
     }
 }
 
-impl From<ExceededMaxConstants> for BytecodeWriterError {
+impl From<ExceededMaxConstants> for BytecodeCompilerError {
     fn from(_: ExceededMaxConstants) -> Self {
-        BytecodeWriterError::ExceededMaxConstants
+        BytecodeCompilerError::ExceededMaxConstants
+    }
+}
+
+impl From<ExceededMaxLocals> for BytecodeCompilerError {
+    fn from(_: ExceededMaxLocals) -> Self {
+        BytecodeCompilerError::ExceededMaxLocals
     }
 }
 
@@ -188,9 +212,9 @@ macro_rules! binary_op {
             left: &Expr,
             right: &Expr,
             line: u32,
-        ) -> Result<ExprResult, BytecodeWriterError> {
-            match self.evaluate(left)? {
-                ExprResult::Register(r1) => match self.evaluate(right)? {
+        ) -> Result<ExprResult, BytecodeCompilerError> {
+            match self.evaluate_expr(left)? {
+                ExprResult::Register(r1) => match self.evaluate_expr(right)? {
                     ExprResult::Register(r2) => {
                         self.write_op_load_register(r1, line);
                         self.$register_inst(r2, line);
@@ -214,7 +238,7 @@ macro_rules! binary_op {
                 ExprResult::Accumulator => {
                     let reg = self.push_register();
                     self.write_op_store_register(reg, line);
-                    match self.evaluate(right)? {
+                    match self.evaluate_expr(right)? {
                         ExprResult::Register(r) => {
                             self.pop_last_op();
                             self.pop_register();
@@ -241,7 +265,7 @@ macro_rules! binary_op {
                         }
                     }
                 }
-                ExprResult::Int(i) => match self.evaluate(right)? {
+                ExprResult::Int(i) => match self.evaluate_expr(right)? {
                     ExprResult::Register(r) => {
                         self.write_op_load_register(r, line);
                         self.$int_inst(i, line);
@@ -254,7 +278,7 @@ macro_rules! binary_op {
                     ExprResult::Int(i2) => Ok(ExprResult::Int(i.$op_fn(i2)?)),
                     ExprResult::Float(f) => Ok(ExprResult::Float(f64::from(i).$op_fn(f))),
                 },
-                ExprResult::Float(f) => match self.evaluate(right)? {
+                ExprResult::Float(f) => match self.evaluate_expr(right)? {
                     ExprResult::Register(r) => {
                         self.write_value(Value::from_f64(f), line)?;
                         self.$register_inst(r, line);
@@ -283,9 +307,9 @@ macro_rules! binary_op_non_commutative {
             left: &Expr,
             right: &Expr,
             line: u32,
-        ) -> Result<ExprResult, BytecodeWriterError> {
-            match self.evaluate(left)? {
-                ExprResult::Register(r1) => match self.evaluate(right)? {
+        ) -> Result<ExprResult, BytecodeCompilerError> {
+            match self.evaluate_expr(left)? {
+                ExprResult::Register(r1) => match self.evaluate_expr(right)? {
                     ExprResult::Register(r2) => {
                         self.write_op_load_register(r2, line);
                         self.$register_inst(r1, line);
@@ -309,7 +333,7 @@ macro_rules! binary_op_non_commutative {
                 ExprResult::Accumulator => {
                     let reg = self.push_register();
                     self.write_op_store_register(reg, line);
-                    match self.evaluate(right)? {
+                    match self.evaluate_expr(right)? {
                         ExprResult::Register(r) => {
                             self.write_op_load_register(r, line);
                             self.$register_inst(reg, line);
@@ -336,7 +360,7 @@ macro_rules! binary_op_non_commutative {
                         }
                     }
                 }
-                ExprResult::Int(i) => match self.evaluate(right)? {
+                ExprResult::Int(i) => match self.evaluate_expr(right)? {
                     ExprResult::Register(r) => {
                         self.write_op_load_register(r, line);
                         self.$int_inst(i, line);
@@ -353,7 +377,7 @@ macro_rules! binary_op_non_commutative {
                     self.write_value(Value::from_f64(f), line)?;
                     let reg = self.push_register();
                     self.write_op_store_register(reg, line);
-                    match self.evaluate(right)? {
+                    match self.evaluate_expr(right)? {
                         ExprResult::Register(r) => {
                             self.write_op_load_register(r, line);
                             self.$register_inst(reg, line);
@@ -382,7 +406,56 @@ macro_rules! binary_op_non_commutative {
     };
 }
 impl BytecodeWriter {
-    fn evaluate(&mut self, expr: &Expr) -> Result<ExprResult, BytecodeWriterError> {
+    pub fn resolve_variable(&self, name: &str) -> Option<u16> {
+        for (index, local) in self.locals.iter().enumerate().rev() {
+            if local.name == name {
+                return Some(index as u16);
+            }
+        }
+        None
+    }
+
+    pub fn evaluate_statements(
+        &mut self,
+        statements: &[Statement],
+    ) -> Result<(), BytecodeCompilerError> {
+        Ok(for statement in statements {
+            self.evaluate_statement(statement)?
+        })
+    }
+
+    pub fn evaluate_statement(
+        &mut self,
+        statement: &Statement,
+    ) -> Result<(), BytecodeCompilerError> {
+        match statement {
+            Statement::Expr(expr) => self.evaluate_expr(expr).map(|e| ()),
+            Statement::VarDeclaration {
+                name,
+                mutability,
+                expr,
+                line,
+            } => Ok({
+                let reg = u16::try_from(self.locals.len()).map_err(|e| ExceededMaxLocals)?;
+                self.locals.push(Local {
+                    name: name.to_string(),
+                });
+                match self.evaluate_expr(expr)? {
+                    ExprResult::Register(reg2) => self.write_op_move(reg, reg2, *line),
+                    ExprResult::Accumulator => self.write_op_store_register(reg, *line),
+                    ExprResult::Int(i) => {
+                        self.write_op_load_int(i, *line);
+                        self.write_op_store_register(reg, *line)
+                    }
+                    ExprResult::Float(f) => {
+                        self.write_value(Value::from_f64(f), *line)?;
+                        self.write_op_store_register(reg, *line)
+                    }
+                }
+            }),
+        }
+    }
+    pub fn evaluate_expr(&mut self, expr: &Expr) -> Result<ExprResult, BytecodeCompilerError> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(Int::from(*i))),
@@ -405,13 +478,14 @@ impl BytecodeWriter {
                 TokenType::Minus => self.negate(right, *line),
                 _ => todo!(),
             },
-            Expr::Variable { name, line } => {
-                todo!()
-            }
+            Expr::Variable { name, line } => match self.resolve_variable(name) {
+                Some(index) => Ok(ExprResult::Register(index)),
+                None => todo!(),
+            },
         }
     }
-    fn negate(&mut self, right: &Expr, line: u32) -> Result<ExprResult, BytecodeWriterError> {
-        match self.evaluate(right)? {
+    fn negate(&mut self, right: &Expr, line: u32) -> Result<ExprResult, BytecodeCompilerError> {
+        match self.evaluate_expr(right)? {
             ExprResult::Register(r) => {
                 self.write_op_load_register(r, line);
                 self.write_op_negate(line);

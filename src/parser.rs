@@ -118,7 +118,7 @@ pub enum Expr {
         line: u32,
     },
 }
-
+#[derive(Debug)]
 pub enum Statement {
     Expr(Expr),
     VarDeclaration {
@@ -129,6 +129,7 @@ pub enum Statement {
     },
 }
 
+#[derive(Debug)]
 pub enum Mutability {
     Immutable,
     Mutable,
@@ -149,8 +150,8 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         self.advance();
         let mut statements = vec![];
         while self.current.token_type != TokenType::Eof {
-            if let Some(stmt)=self.declaration(true){
-            statements.push(stmt);
+            if let Some(stmt) = self.statement(true) {
+                statements.push(stmt);
             }
         }
         (statements, self.errors)
@@ -211,7 +212,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
     }
 
     fn match_token(&mut self, ttype: TokenType) -> bool {
-        if self.current.token_type == ttype {
+        if self.current.token_type != ttype {
             false
         } else {
             self.advance();
@@ -423,7 +424,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         Ok(Statement::Expr(e))
     }
 
-    fn declaration(&mut self, needs_sep: bool) -> Option<Statement> {
+    fn statement(&mut self, needs_sep: bool) -> Option<Statement> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
                 self.var_declaration(Mutability::Mutable)
@@ -431,8 +432,6 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
                 self.var_declaration(Mutability::Immutable)
             } else if self.match_token(TokenType::Const) {
                 self.var_declaration(Mutability::Const)
-            } else if self.match_token(TokenType::LeftBrace) {
-                self.var_declaration(Mutability::Immutable)
             } else {
                 self.expression_statement()
             }?;
@@ -482,7 +481,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         let mut statements = vec![];
         self.consume(TokenType::LeftBrace, "Expect { to begin block".into())?;
         loop {
-            if let Some(stmt) = self.declaration(false) {
+            if let Some(stmt) = self.statement(false) {
                 statements.push(stmt);
             }
             if self.match_token(TokenType::RightBrace) {

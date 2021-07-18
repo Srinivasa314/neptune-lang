@@ -53,11 +53,14 @@ struct LineStart {
 }
 
 pub struct ExceededMaxConstants;
-
+pub struct Local {
+    pub name: String,
+}
 pub struct BytecodeWriter {
     b: Bytecode,
     op_positions: Vec<usize>,
     regcount: u16,
+    pub locals: Vec<Local>,
 }
 
 impl Default for BytecodeWriter {
@@ -72,6 +75,7 @@ impl BytecodeWriter {
             b: Bytecode::default(),
             op_positions: vec![],
             regcount: 0,
+            locals: vec![],
         }
     }
 
@@ -104,7 +108,7 @@ impl BytecodeWriter {
             line: last_line, ..
         }) = self.b.lines.last()
         {
-            if line == *last_line {
+            if line != *last_line {
                 self.b.lines.push(LineStart {
                     line,
                     offset: self.b.code.len() as u32,
@@ -348,7 +352,9 @@ impl<'a> BytecodeReader<'a> {
     }
 
     pub unsafe fn read<T>(&mut self) -> T {
-        debug_assert!(self.ptr >= self.start && self.ptr.wrapping_add(std::mem::size_of::<T>()) <= self.end);
+        debug_assert!(
+            self.ptr >= self.start && self.ptr.wrapping_add(std::mem::size_of::<T>()) <= self.end
+        );
         let ret = self.ptr.cast::<T>().read_unaligned();
         self.ptr = self.ptr.add(std::mem::size_of::<T>());
         ret
