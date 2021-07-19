@@ -213,199 +213,78 @@ macro_rules! binary_op {
             right: &Expr,
             line: u32,
         ) -> Result<ExprResult, BytecodeCompilerError> {
-            match self.evaluate_expr(left)? {
-                ExprResult::Register(r1) => match self.evaluate_expr(right)? {
-                    ExprResult::Register(r2) => {
-                        self.write_op_load_register(r1, line);
-                        self.$register_inst(r2, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Accumulator => {
-                        self.$register_inst(r1, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Int(i) => {
-                        self.write_op_load_register(r1, line);
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Float(f) => {
-                        self.write_value(Value::from_f64(f), line);
-                        self.$register_inst(r1, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                },
-                ExprResult::Accumulator => {
-                    let reg = self.push_register();
-                    self.write_op_store_register(reg, line);
-                    match self.evaluate_expr(right)? {
-                        ExprResult::Register(r) => {
-                            self.pop_last_op();
-                            self.pop_register();
-                            self.$register_inst(r, line);
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Accumulator => {
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Int(i) => {
-                            self.pop_last_op();
-                            self.pop_register();
-                            self.$int_inst(i, line);
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Float(f) => {
-                            self.write_value(Value::from_f64(f), line)?;
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-                            Ok(ExprResult::Accumulator)
-                        }
-                    }
+            let left = self.evaluate_expr(left)?;
+            let reg = self.push_register();
+            self.evaluate_expr_result(&left, line)?;
+            self.write_op_store_register(reg, line);
+            let right = self.evaluate_expr(right)?;
+            self.pop_register();
+            match (left, right) {
+                (ExprResult::Int(i1), ExprResult::Int(i2)) => {
+                    self.pop_save_expr_result(&ExprResult::Int(i1));
+                    Ok(ExprResult::Int(i1.$op_fn(i2)?))
                 }
-                ExprResult::Int(i) => match self.evaluate_expr(right)? {
-                    ExprResult::Register(r) => {
-                        self.write_op_load_register(r, line);
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Accumulator => {
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Int(i2) => Ok(ExprResult::Int(i.$op_fn(i2)?)),
-                    ExprResult::Float(f) => Ok(ExprResult::Float(f64::from(i).$op_fn(f))),
-                },
-                ExprResult::Float(f) => match self.evaluate_expr(right)? {
-                    ExprResult::Register(r) => {
-                        self.write_value(Value::from_f64(f), line)?;
-                        self.$register_inst(r, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Accumulator => {
-                        let reg = self.push_register();
-                        self.write_op_store_register(reg, line);
-                        self.write_value(Value::from_f64(f), line)?;
-                        self.$register_inst(reg, line);
-                        self.pop_register();
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Int(i2) => Ok(ExprResult::Float(f64::from(i2).$op_fn(f))),
-                    ExprResult::Float(f2) => Ok(ExprResult::Float(f.$op_fn(f2))),
-                },
-            }
-        }
-    };
-}
-
-macro_rules! binary_op_non_commutative {
-    ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident) => {
-        fn $op(
-            &mut self,
-            left: &Expr,
-            right: &Expr,
-            line: u32,
-        ) -> Result<ExprResult, BytecodeCompilerError> {
-            match self.evaluate_expr(left)? {
-                ExprResult::Register(r1) => match self.evaluate_expr(right)? {
-                    ExprResult::Register(r2) => {
-                        self.write_op_load_register(r2, line);
-                        self.$register_inst(r1, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Accumulator => {
-                        self.$register_inst(r1, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Int(i) => {
-                        self.write_op_load_register(r1, line);
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Float(f) => {
-                        self.write_value(Value::from_f64(f), line)?;
-                        self.$register_inst(r1, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                },
-                ExprResult::Accumulator => {
-                    let reg = self.push_register();
-                    self.write_op_store_register(reg, line);
-                    match self.evaluate_expr(right)? {
-                        ExprResult::Register(r) => {
-                            self.write_op_load_register(r, line);
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Accumulator => {
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Int(i) => {
-                            self.pop_last_op();
-                            self.pop_register();
-                            self.$int_inst(i, line);
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Float(f) => {
-                            self.write_value(Value::from_f64(f), line)?;
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-                            Ok(ExprResult::Accumulator)
-                        }
-                    }
+                (ExprResult::Float(f), ExprResult::Int(i)) => {
+                    self.pop_save_expr_result(&ExprResult::Float(f));
+                    Ok(ExprResult::Float(f.$op_fn(f64::from(i))))
                 }
-                ExprResult::Int(i) => match self.evaluate_expr(right)? {
-                    ExprResult::Register(r) => {
-                        self.write_op_load_register(r, line);
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Accumulator => {
-                        self.$int_inst(i, line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    ExprResult::Int(i2) => Ok(ExprResult::Int(i.$op_fn(i2)?)),
-                    ExprResult::Float(f) => Ok(ExprResult::Float(f64::from(i).$op_fn(f))),
-                },
-                ExprResult::Float(f) => {
-                    self.write_value(Value::from_f64(f), line)?;
-                    let reg = self.push_register();
-                    self.write_op_store_register(reg, line);
-                    match self.evaluate_expr(right)? {
-                        ExprResult::Register(r) => {
-                            self.write_op_load_register(r, line);
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Accumulator => {
-                            self.$register_inst(reg, line);
-                            self.pop_register();
-                            Ok(ExprResult::Accumulator)
-                        }
-                        ExprResult::Int(i2) => {
-                            self.pop_last_op();
-                            self.pop_register();
-                            Ok(ExprResult::Float(f64::from(i2).$op_fn(f)))
-                        }
-                        ExprResult::Float(f2) => {
-                            self.pop_last_op();
-                            self.pop_register();
-                            Ok(ExprResult::Float(f.$op_fn(f2)))
-                        }
-                    }
+                (ExprResult::Int(i), ExprResult::Float(f)) => {
+                    self.pop_save_expr_result(&ExprResult::Int(i));
+                    Ok(ExprResult::Float(f64::from(i).$op_fn(f)))
+                }
+                (left, ExprResult::Int(i)) => {
+                    self.pop_save_expr_result(&left);
+                    self.evaluate_expr_result(&left, line)?;
+                    self.$int_inst(i, line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (ExprResult::Register(r), right) => {
+                    self.pop_save_expr_result(&ExprResult::Register(r));
+                    self.evaluate_expr_result(&right, line)?;
+                    self.$register_inst(r, line);
+                    Ok(ExprResult::Accumulator)
+                }
+
+                (_, right) => {
+                    self.evaluate_expr_result(&right, line)?;
+                    self.$register_inst(reg, line);
+                    Ok(ExprResult::Accumulator)
                 }
             }
         }
     };
 }
+
 impl BytecodeWriter {
+    pub fn pop_save_expr_result(&mut self, result: &ExprResult) {
+        match result {
+            ExprResult::Register(_) => {
+                self.pop_last_op();
+            }
+            ExprResult::Accumulator => {}
+            ExprResult::Int(_) => {
+                self.pop_last_op();
+            }
+            ExprResult::Float(_) => {
+                self.pop_last_op();
+            }
+        }
+        self.pop_last_op();
+    }
+    pub fn evaluate_expr_result(
+        &mut self,
+        result: &ExprResult,
+        line: u32,
+    ) -> Result<(), BytecodeCompilerError> {
+        match result {
+            ExprResult::Register(reg) => Ok(self.write_op_load_register(*reg, line)),
+            ExprResult::Accumulator => Ok(()),
+            ExprResult::Int(i) => Ok(self.write_op_load_int(*i, line)),
+            ExprResult::Float(f) => self
+                .write_value(Value::from_f64(*f), line)
+                .map_err(|e| BytecodeCompilerError::ExceededMaxConstants),
+        }
+    }
     pub fn resolve_variable(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local.name == name {
@@ -502,7 +381,7 @@ impl BytecodeWriter {
     }
 
     binary_op!(add, write_op_add_register, write_op_add_int, add);
-    binary_op_non_commutative!(
+    binary_op!(
         subtract,
         write_op_subtract_register,
         write_op_subtract_int,
@@ -514,5 +393,5 @@ impl BytecodeWriter {
         write_op_multiply_int,
         mul
     );
-    binary_op_non_commutative!(divide, write_op_divide_register, write_op_divide_int, div);
+    binary_op!(divide, write_op_divide_register, write_op_divide_int, div);
 }

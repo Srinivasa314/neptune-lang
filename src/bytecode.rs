@@ -93,8 +93,8 @@ impl BytecodeWriter {
     }
 
     pub fn pop_last_op(&mut self) {
-        let pos = self.op_positions.pop().unwrap();
         self.b.code.resize(*self.op_positions.last().unwrap(), 0);
+        let pos = self.op_positions.pop().unwrap();
         if let Some(LineStart { offset, .. }) = self.b.lines.last() {
             if pos == *offset as usize {
                 self.b.lines.pop();
