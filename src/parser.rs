@@ -1,21 +1,13 @@
-use crate::scanner::{Token, TokenType};
+use crate::{CompileError, CompileResult, scanner::{Token, TokenType}};
 use num_enum::TryFromPrimitive;
 use std::convert::TryInto;
 
-pub struct Parser<'a, Tokens: Iterator<Item = Token<'a>>> {
+pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
     tokens: Tokens,
-    current: Token<'a>,
-    previous: Token<'a>,
+    current: Token<'src>,
+    previous: Token<'src>,
     errors: Vec<CompileError>,
 }
-
-#[derive(Debug)]
-pub struct CompileError {
-    message: String,
-    line: u32,
-}
-
-type ParseResult<T> = Result<T, CompileError>;
 
 #[derive(TryFromPrimitive, Clone, Copy)]
 #[repr(u8)]
@@ -86,7 +78,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Const => Precedence::None,
         TokenType::Final => Precedence::None,
         TokenType::While => Precedence::None,
-        TokenType::Interpolation(_, _) => Precedence::None,
+        TokenType::Interpolation => Precedence::None,
         TokenType::Eof => Precedence::None,
         TokenType::Error(_) => Precedence::None,
         TokenType::PlusEqual => Precedence::Assignment,
@@ -127,6 +119,7 @@ pub enum Statement {
         expr: Expr,
         line: u32,
     },
+    Block(Vec<Statement>),
 }
 
 #[derive(Debug)]
@@ -136,7 +129,7 @@ pub enum Mutability {
     Const,
 }
 
-impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
+impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     pub fn new(tokens: Tokens) -> Self {
         Self {
             tokens,
@@ -202,7 +195,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         self.previous.line
     }
 
-    fn consume(&mut self, ttype: TokenType, message: String) -> ParseResult<()> {
+    fn consume(&mut self, ttype: TokenType, message: String) -> CompileResult<()> {
         if self.current.token_type == ttype {
             self.advance();
             Ok(())
@@ -220,7 +213,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn parse_precedence(&mut self, prec: Precedence) -> ParseResult<Expr> {
+    fn parse_precedence(&mut self, prec: Precedence) -> CompileResult<Expr> {
         self.advance();
         if let Some(mut expr) = self.prefix(self.previous.token_type.clone()) {
             let mut expr = expr?;
@@ -235,7 +228,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn prefix(&mut self, token_type: TokenType) -> Option<ParseResult<Expr>> {
+    fn prefix(&mut self, token_type: TokenType) -> Option<CompileResult<Expr>> {
         match token_type {
             TokenType::LeftParen => Some(self.grouping()),
             TokenType::RightParen => None,
@@ -287,7 +280,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::Const => None,
             TokenType::Final => None,
             TokenType::While => None,
-            TokenType::Interpolation(_, _) => Some(todo!()),
+            TokenType::Interpolation => None,
             TokenType::Eof => None,
             TokenType::Error(_) => None,
             TokenType::PlusEqual => None,
@@ -297,7 +290,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn infix(&mut self, token_type: TokenType, left: Box<Expr>) -> ParseResult<Expr> {
+    fn infix(&mut self, token_type: TokenType, left: Box<Expr>) -> CompileResult<Expr> {
         match token_type {
             TokenType::LeftParen => todo!(),
             TokenType::RightParen => unreachable!(),
@@ -349,7 +342,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             TokenType::Const => unreachable!(),
             TokenType::Final => unreachable!(),
             TokenType::While => unreachable!(),
-            TokenType::Interpolation(_, _) => unreachable!(),
+            TokenType::Interpolation => unreachable!(),
             TokenType::Eof => unreachable!(),
             TokenType::Error(_) => unreachable!(),
             TokenType::PlusEqual => self.binary(left),
@@ -359,17 +352,17 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn expression(&mut self) -> ParseResult<Expr> {
+    fn expression(&mut self) -> CompileResult<Expr> {
         self.parse_precedence(Precedence::Assignment)
     }
 
-    fn grouping(&mut self) -> ParseResult<Expr> {
+    fn grouping(&mut self) -> CompileResult<Expr> {
         let expr = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after expression".into())?;
         Ok(expr)
     }
 
-    fn unary(&mut self) -> ParseResult<Expr> {
+    fn unary(&mut self) -> CompileResult<Expr> {
         let op = self.previous.token_type.clone();
         Ok(Expr::Unary {
             op,
@@ -378,7 +371,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         })
     }
 
-    fn binary(&mut self, left: Box<Expr>) -> ParseResult<Expr> {
+    fn binary(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
         let op = self.previous.token_type.clone();
         let right =
             Box::new(self.parse_precedence((get_precedence(&op) as u8 + 1).try_into().unwrap())?);
@@ -390,7 +383,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         })
     }
 
-    fn literal(&self) -> ParseResult<Expr> {
+    fn literal(&self) -> CompileResult<Expr> {
         Ok(Expr::Literal {
             inner: self.previous.token_type.clone(),
             line: self.line(),
@@ -419,7 +412,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
             self.advance();
         }
     }
-    fn expression_statement(&mut self) -> ParseResult<Statement> {
+    fn expression_statement(&mut self) -> CompileResult<Statement> {
         let e = self.expression()?;
         Ok(Statement::Expr(e))
     }
@@ -432,6 +425,8 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
                 self.var_declaration(Mutability::Immutable)
             } else if self.match_token(TokenType::Const) {
                 self.var_declaration(Mutability::Const)
+            } else if self.match_token(TokenType::LeftBrace) {
+                self.block()
             } else {
                 self.expression_statement()
             }?;
@@ -452,7 +447,7 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn var_declaration(&mut self, mutability: Mutability) -> ParseResult<Statement> {
+    fn var_declaration(&mut self, mutability: Mutability) -> CompileResult<Statement> {
         if TokenType::Identifier == self.current.token_type {
             self.advance();
             let name = self.previous.inner.into();
@@ -470,14 +465,14 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
         }
     }
 
-    fn variable(&mut self) -> ParseResult<Expr> {
+    fn variable(&mut self) -> CompileResult<Expr> {
         Ok(Expr::Variable {
             name: self.previous.inner.into(),
             line: self.previous.line,
         })
     }
 
-    fn block(&mut self) -> ParseResult<Vec<Statement>> {
+    fn block(&mut self) -> CompileResult<Statement> {
         let mut statements = vec![];
         self.consume(TokenType::LeftBrace, "Expect { to begin block".into())?;
         loop {
@@ -496,6 +491,6 @@ impl<'a, Tokens: Iterator<Item = Token<'a>>> Parser<'a, Tokens> {
                 ));
             }
         }
-        Ok(statements)
+        Ok(Statement::Block(statements))
     }
 }

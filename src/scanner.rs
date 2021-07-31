@@ -2,13 +2,16 @@
 
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
-pub struct Scanner<'a> {
-    source: &'a str,
-    tokens: Vec<Token<'a>>,
+
+use crate::gc::NString;
+pub struct Scanner<'src> {
+    source: &'src str,
+    tokens: Vec<Token<'src>>,
     start: usize,   //Start of the current token being scanned
     current: usize, //Current end of the current token being scanned
     line: u32,
     brackets: Vec<TokenType>, // keeps track of all brackets within which the scanner is currently nested
+    delims: Vec<u8>,          //string delimiters
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
@@ -43,10 +46,10 @@ pub enum TokenType {
     SlashEqual,
     // Literals.
     Identifier,
-    String(String),
+    String(NString),
     IntLiteral(i32),
     FloatLiteral(f64),
-    Symbol(String),
+    Symbol(NString),
     // Keywords.
     And,
     Break,
@@ -70,7 +73,7 @@ pub enum TokenType {
     Const,
     Final,
     //Other types
-    Interpolation(String, u8), // It stores
+    Interpolation, // It stores
     Error(String),
     Eof,
 }
@@ -104,13 +107,13 @@ fn get_keyword(s: &str) -> Option<TokenType> {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct Token<'a> {
+pub struct Token<'src> {
     pub token_type: TokenType,
-    pub inner: &'a str,
+    pub inner: &'src str,
     pub line: u32,
 }
 
-impl<'a> Token<'a> {
+impl<'src> Token<'src> {
     pub fn uninit_token() -> Token<'static> {
         Token {
             token_type: TokenType::Eof,
@@ -120,8 +123,8 @@ impl<'a> Token<'a> {
     }
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'src> Scanner<'src> {
+    pub fn new(source: &'src str) -> Self {
         Self {
             source,
             tokens: vec![],
@@ -129,10 +132,11 @@ impl<'a> Scanner<'a> {
             current: 0,
             line: 1,
             brackets: vec![],
+            delims: vec![],
         }
     }
 
-    pub fn scan_tokens(mut self) -> Vec<Token<'a>> {
+    pub fn scan_tokens(mut self) -> Vec<Token<'src>> {
         while self.scan_token() {
             self.start = self.current;
         }
@@ -171,9 +175,10 @@ impl<'a> Scanner<'a> {
             b')' => {
                 self.add_token(TokenType::RightParen);
                 self.brackets.pop();
-                if let Some(TokenType::Interpolation(s, u)) = self.brackets.last().cloned() {
+                if self.brackets.last().cloned() == Some(TokenType::Interpolation) {
                     self.brackets.pop();
-                    self.string(u);
+                    let last_delim = self.delims.pop().unwrap();
+                    self.string(last_delim);
                 }
             }
             b'[' => {
@@ -307,24 +312,25 @@ impl<'a> Scanner<'a> {
     fn string(&mut self, delim: u8) {
         /*
         Strings can have normal characters or \n,\t,\r,\0,\',\",\\,\u{unicode excape sequence} and interpolation.
-        For Example, the string "abc\(d)efg\(h)ij"  will generate 
-        Interpolation(abc) LeftParen Identifier(d) RightParen Interpolation(efg) LeftParen Identifier(h) RightParen String(ij)
+        For Example, the string "abc\(d)efg\(h)ij"  will generate
+        String(abc) Interpolation LeftParen Identifier(d) RightParen String(efg) Interpolation LeftParen Identifier(h) RightParen String(ij)
         */
         self.start += 1;
-        let mut s: Vec<u8> = vec![];
+        let mut s = NString::new();
         while self.peek() != Some(delim) && self.peek() != None {
             if self.peek() == Some(b'\n') {
                 self.line += 1;
-                s.push(b'\n');
+                s.push('\n');
                 self.advance();
             }
             //Interpolation
             else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'(') {
-                let str = String::from_utf8(s).unwrap();
-                let tok = TokenType::Interpolation(str, delim);
-                self.brackets.push(tok.clone());
-                self.add_token(tok);
+                self.add_token(TokenType::String(s));
+                self.start = self.current;
                 self.advance();
+                self.add_token(TokenType::Interpolation);
+                self.delims.push(delim);
+                self.brackets.push(TokenType::Interpolation);
                 return;
             } else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'u') {
                 self.advance();
@@ -347,7 +353,7 @@ impl<'a> Scanner<'a> {
                             Ok(n) => {
                                 if let Some(c) = char::from_u32(n) {
                                     for i in c.to_string().bytes() {
-                                        s.push(i);
+                                        s.push(char::from_u32(i as u32).unwrap());
                                     }
                                 } else {
                                     self.error(format!(
@@ -371,16 +377,16 @@ impl<'a> Scanner<'a> {
             else if self.peek() == Some(b'\\') {
                 if let Some(c) = self.peek_next() {
                     let to_add = match c {
-                        b'\\' => b'\\',
-                        b'n' => b'\n',
-                        b'r' => b'\r',
-                        b'\'' => b'\'',
-                        b'"' => b'"',
-                        b'0' => b'\0',
-                        b't' => b'\t',
+                        b'\\' => '\\',
+                        b'n' => '\n',
+                        b'r' => '\r',
+                        b'\'' => '\'',
+                        b'"' => '"',
+                        b'0' => '\0',
+                        b't' => '\t',
                         c => {
                             self.error(format!("Invalid escape sequence \\{}", c as char));
-                            c
+                            ' '
                         }
                     };
                     s.push(to_add);
@@ -392,11 +398,10 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
             } else {
-                s.push(self.advance().unwrap());
+                s.push(char::from_u32(self.advance().unwrap() as u32).unwrap());
             }
         }
-        let str = String::from_utf8(s).unwrap();
-        self.add_token(TokenType::String(str));
+        self.add_token(TokenType::String(s));
         if self.peek() != None {
             self.start = self.current;
             self.advance();
@@ -557,7 +562,7 @@ impl<'a> Scanner<'a> {
             self.advance();
         }
         self.add_token(TokenType::Symbol(
-            self.source[self.start + 1..self.current].to_string(),
+            self.source[self.start + 1..self.current].into(),
         ));
     }
 
@@ -735,10 +740,8 @@ mod tests {
     fn test() {
         if std::env::var("GENERATE_TESTS").is_ok() {
             fn gen_json(name: &str) {
-                let s = String::from_utf8(
-                    std::fs::read(format!("tests/scanner_tests/{}.np", name)).unwrap(),
-                )
-                .unwrap();
+                let s =
+                    std::fs::read_to_string(format!("tests/scanner_tests/{}.np", name)).unwrap();
                 let s = Scanner::new(&s);
                 let tokens = s.scan_tokens();
                 assert!(
@@ -750,6 +753,7 @@ mod tests {
                     tokens
                         .iter()
                         .filter(|t| matches!(t.token_type, TokenType::Error(_)))
+                        .collect::<Vec<_>>()
                 );
                 std::fs::write(
                     format!("tests/scanner_tests/{}.json", name),
@@ -767,14 +771,9 @@ mod tests {
                 serde_json::from_str(include_str!("../tests/scanner_tests/tests.json")).unwrap();
 
             for test in tests {
-                let s1 = String::from_utf8(
-                    fs::read(format!("tests/scanner_tests/{}.np", test)).unwrap(),
-                )
-                .unwrap();
-                let s2 = String::from_utf8(
-                    fs::read(format!("tests/scanner_tests/{}.json", test)).unwrap(),
-                )
-                .unwrap();
+                let s1 = fs::read_to_string(format!("tests/scanner_tests/{}.np", test)).unwrap();
+                let s2 =
+                    std::fs::read_to_string(format!("tests/scanner_tests/{}.json", test)).unwrap();
                 let s = Scanner::new(&s1);
                 let tokens = s.scan_tokens();
                 assert_eq!(serde_json::to_string(&tokens).unwrap(), s2);
@@ -786,6 +785,7 @@ mod tests {
                     tokens
                         .iter()
                         .filter(|t| matches!(t.token_type, TokenType::Error(_)))
+                        .collect::<Vec<_>>()
                 )
             }
         }
@@ -796,10 +796,7 @@ mod tests {
             let errors: Vec<String> =
                 serde_json::from_str(include_str!("../tests/scanner_tests/errors.json")).unwrap();
             for error in errors {
-                let s = String::from_utf8(
-                    fs::read(format!("tests/scanner_tests/{}.np", error)).unwrap(),
-                )
-                .unwrap();
+                let s = fs::read_to_string(format!("tests/scanner_tests/{}.np", error)).unwrap();
                 assert!(Scanner::new(&s)
                     .scan_tokens()
                     .iter()
@@ -810,7 +807,7 @@ mod tests {
 
     #[test]
     fn test_brackets_balanced() {
-        for s in ["'\"", "(", "'\\({)'", "'\\", "'abc", "'\\u"] {
+        for s in ["'\"", "(", "'\\({)'", "'\\", "'srcbc", "'\\u"] {
             assert!(!are_brackets_balanced(s), "{}", s)
         }
         for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'"] {

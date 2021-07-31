@@ -1,15 +1,11 @@
-use crate::{
-    gc::Object,
-    gc::{NString, ObjectHeader},
-};
+use crate::{gc::Object, gc::{NString, ObjectHeader}, util::unreachable};
 use std::marker::PhantomData;
 
 // Values are represented by NaN Boxing.
-// The lifetime of the value is the 'static if it is a root.
-// Creating an unrooted value borrows the GC allocator as immutable.
-// The lifetime is used to ensure that an allocation cannot happen while there are
-// unrooted values. An allocation borrows the allocator as mutable so all unrooted values
-// are invalidated. Values like numbers,bools,etc. and constants are 'static.
+// The lifetime of the value is the 'static if it is a number,bool,etc.
+// Otherwise its lifetime is that of the gc.For unrooted values the
+//lifetime will be less than the lifetime of the gc as it may be collected
+// when the next allocation  happens.
 #[derive(Clone, Copy)]
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 pub struct Value<'a>(u64, PhantomData<Object<'a>>);
@@ -214,52 +210,21 @@ impl<'a> Value<'a> {
     }
 }
 
-impl<'a> Value<'a> {
-    // This should only be used for if you are sure that the
-    // value is traceable by the garbage collector during the next allocation
-    // and you should never give it to the outside world without reducing its lifetime
-    pub unsafe fn make_static(self) -> Value<'static> {
-        std::mem::transmute(self)
-    }
+// Used for values that are rooted. When its inner value is got it will not be rooted
+// so its lifetime will be lesser than the lifetime of the gc so
+// its lifetime must be reduced so that it cannot be accessed after it is freed.
+#[derive(Clone, Copy)]
+pub struct RootedValue<'a>(Value<'a>);
 
-    pub fn strict_eq(self, other: Self) -> bool {
-        if let Some(i1) = self.as_i32() {
-            if let Some(i2) = other.as_i32() {
-                i1 == i2
-            } else {
-                false
-            }
-        } else if let Some(f1) = self.as_f64() {
-            if let Some(f2) = other.as_f64() {
-                f1 == f2
-            } else {
-                false
-            }
-        } else if self.is_null() {
-            other.is_null()
-        } else if let Some(o1) = self.as_object() {
-            if let Some(o2) = other.as_object() {
-                if let Some(s1) = o1.cast::<NString>() {
-                    if let Some(s2) = o2.cast::<NString>() {
-                        s1 == s2
-                    } else {
-                        false
-                    }
-                } else {
-                    o1.ptr_eq(o2)
-                }
-            } else {
-                false
-            }
-        } else if let Some(b1) = self.as_bool() {
-            if let Some(b2) = other.as_bool() {
-                b1 == b2
-            } else {
-                false
-            }
-        } else {
-            unreachable!()
-        }
+impl<'a> RootedValue<'a> {
+    unsafe fn get(&self) -> Value<'a> {
+        self.0
+    }
+}
+
+impl<'a> From<Value<'a>> for RootedValue<'a> {
+    fn from(v: Value<'a>) -> Self {
+        Self(v)
     }
 }
 
@@ -304,7 +269,7 @@ impl PartialEq for Value<'_> {
                 false
             }
         } else {
-            unreachable!()
+            unreachable()
         }
     }
 }
@@ -322,3 +287,31 @@ impl<'a> std::fmt::Debug for Value<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::gc::GC;
+
+    use super::*;
+    #[test]
+    fn test_value() {
+        assert_eq!(Value::from_i32(42).as_i32(), Some(42));
+        assert_eq!(Value::from_f64(4.2).as_f64(), Some(4.2));
+        assert!(Value::from_i32(42).is_number());
+        assert!(Value::from_f64(4.2).is_number());
+        assert_eq!(Value::from_bool(true).as_bool(), Some(true));
+        assert_eq!(Value::from_bool(false).as_bool(), Some(false));
+        assert_eq!(Value::new_true().as_bool(), Some(true));
+        assert_eq!(Value::new_false().as_bool(), Some(false));
+        assert!(Value::empty().is_empty());
+        assert!(Value::null().is_null());
+        assert!(Value::new_false().is_false());
+        assert!(Value::new_true().is_true());
+        assert!(Value::from_bool(true).is_true());
+        assert!(Value::from_bool(false).is_false());
+        let gc = GC::new();
+        let s = gc.alloc_constant(NString::from("abc"));
+        assert!(Value::from_object(s.into()).as_object().unwrap().ptr_eq(s.into()));
+    }
+}
+

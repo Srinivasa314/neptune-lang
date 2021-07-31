@@ -9,41 +9,54 @@ use std::marker::PhantomData;
 pub enum Op {
     Wide,
     ExtraWide,
-    LoadInt,
     LoadRegister,
+    LoadInt,
+    LoadConstant,
+    StoreRegister,
+    Move,
+    GetGlobal,
+    AddRegister,
+    SubtractRegister,
+    MultiplyRegister,
+    DivideRegister,
+    AddInt,
+    SubtractInt,
+    MultiplyInt,
+    DivideInt,
+    Increment,
+    Negate,
+    Call,
+    Call0Argument,
+    Call1Argument,
+    Call2Argument,
+    Less,
+    Jump,
+    JumpBack,
+    JumpIfFalse,
+    Return,
+    Exit,
     StoreR0,
     StoreR1,
     StoreR2,
     StoreR3,
     StoreR4,
-    Move,
-    Increment,
-    Negate,
-    AddRegister,
-    AddInt,
-    SubtractRegister,
-    SubtractInt,
-    MultiplyRegister,
-    MultiplyInt,
-    DivideRegister,
-    DivideInt,
-    ModInt,
-    Less,
-    LoadConstant,
-    Print, //TODO: remove
-    Return,
-    Jump,
-    JumpBack,
-    JumpIfFalse,
-    Call1Argument,
-    GetGlobal,
-    Exit,
+    StoreR5,
+    StoreR6,
+    StoreR7,
+    StoreR8,
+    StoreR9,
+    StoreR10,
+    StoreR11,
+    StoreR12,
+    StoreR13,
+    StoreR14,
+    StoreR15,
 }
 
 #[derive(Default)]
-pub struct Bytecode {
+pub struct Bytecode<'gc> {
     code: Vec<u8>,
-    constants: Vec<Value<'static>>,
+    constants: Vec<Value<'gc>>,
     lines: Vec<LineStart>,
 }
 
@@ -53,43 +66,19 @@ struct LineStart {
 }
 
 pub struct ExceededMaxConstants;
-pub struct Local {
-    pub name: String,
-}
-pub struct BytecodeWriter {
-    b: Bytecode,
+
+#[derive(Default)]
+pub struct BytecodeWriter<'gc> {
+    b: Bytecode<'gc>,
     op_positions: Vec<usize>,
-    regcount: u16,
-    pub locals: Vec<Local>,
 }
 
-impl Default for BytecodeWriter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BytecodeWriter {
+impl<'gc> BytecodeWriter<'gc> {
     pub fn new() -> Self {
         Self {
             b: Bytecode::default(),
             op_positions: vec![],
-            regcount: 0,
-            locals: vec![],
         }
-    }
-
-    pub fn regcount(&self) -> u16 {
-        self.regcount
-    }
-
-    pub fn push_register(&mut self) -> u16 {
-        self.regcount += 1;
-        self.regcount - 1
-    }
-
-    pub fn pop_register(&mut self) {
-        self.regcount -= 1;
     }
 
     pub fn pop_last_op(&mut self) {
@@ -162,15 +151,10 @@ impl BytecodeWriter {
         self.b.code[(bytecode_index + 1)] = (offset >> 8) as u8;
     }
 
-    // The lifetime is static as it should be in the constant table
-    pub fn write_value(
-        &mut self,
-        v: Value<'static>,
-        line: u32,
-    ) -> Result<(), ExceededMaxConstants> {
+    pub fn write_value(&mut self, v: Value<'gc>, line: u32) -> Result<(), ExceededMaxConstants> {
         self.write_op(Op::LoadConstant, line);
         for (i, constant) in self.b.constants.iter().enumerate() {
-            if constant.strict_eq(v) {
+            if *constant == v {
                 self.write_u16(i as u16);
                 return Ok(());
             }
@@ -188,7 +172,7 @@ impl BytecodeWriter {
         self.op_positions.last().cloned().map(|lo| (lo + 1))
     }
 
-    pub fn bytecode(mut self) -> Bytecode {
+    pub fn bytecode(mut self) -> Bytecode<'gc> {
         self.b.code.shrink_to_fit();
         self.b.constants.shrink_to_fit();
         self.b.lines.shrink_to_fit();
@@ -201,12 +185,12 @@ pub struct BytecodeReader<'a> {
     ptr: *const u8,
     start: *const u8,
     end: *const u8,
-    constants: &'a [Value<'static>],
+    constants: &'a [Value<'a>],
     lines: &'a [LineStart],
     _marker: PhantomData<&'a [u8]>,
 }
 
-impl fmt::Debug for Bytecode {
+impl<'gc> fmt::Debug for Bytecode<'gc> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut reader = BytecodeReader::new(self);
         let mut lines_index = 0;
@@ -220,58 +204,64 @@ impl fmt::Debug for Bytecode {
                 }
                 write!(f, "{}: ", reader.offset())?;
                 match reader.read_op() {
-                    Op::LoadInt => {
-                        writeln!(f, "LoadI8 {}", reader.read_i8())?;
-                    }
+                    Op::Wide => todo!(),
+                    Op::ExtraWide => todo!(),
                     Op::LoadRegister => {
                         writeln!(f, "LoadRegister r{}", reader.read_u8())?;
                     }
-                    Op::StoreR0 => {
-                        writeln!(f, "StoreR0")?;
+                    Op::LoadInt => {
+                        writeln!(f, "LoadI8 {}", reader.read_i8())?;
                     }
-                    Op::StoreR1 => {
-                        writeln!(f, "StoreR1")?;
+                    Op::LoadConstant => {
+                        writeln!(f, "LoadConstant {}", reader.read_u16())?;
                     }
-                    Op::StoreR2 => {
-                        writeln!(f, "StoreR2")?;
-                    }
-                    Op::StoreR3 => {
-                        writeln!(f, "StoreR3")?;
-                    }
-                    Op::StoreR4 => {
-                        writeln!(f, "StoreR4")?;
-                    }
+                    Op::StoreRegister => todo!(),
                     Op::Move => {
                         let dest = reader.read_u8();
                         let src = reader.read_u8();
                         writeln!(f, "Move r{},r{}", dest, src)?;
                     }
-                    Op::Increment => {
-                        writeln!(f, "Increment")?;
-                    }
-                    Op::SubtractInt => {
-                        writeln!(f, "SubtractInt {}", reader.read_i8())?;
-                    }
-                    Op::ModInt => {
-                        writeln!(f, "ModI8 {}", reader.read_i8())?;
-                    }
-                    Op::Less => {
-                        writeln!(f, "Less r{}", reader.read_u8())?;
-                    }
-                    Op::LoadConstant => {
-                        writeln!(f, "LoadConstant {}", reader.read_u16())?;
+                    Op::GetGlobal => {
+                        writeln!(f, "GetGlobal {}", reader.read_u8())?;
                     }
                     Op::AddRegister => {
                         writeln!(f, "AddRegister r{}", reader.read_u8())?;
                     }
+                    Op::SubtractRegister => {
+                        writeln!(f, "SubtractRegister r{}", reader.read_u8())?;
+                    }
+                    Op::MultiplyRegister => {
+                        writeln!(f, "MultiplyRegister r{}", reader.read_u8())?;
+                    }
+                    Op::DivideRegister => {
+                        writeln!(f, "DivideRegister r{}", reader.read_u8())?;
+                    }
                     Op::AddInt => {
                         writeln!(f, "AddInt {}", reader.read_i8())?;
                     }
-                    Op::Print => {
-                        writeln!(f, "Print")?;
+                    Op::SubtractInt => {
+                        writeln!(f, "SubtractInt {}", reader.read_i8())?;
                     }
-                    Op::Return => {
-                        writeln!(f, "Return")?;
+                    Op::MultiplyInt => {
+                        writeln!(f, "MultiplyInt {}", reader.read_i8())?;
+                    }
+                    Op::DivideInt => {
+                        writeln!(f, "Divide {}", reader.read_i8())?;
+                    }
+                    Op::Increment => {
+                        writeln!(f, "Increment")?;
+                    }
+                    Op::Negate => writeln!(f, "Negate")?,
+                    Op::Call => todo!(),
+                    Op::Call1Argument => {
+                        let fun = reader.read_u8();
+                        let arg0 = reader.read_u8();
+                        writeln!(f, "Call1Argument r{} r{}", fun, arg0)?;
+                    }
+                    Op::Call0Argument => todo!(),
+                    Op::Call2Argument => todo!(),
+                    Op::Less => {
+                        writeln!(f, "Less r{}", reader.read_u8())?;
                     }
                     Op::Jump => {
                         let offset = reader.read_u16();
@@ -300,35 +290,28 @@ impl fmt::Debug for Bytecode {
                             reader.offset() + (offset as usize)
                         )?;
                     }
-                    Op::Call1Argument => {
-                        let fun = reader.read_u8();
-                        let arg0 = reader.read_u8();
-                        writeln!(f, "Call1Argument r{} r{}", fun, arg0)?;
-                    }
-                    Op::GetGlobal => {
-                        writeln!(f, "GetGlobal {}", reader.read_u8())?;
+                    Op::Return => {
+                        writeln!(f, "Return")?;
                     }
                     Op::Exit => {
                         writeln!(f, "Exit")?;
                     }
-                    Op::Wide => todo!(),
-                    Op::ExtraWide => todo!(),
-                    Op::SubtractRegister => {
-                        writeln!(f, "SubtractRegister r{}", reader.read_u8())?;
-                    }
-                    Op::MultiplyRegister => {
-                        writeln!(f, "MultiplyRegister r{}", reader.read_u8())?;
-                    }
-                    Op::MultiplyInt => {
-                        writeln!(f, "MultiplyInt {}", reader.read_i8())?;
-                    }
-                    Op::DivideRegister => {
-                        writeln!(f, "DivideRegister r{}", reader.read_u8())?;
-                    }
-                    Op::DivideInt => {
-                        writeln!(f, "Divide {}", reader.read_i8())?;
-                    }
-                    Op::Negate => writeln!(f, "Negate")?,
+                    Op::StoreR0 => todo!(),
+                    Op::StoreR1 => todo!(),
+                    Op::StoreR2 => todo!(),
+                    Op::StoreR3 => todo!(),
+                    Op::StoreR4 => todo!(),
+                    Op::StoreR5 => todo!(),
+                    Op::StoreR6 => todo!(),
+                    Op::StoreR7 => todo!(),
+                    Op::StoreR8 => todo!(),
+                    Op::StoreR9 => todo!(),
+                    Op::StoreR10 => todo!(),
+                    Op::StoreR11 => todo!(),
+                    Op::StoreR12 => todo!(),
+                    Op::StoreR13 => todo!(),
+                    Op::StoreR14 => todo!(),
+                    Op::StoreR15 => todo!(),
                 }
             })
         }
@@ -392,8 +375,7 @@ impl<'a> BytecodeReader<'a> {
         self.read::<i32>()
     }
 
-    // The lifetime is static as it should be in the constant table
-    pub unsafe fn read_value(&mut self) -> Value<'static> {
+    pub unsafe fn read_value(&mut self) -> Value<'a> {
         let u = self.read_u16() as usize;
         debug_assert!(u < self.constants.len());
         *self.constants.get_unchecked(u)

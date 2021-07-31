@@ -1,161 +1,105 @@
-use rustc_hash::FxHashSet;
-use std::{any::TypeId, borrow::Borrow, cell::Cell, hash::Hash, marker::PhantomData};
+use std::{
+    any::TypeId,
+    borrow::Borrow,
+    cell::{Cell, RefCell},
+    hash::Hash,
+    marker::PhantomData,
+};
 
-use crate::value::Value;
+use rustc_hash::FxHashMap;
 
-use self::stack::Stack;
-pub use self::stack::{BasePointer, StackOverflowError};
-mod stack;
+use crate::value::{RootedValue, Value};
 
-pub struct GCAllocator {
-    bytes_allocated: usize,
-    constants: Vec<Object<'static>>,
-    first: *mut ObjectHeader,
+pub struct GC {
+    bytes_allocated: Cell<usize>,
+    constants: RefCell<Vec<*mut ObjectHeader>>,
+    first: Cell<*mut ObjectHeader>,
     threshold: usize,
-    symbol_table: SymbolTable,
-    stack: Stack,
-    globals: Vec<Cell<Value<'static>>>,
-    accumulator: Cell<Value<'static>>,
+    symbol_table: RefCell<SymbolTable>,
 }
 
-impl Default for GCAllocator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GCAllocator {
+impl GC {
     pub fn new() -> Self {
         Self {
-            bytes_allocated: 0,
-            constants: vec![],
-            first: std::ptr::null_mut(),
+            bytes_allocated: Cell::new(0),
+            constants: RefCell::new(vec![]),
+            first: Cell::new(std::ptr::null_mut()),
             threshold: 1024 * 1024,
-            symbol_table: SymbolTable::default(),
-            stack: Stack::new(),
-            globals: vec![],
-            accumulator: Cell::new(Value::null()),
+            symbol_table: RefCell::new(SymbolTable::default()),
         }
     }
 
-    pub fn get_accum<'a>(&'a self) -> Value<'a> {
-        self.accumulator.get()
-    }
-
-    pub fn set_accum<'a, 'b>(&'a self, v: Value<'b>) {
-        unsafe { self.accumulator.set(v.make_static()) }
-    }
-
-    pub fn allocate<T: ObjectTrait>(&mut self, t: T) {
+    pub fn allocate<'gc, T: ObjectTrait, R: Root>(&'gc self, t: T, root: &R) -> RootedValue<'gc> {
+        if self.bytes_allocated.get() > self.threshold {
+            self.collect();
+        }
         let o = self.allocate_internal(t);
-        self.set_accum(Value::from_object(Object::from_header(unsafe {
+        (Value::from_object(Object::from_header(unsafe {
             &mut *(o as *mut ObjectHeader)
         })))
+        .into()
     }
-    fn collect(&mut self) {
+
+    fn collect(&self) {
         todo!()
     }
 
-    fn allocate_internal<T: ObjectTrait>(&mut self, t: T) -> *mut ObjectInner<T> {
-        self.bytes_allocated += std::mem::size_of::<ObjectInner<T>>();
-        if self.bytes_allocated > self.threshold {
-            self.collect();
-        }
+    fn allocate_internal<T: ObjectTrait>(&self, t: T) -> *mut ObjectInner<T> {
+        self.bytes_allocated
+            .set(self.bytes_allocated.get() + std::mem::size_of::<ObjectInner<T>>());
+
         let o = Box::into_raw(Box::new(ObjectInner {
             inner: t,
             header: ObjectHeader {
                 type_id: TypeId::of::<T>(),
                 is_dark: false,
-                next: self.first,
+                next: self.first.get(),
             },
         }));
-        self.first = o as *mut ObjectHeader;
+        self.first.set(o as *mut ObjectHeader);
         o
     }
 
-    pub fn make_constant<T: ObjectTrait>(&mut self, t: T) -> TypedObject<'static, T> {
-        let t = TypedObject {
-            inner: self.allocate_internal(t),
+    pub fn alloc_constant<'gc, T: ObjectTrait>(&'gc self, t: T) -> TypedObject<'gc, T> {
+        let raw_o = self.allocate_internal(t);
+        let o = TypedObject {
+            inner: raw_o,
             _marker: PhantomData,
         };
-        self.constants.push(t.into());
-        t
-    }
-    pub fn get_bp(&self) -> BasePointer {
-        self.stack.get_bp()
+        self.constants.borrow_mut().push(raw_o as *mut ObjectHeader);
+        o
     }
 
-    pub unsafe fn set_bp(&mut self, bp: BasePointer) {
-        self.stack.set_bp(bp)
+    pub fn intern_temp_symbol(&self, s: &str) {
+        todo!()
     }
 
-    pub fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
-        self.stack.extend_bp(by, regcount)
-    }
-
-    // The lifetime is 'static as it is stored in the stack or the constants immediately
-    fn intern_internal(&mut self, s: &str) -> TypedObject<'static, Symbol> {
-        match self.symbol_table.inner.get(s) {
-            Some(e) => TypedObject {
-                inner: e.0.inner,
-                _marker: PhantomData,
-            },
-            None => TypedObject {
-                inner: self.allocate_internal(Symbol(NString::from(s))),
-                _marker: PhantomData,
-            },
-        }
-    }
-
-    pub fn string_constant(&mut self, s: &str) -> Value<'static> {
-        if let Some(t) = self.constants.iter().find(|o| {
-            if let Some(ns) = o.cast::<NString>() {
-                ns == s
-            } else {
-                false
+    pub fn intern_constant_symbol<'gc>(&'gc self, s: &str) -> TypedObject<'gc, NSymbol> {
+        let mut symbol_table = self.symbol_table.borrow_mut();
+        if let Some((sym, stype)) = symbol_table.inner.get_key_value(s) {
+            if stype.get() == SymbolType::Temporary {
+                stype.set(SymbolType::Constant)
             }
-        }) {
-            Value::from_object(t.as_typed_object::<NString>().unwrap().into())
+            TypedObject {
+                inner: sym.0,
+                _marker: PhantomData,
+            }
         } else {
-            Value::from_object(self.make_constant(NString::from(s)).into())
+            let raw_sym = self.allocate_internal(NSymbol(NString::from(s)));
+            symbol_table
+                .inner
+                .insert(SymbolTableEntry(raw_sym), Cell::new(SymbolType::Constant));
+            TypedObject {
+                inner: raw_sym,
+                _marker: PhantomData,
+            }
         }
-    }
-
-    pub fn intern_constant(&mut self, s: &str) -> TypedObject<'static, Symbol> {
-        let sym = self.intern_internal(s);
-        if !self.constants.iter().any(|o| *o == Object::from(sym)) {
-            self.constants.push(sym.into());
-        }
-        sym
-    }
-
-    // This is safe as long as a valid index is passed
-    pub unsafe fn get_global<'a>(&'a self, index: u32) -> Option<Value<'a>> {
-        debug_assert!(index < self.globals.len() as u32);
-        let v = self.globals.get_unchecked(index as usize);
-        if v.get().is_empty() {
-            None
-        } else {
-            Some(v.get())
-        }
-    }
-
-    // This is safe as long as a valid index is passed
-    pub unsafe fn set_global<'a, 'b>(&'a self, index: u32, v: Value<'b>) {
-        debug_assert!(index < self.globals.len() as u32);
-        self.globals
-            .get_unchecked(index as usize)
-            .set(v.make_static());
-    }
-
-    pub unsafe fn getr<'a>(&'a self, index: u8) -> Value<'a> {
-        self.stack.getr(index)
-    }
-
-    pub unsafe fn setr<'a, 'b>(&'a self, index: u8, v: Value<'b>) {
-        self.stack.setr(index, v.make_static());
     }
 }
+
+// Todo include trace trait
+// and explain why it is unsafe
+pub unsafe trait Root {}
 
 //TODO: Include class
 pub struct ObjectHeader {
@@ -186,9 +130,9 @@ impl<'a, T: ObjectTrait> Clone for TypedObject<'a, T> {
 
 impl<'a, T: ObjectTrait> Copy for TypedObject<'a, T> {}
 
-// To safely implement this trait put a unique TYPE_ID and properly implement the trace method
+// To safely implement this trait properly implement the trace method
 pub unsafe trait ObjectTrait: 'static {
-    //Include trace method in future
+    //TODO: Include trace method in future
 }
 
 #[repr(C)]
@@ -211,7 +155,7 @@ impl<'a> Object<'a> {
 
     pub fn cast<T: ObjectTrait>(self) -> Option<&'a T> {
         unsafe {
-            if self.inner.read().type_id == TypeId::of::<T>() {
+            if (*self.inner).type_id == TypeId::of::<T>() {
                 Some(&(*self.inner.cast::<ObjectInner<T>>()).inner)
             } else {
                 None
@@ -221,7 +165,7 @@ impl<'a> Object<'a> {
 
     pub fn as_typed_object<T: ObjectTrait>(self) -> Option<TypedObject<'a, T>> {
         unsafe {
-            if self.inner.read().type_id == TypeId::of::<T>() {
+            if (*self.inner).type_id == TypeId::of::<T>() {
                 Some(TypedObject {
                     inner: self.inner.cast::<ObjectInner<T>>(),
                     _marker: PhantomData,
@@ -232,13 +176,13 @@ impl<'a> Object<'a> {
         }
     }
 
-    pub fn ptr_eq<'b>(self, o: Object<'b>) -> bool {
+    pub fn ptr_eq(self, o: Object) -> bool {
         self.as_raw_ptr() == o.as_raw_ptr()
     }
 }
 
 impl<'a> PartialEq for Object<'a> {
-    fn eq<'b>(&self, other: &Object<'b>) -> bool {
+    fn eq(&self, other: &Object) -> bool {
         todo!()
     }
 }
@@ -264,38 +208,44 @@ impl<'a, T: ObjectTrait> TypedObject<'a, T> {
     }
 }
 
+// In future have multiple representations (like rope) ?
 pub type NString = smartstring::SmartString<smartstring::LazyCompact>;
 
 unsafe impl ObjectTrait for NString {}
 
-pub struct Symbol(NString);
+pub struct NSymbol(NString);
 
-unsafe impl ObjectTrait for Symbol {}
+unsafe impl ObjectTrait for NSymbol {}
 
 #[derive(Default)]
 struct SymbolTable {
-    inner: FxHashSet<SymbolTableEntry>,
+    inner: FxHashMap<SymbolTableEntry, Cell<SymbolType>>,
 }
 
-#[derive(Clone, Copy)]
-struct SymbolTableEntry(TypedObject<'static, Symbol>);
+struct SymbolTableEntry(*mut ObjectInner<NSymbol>);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SymbolType {
+    Constant,
+    Temporary,
+}
 
 impl Hash for SymbolTableEntry {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_ref().0.hash(state)
+        unsafe { (*self.0).inner.0.hash(state) }
     }
 }
 
 impl PartialEq for SymbolTableEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_ref().0 == other.0.as_ref().0
+        unsafe { (*self.0).inner.0 == (*other.0).inner.0 }
     }
 }
 
 impl Eq for SymbolTableEntry {}
 
 impl Borrow<str> for SymbolTableEntry {
-    fn borrow<'a>(&'a self) -> &'a str {
-        &*self.0.as_ref().0
+    fn borrow(&self) -> &str {
+        &unsafe { &*self.0 }.inner.0
     }
 }

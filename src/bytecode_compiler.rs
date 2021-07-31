@@ -1,21 +1,49 @@
 use crate::bytecode::BytecodeWriter;
-use crate::bytecode::Local;
 use crate::bytecode::Op;
 use crate::parser::Statement;
-use crate::{bytecode::ExceededMaxConstants, parser::Expr, scanner::TokenType, value::Value};
+use crate::CompileError;
+use crate::CompileResult;
+use crate::{parser::Expr, scanner::TokenType, value::Value};
 use std::convert::TryFrom;
+use std::convert::TryInto;
+use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
+
+pub struct Local {
+    name: String,
+}
+
+struct BytecodeCompiler<'gc> {
+    w: BytecodeWriter<'gc>,
+    locals: Vec<Local>,
+    regcount: u16,
+}
+
+impl<'gc> BytecodeCompiler<'gc> {
+    fn push_register(&mut self) -> Option<u16> {
+        if self.regcount == 65535 {
+            None
+        } else {
+            self.regcount += 1;
+            Some(self.regcount - 1)
+        }
+    }
+
+    fn pop_register(&mut self) {
+        self.regcount -= 1;
+    }
+}
 
 macro_rules! binary_op_register {
     ($fn_name:ident,$inst_name:ident) => {
         fn $fn_name(&mut self, reg: u16, line: u32) {
             if let Ok(reg) = u8::try_from(reg) {
-                self.write_op(Op::$inst_name, line);
-                self.write_u8(reg)
+                self.w.write_op(Op::$inst_name, line);
+                self.w.write_u8(reg)
             } else {
-                self.write_op(Op::Wide, line);
-                self.write_op(Op::$inst_name, line);
-                self.write_u16(reg)
+                self.w.write_op(Op::Wide, line);
+                self.w.write_op(Op::$inst_name, line);
+                self.w.write_u16(reg)
             }
         }
     };
@@ -26,43 +54,50 @@ macro_rules! binary_op_int {
         fn $fn_name(&mut self, i: Int, line: u32) {
             match i {
                 Int::I8(i) => {
-                    self.write_op(Op::$inst_name, line);
-                    self.write_i8(i)
+                    self.w.write_op(Op::$inst_name, line);
+                    self.w.write_i8(i)
                 }
                 Int::I16(i) => {
-                    self.write_op(Op::Wide, line);
-                    self.write_op(Op::$inst_name, line);
-                    self.write_i16(i)
+                    self.w.write_op(Op::Wide, line);
+                    self.w.write_op(Op::$inst_name, line);
+                    self.w.write_i16(i)
                 }
                 Int::I32(i) => {
-                    self.write_op(Op::ExtraWide, line);
-                    self.write_op(Op::$inst_name, line);
-                    self.write_i32(i)
+                    self.w.write_op(Op::ExtraWide, line);
+                    self.w.write_op(Op::$inst_name, line);
+                    self.w.write_i32(i)
                 }
             }
         }
     };
 }
-impl BytecodeWriter {
+
+impl<'gc> BytecodeCompiler<'gc> {
     fn write_op_load_register(&mut self, reg: u16, line: u32) {
         if let Ok(reg) = u8::try_from(reg) {
-            self.write_op(Op::LoadRegister, line);
-            self.write_u8(reg)
+            self.w.write_op(Op::LoadRegister, line);
+            self.w.write_u8(reg)
         } else {
-            self.write_op(Op::Wide, line);
-            self.write_op(Op::LoadRegister, line);
-            self.write_u16(reg)
+            self.w.write_op(Op::Wide, line);
+            self.w.write_op(Op::LoadRegister, line);
+            self.w.write_u16(reg)
         }
     }
 
     fn write_op_store_register(&mut self, reg: u16, line: u32) {
         match reg {
-            0 => self.write_op(Op::StoreR0, line),
-            1 => self.write_op(Op::StoreR1, line),
-            2 => self.write_op(Op::StoreR2, line),
-            3 => self.write_op(Op::StoreR3, line),
-            4 => self.write_op(Op::StoreR4, line),
-            _ => todo!(),
+            0..=15 => self
+                .w
+                .write_op((Op::StoreR0 as u8 + reg as u8).try_into().unwrap(), line),
+            16..=255 => {
+                self.w.write_op(Op::StoreRegister, line);
+                self.w.write_u8(reg as u8)
+            }
+            _ => {
+                self.w.write_op(Op::Wide, line);
+                self.w.write_op(Op::StoreRegister, line);
+                self.w.write_u16(reg)
+            }
         }
     }
 
@@ -71,9 +106,9 @@ impl BytecodeWriter {
     fn write_op_move(&mut self, reg1: u16, reg2: u16, line: u32) {
         match (u8::try_from(reg1), u8::try_from(reg2)) {
             (Ok(reg1), Ok(reg2)) => {
-                self.write_op(Op::Move, line);
-                self.write_u8(reg1);
-                self.write_u8(reg2)
+                self.w.write_op(Op::Move, line);
+                self.w.write_u8(reg1);
+                self.w.write_u8(reg2)
             }
             _ => todo!(),
         }
@@ -96,7 +131,7 @@ impl BytecodeWriter {
     binary_op_int!(write_op_divide_int, DivideInt);
 
     fn write_op_negate(&mut self, line: u32) {
-        self.write_op(Op::Negate, line)
+        self.w.write_op(Op::Negate, line)
     }
 }
 
@@ -107,42 +142,32 @@ enum Int {
     I32(i32),
 }
 impl Int {
-    fn add(self, rhs: Self) -> Result<Int, ArithmeticError> {
-        Ok(Int::from(
-            i32::from(self)
-                .checked_add(i32::from(rhs))
-                .ok_or(ArithmeticError)?,
-        ))
+    fn add(self, rhs: Self) -> Option<Int> {
+        i32::from(self)
+            .checked_add(i32::from(rhs))
+            .map(|i| Int::from(i))
     }
 
-    fn sub(self, rhs: Self) -> Result<Int, ArithmeticError> {
-        Ok(Int::from(
-            i32::from(self)
-                .checked_sub(i32::from(rhs))
-                .ok_or(ArithmeticError)?,
-        ))
+    fn sub(self, rhs: Self) -> Option<Int> {
+        i32::from(self)
+            .checked_sub(i32::from(rhs))
+            .map(|i| Int::from(i))
     }
 
-    fn mul(self, rhs: Self) -> Result<Int, ArithmeticError> {
-        Ok(Int::from(
-            i32::from(self)
-                .checked_mul(i32::from(rhs))
-                .ok_or(ArithmeticError)?,
-        ))
+    fn mul(self, rhs: Self) -> Option<Int> {
+        i32::from(self)
+            .checked_mul(i32::from(rhs))
+            .map(|i| Int::from(i))
     }
 
-    fn div(self, rhs: Self) -> Result<Int, ArithmeticError> {
-        Ok(Int::from(
-            i32::from(self)
-                .checked_div(i32::from(rhs))
-                .ok_or(ArithmeticError)?,
-        ))
+    fn div(self, rhs: Self) -> Option<Int> {
+        i32::from(self)
+            .checked_div(i32::from(rhs))
+            .map(|i| Int::from(i))
     }
 
-    fn neg(self) -> Result<Int, ArithmeticError> {
-        Ok(Int::from(
-            i32::from(self).checked_neg().ok_or(ArithmeticError)?,
-        ))
+    fn neg(self) -> Option<Int> {
+        i32::from(self).checked_neg().map(|i| Int::from(i))
     }
 }
 
@@ -172,6 +197,13 @@ impl From<Int> for f64 {
         f64::from(i32::from(i))
     }
 }
+
+impl Display for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", i32::from(*self))
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprResult {
     Register(u16),
@@ -179,74 +211,55 @@ pub enum ExprResult {
     Int(Int),
     Float(f64),
 }
-pub struct ArithmeticError;
-pub struct ExceededMaxLocals;
-#[derive(Debug)]
-pub enum BytecodeCompilerError {
-    ArithmeticError,
-    ExceededMaxLocals,
-    ExceededMaxConstants,
-}
-impl From<ArithmeticError> for BytecodeCompilerError {
-    fn from(_: ArithmeticError) -> Self {
-        BytecodeCompilerError::ArithmeticError
-    }
-}
-
-impl From<ExceededMaxConstants> for BytecodeCompilerError {
-    fn from(_: ExceededMaxConstants) -> Self {
-        BytecodeCompilerError::ExceededMaxConstants
-    }
-}
-
-impl From<ExceededMaxLocals> for BytecodeCompilerError {
-    fn from(_: ExceededMaxLocals) -> Self {
-        BytecodeCompilerError::ExceededMaxLocals
-    }
-}
 
 macro_rules! binary_op {
     ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident) => {
-        fn $op(
-            &mut self,
-            left: &Expr,
-            right: &Expr,
-            line: u32,
-        ) -> Result<ExprResult, BytecodeCompilerError> {
+        fn $op(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
             let left = self.evaluate_expr(left)?;
-            let reg = self.push_register();
-            self.evaluate_expr_result(&left, line)?;
+            let reg = self.push_register().ok_or(CompileError {
+                message: "Cannot have more than 65535 locals+expressions".into(),
+                line,
+            })?;
+            self.store_in_accumulator(&left, line)?;
             self.write_op_store_register(reg, line);
             let right = self.evaluate_expr(right)?;
             self.pop_register();
             match (left, right) {
                 (ExprResult::Int(i1), ExprResult::Int(i2)) => {
-                    self.pop_save_expr_result(&ExprResult::Int(i1));
-                    Ok(ExprResult::Int(i1.$op_fn(i2)?))
+                    self.undo_save_to_register(&ExprResult::Int(i1));
+                    Ok(ExprResult::Int(i1.$op_fn(i2).ok_or(CompileError {
+                        message: format!(
+                            "Cannot {} {} and {} as the result cannot be stored in an int",
+                            stringify!($op_fn),
+                            i1,
+                            i2
+                        ),
+                        line,
+                    })?))
                 }
                 (ExprResult::Float(f), ExprResult::Int(i)) => {
-                    self.pop_save_expr_result(&ExprResult::Float(f));
+                    self.undo_save_to_register(&ExprResult::Float(f));
                     Ok(ExprResult::Float(f.$op_fn(f64::from(i))))
                 }
                 (ExprResult::Int(i), ExprResult::Float(f)) => {
-                    self.pop_save_expr_result(&ExprResult::Int(i));
+                    self.undo_save_to_register(&ExprResult::Int(i));
                     Ok(ExprResult::Float(f64::from(i).$op_fn(f)))
                 }
                 (left, ExprResult::Int(i)) => {
-                    self.pop_save_expr_result(&left);
-                    self.evaluate_expr_result(&left, line)?;
+                    self.undo_save_to_register(&left);
+                    self.store_in_accumulator(&left, line)?;
                     self.$int_inst(i, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.pop_save_expr_result(&ExprResult::Register(r));
-                    self.evaluate_expr_result(&right, line)?;
+                    self.undo_save_to_register(&ExprResult::Register(r));
+                    self.store_in_accumulator(&right, line)?;
                     self.$register_inst(r, line);
                     Ok(ExprResult::Accumulator)
                 }
 
                 (_, right) => {
-                    self.evaluate_expr_result(&right, line)?;
+                    self.store_in_accumulator(&right, line)?;
                     self.$register_inst(reg, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -255,34 +268,35 @@ macro_rules! binary_op {
     };
 }
 
-impl BytecodeWriter {
-    pub fn pop_save_expr_result(&mut self, result: &ExprResult) {
+impl<'gc> BytecodeCompiler<'gc> {
+    pub fn undo_save_to_register(&mut self, result: &ExprResult) {
         match result {
             ExprResult::Register(_) => {
-                self.pop_last_op();
+                self.w.pop_last_op();
             }
             ExprResult::Accumulator => {}
             ExprResult::Int(_) => {
-                self.pop_last_op();
+                self.w.pop_last_op();
             }
             ExprResult::Float(_) => {
-                self.pop_last_op();
+                self.w.pop_last_op();
             }
         }
-        self.pop_last_op();
+        self.w.pop_last_op();
     }
-    pub fn evaluate_expr_result(
-        &mut self,
-        result: &ExprResult,
-        line: u32,
-    ) -> Result<(), BytecodeCompilerError> {
+    pub fn store_in_accumulator(&mut self, result: &ExprResult, line: u32) -> CompileResult<()> {
         match result {
             ExprResult::Register(reg) => Ok(self.write_op_load_register(*reg, line)),
             ExprResult::Accumulator => Ok(()),
             ExprResult::Int(i) => Ok(self.write_op_load_int(*i, line)),
-            ExprResult::Float(f) => self
-                .write_value(Value::from_f64(*f), line)
-                .map_err(|e| BytecodeCompilerError::ExceededMaxConstants),
+            ExprResult::Float(f) => {
+                self.w
+                    .write_value(Value::from_f64(*f), line)
+                    .map_err(|_| CompileError {
+                        message: "Cannot have more than 65535 constants per function".into(),
+                        line,
+                    })
+            }
         }
     }
     pub fn resolve_variable(&self, name: &str) -> Option<u16> {
@@ -294,28 +308,25 @@ impl BytecodeWriter {
         None
     }
 
-    pub fn evaluate_statements(
-        &mut self,
-        statements: &[Statement],
-    ) -> Result<(), BytecodeCompilerError> {
+    pub fn evaluate_statements(&mut self, statements: &[Statement]) -> CompileResult<()> {
         Ok(for statement in statements {
             self.evaluate_statement(statement)?
         })
     }
 
-    pub fn evaluate_statement(
-        &mut self,
-        statement: &Statement,
-    ) -> Result<(), BytecodeCompilerError> {
+    pub fn evaluate_statement(&mut self, statement: &Statement) -> CompileResult<()> {
         match statement {
-            Statement::Expr(expr) => self.evaluate_expr(expr).map(|e| ()),
+            Statement::Expr(expr) => self.evaluate_expr(expr).map(|_| ()),
             Statement::VarDeclaration {
                 name,
                 mutability,
                 expr,
                 line,
             } => Ok({
-                let reg = u16::try_from(self.locals.len()).map_err(|e| ExceededMaxLocals)?;
+                let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
+                    line: *line,
+                    message: "Cannot have more than 65535 locals".into(),
+                })?;
                 self.locals.push(Local {
                     name: name.to_string(),
                 });
@@ -328,14 +339,21 @@ impl BytecodeWriter {
                         self.write_op_store_register(reg, *line)
                     }
                     ExprResult::Float(f) => {
-                        self.write_value(Value::from_f64(f), *line)?;
+                        self.w
+                            .write_value(Value::from_f64(f), *line)
+                            .map_err(|_| CompileError {
+                                message: "Cannot have more than 65535 constants per function"
+                                    .into(),
+                                line: *line,
+                            });
                         self.write_op_store_register(reg, *line)
                     }
                 }
             }),
+            Statement::Block(_) => todo!(),
         }
     }
-    pub fn evaluate_expr(&mut self, expr: &Expr) -> Result<ExprResult, BytecodeCompilerError> {
+    pub fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(Int::from(*i))),
@@ -364,7 +382,7 @@ impl BytecodeWriter {
             },
         }
     }
-    fn negate(&mut self, right: &Expr, line: u32) -> Result<ExprResult, BytecodeCompilerError> {
+    fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         match self.evaluate_expr(right)? {
             ExprResult::Register(r) => {
                 self.write_op_load_register(r, line);
@@ -375,7 +393,7 @@ impl BytecodeWriter {
                 self.write_op_negate(line);
                 Ok(ExprResult::Accumulator)
             }
-            ExprResult::Int(i) => Ok(ExprResult::Int(i.neg()?)),
+            ExprResult::Int(i) => Ok(ExprResult::Int(i.neg().unwrap())),
             ExprResult::Float(f) => Ok(ExprResult::Float(-f)),
         }
     }
