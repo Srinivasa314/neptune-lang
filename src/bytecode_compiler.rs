@@ -145,7 +145,7 @@ impl<'gc> BytecodeCompiler<'gc> {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Int {
+pub enum Int {
     I8(i8),
     I16(i16),
     I32(i32),
@@ -354,7 +354,7 @@ impl<'gc> BytecodeCompiler<'gc> {
                                 message: "Cannot have more than 65535 constants per function"
                                     .into(),
                                 line: *line,
-                            });
+                            })?;
                         self.write_op_store_register(reg, *line)
                     }
                 }

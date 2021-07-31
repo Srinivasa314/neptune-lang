@@ -1,4 +1,7 @@
-use crate::{CompileError, CompileResult, scanner::{Token, TokenType}};
+use crate::{
+    scanner::{Token, TokenType},
+    CompileError, CompileResult,
+};
 use num_enum::TryFromPrimitive;
 use std::convert::TryInto;
 
@@ -215,7 +218,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 
     fn parse_precedence(&mut self, prec: Precedence) -> CompileResult<Expr> {
         self.advance();
-        if let Some(mut expr) = self.prefix(self.previous.token_type.clone()) {
+        if let Some(expr) = self.prefix(self.previous.token_type.clone()) {
             let mut expr = expr?;
             while prec as u8 <= get_precedence(&self.current.token_type) as u8 {
                 self.advance();
