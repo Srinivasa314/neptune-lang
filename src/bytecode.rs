@@ -204,8 +204,12 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                 }
                 write!(f, "{}: ", reader.offset())?;
                 match reader.read_op() {
-                    Op::Wide => todo!(),
-                    Op::ExtraWide => todo!(),
+                    Op::Wide =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
+                    Op::ExtraWide =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
                     Op::LoadRegister => {
                         writeln!(f, "LoadRegister r{}", reader.read_u8())?;
                     }
@@ -215,7 +219,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     Op::LoadConstant => {
                         writeln!(f, "LoadConstant {}", reader.read_u16())?;
                     }
-                    Op::StoreRegister => todo!(),
+                    Op::StoreRegister =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
                     Op::Move => {
                         let dest = reader.read_u8();
                         let src = reader.read_u8();
@@ -252,14 +258,20 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                         writeln!(f, "Increment")?;
                     }
                     Op::Negate => writeln!(f, "Negate")?,
-                    Op::Call => todo!(),
+                    Op::Call =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
                     Op::Call1Argument => {
                         let fun = reader.read_u8();
                         let arg0 = reader.read_u8();
                         writeln!(f, "Call1Argument r{} r{}", fun, arg0)?;
                     }
-                    Op::Call0Argument => todo!(),
-                    Op::Call2Argument => todo!(),
+                    Op::Call0Argument =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
+                    Op::Call2Argument =>  {
+                        writeln!(f, "StoreR2")?;
+                    },
                     Op::Less => {
                         writeln!(f, "Less r{}", reader.read_u8())?;
                     }
@@ -296,22 +308,54 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     Op::Exit => {
                         writeln!(f, "Exit")?;
                     }
-                    Op::StoreR0 => todo!(),
-                    Op::StoreR1 => todo!(),
-                    Op::StoreR2 => todo!(),
-                    Op::StoreR3 => todo!(),
-                    Op::StoreR4 => todo!(),
-                    Op::StoreR5 => todo!(),
-                    Op::StoreR6 => todo!(),
-                    Op::StoreR7 => todo!(),
-                    Op::StoreR8 => todo!(),
-                    Op::StoreR9 => todo!(),
-                    Op::StoreR10 => todo!(),
-                    Op::StoreR11 => todo!(),
-                    Op::StoreR12 => todo!(),
-                    Op::StoreR13 => todo!(),
-                    Op::StoreR14 => todo!(),
-                    Op::StoreR15 => todo!(),
+                    Op::StoreR0 => {
+                        writeln!(f, "StoreR0")?;
+                    }
+                    Op::StoreR1 => {
+                        writeln!(f, "StoreR1")?;
+                    }
+                    Op::StoreR2 => {
+                        writeln!(f, "StoreR2")?;
+                    }
+                    Op::StoreR3 =>  {
+                        writeln!(f, "StoreR3")?;
+                    },
+                    Op::StoreR4 =>  {
+                        writeln!(f, "StoreR4")?;
+                    },
+                    Op::StoreR5 =>  {
+                        writeln!(f, "StoreR5")?;
+                    },
+                    Op::StoreR6 => {
+                        writeln!(f, "StoreR6")?;
+                    },
+                    Op::StoreR7 =>  {
+                        writeln!(f, "StoreR7")?;
+                    },
+                    Op::StoreR8 =>  {
+                        writeln!(f, "StoreR8")?;
+                    },
+                    Op::StoreR9 =>  {
+                        writeln!(f, "StoreR9")?;
+                    },
+                    Op::StoreR10 =>  {
+                        writeln!(f, "StoreR10")?;
+                    },
+                    Op::StoreR11 =>  {
+                        writeln!(f, "StoreR11")?;
+                    },
+                    Op::StoreR12 =>  {
+                        writeln!(f, "StoreR12")?;
+                    },
+                    Op::StoreR13 =>  {
+                        writeln!(f, "StoreR13")?;
+                    },
+                    Op::StoreR14 =>  {
+                        writeln!(f, "StoreR14")?;
+                    },
+                    Op::StoreR15 =>  {
+                        writeln!(f, "StoreR15")?;
+                    },
                 }
             })
         }

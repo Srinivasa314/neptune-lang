@@ -1,3 +1,4 @@
+use crate::bytecode;
 use crate::bytecode::BytecodeWriter;
 use crate::bytecode::Op;
 use crate::parser::Statement;
@@ -13,15 +14,23 @@ pub struct Local {
     name: String,
 }
 
-struct BytecodeCompiler<'gc> {
-    w: BytecodeWriter<'gc>,
+pub struct BytecodeCompiler<'gc> {
+    pub writer: BytecodeWriter<'gc>,
     locals: Vec<Local>,
     regcount: u16,
 }
 
 impl<'gc> BytecodeCompiler<'gc> {
+    pub fn new() -> Self {
+        Self {
+            writer: bytecode::BytecodeWriter::new(),
+            locals: vec![],
+            regcount: 0,
+        }
+    }
+
     fn push_register(&mut self) -> Option<u16> {
-        if self.regcount == 65535 {
+        if self.regcount == u16::MAX {
             None
         } else {
             self.regcount += 1;
@@ -38,12 +47,12 @@ macro_rules! binary_op_register {
     ($fn_name:ident,$inst_name:ident) => {
         fn $fn_name(&mut self, reg: u16, line: u32) {
             if let Ok(reg) = u8::try_from(reg) {
-                self.w.write_op(Op::$inst_name, line);
-                self.w.write_u8(reg)
+                self.writer.write_op(Op::$inst_name, line);
+                self.writer.write_u8(reg)
             } else {
-                self.w.write_op(Op::Wide, line);
-                self.w.write_op(Op::$inst_name, line);
-                self.w.write_u16(reg)
+                self.writer.write_op(Op::Wide, line);
+                self.writer.write_op(Op::$inst_name, line);
+                self.writer.write_u16(reg)
             }
         }
     };
@@ -54,18 +63,18 @@ macro_rules! binary_op_int {
         fn $fn_name(&mut self, i: Int, line: u32) {
             match i {
                 Int::I8(i) => {
-                    self.w.write_op(Op::$inst_name, line);
-                    self.w.write_i8(i)
+                    self.writer.write_op(Op::$inst_name, line);
+                    self.writer.write_i8(i)
                 }
                 Int::I16(i) => {
-                    self.w.write_op(Op::Wide, line);
-                    self.w.write_op(Op::$inst_name, line);
-                    self.w.write_i16(i)
+                    self.writer.write_op(Op::Wide, line);
+                    self.writer.write_op(Op::$inst_name, line);
+                    self.writer.write_i16(i)
                 }
                 Int::I32(i) => {
-                    self.w.write_op(Op::ExtraWide, line);
-                    self.w.write_op(Op::$inst_name, line);
-                    self.w.write_i32(i)
+                    self.writer.write_op(Op::ExtraWide, line);
+                    self.writer.write_op(Op::$inst_name, line);
+                    self.writer.write_i32(i)
                 }
             }
         }
@@ -75,28 +84,28 @@ macro_rules! binary_op_int {
 impl<'gc> BytecodeCompiler<'gc> {
     fn write_op_load_register(&mut self, reg: u16, line: u32) {
         if let Ok(reg) = u8::try_from(reg) {
-            self.w.write_op(Op::LoadRegister, line);
-            self.w.write_u8(reg)
+            self.writer.write_op(Op::LoadRegister, line);
+            self.writer.write_u8(reg)
         } else {
-            self.w.write_op(Op::Wide, line);
-            self.w.write_op(Op::LoadRegister, line);
-            self.w.write_u16(reg)
+            self.writer.write_op(Op::Wide, line);
+            self.writer.write_op(Op::LoadRegister, line);
+            self.writer.write_u16(reg)
         }
     }
 
     fn write_op_store_register(&mut self, reg: u16, line: u32) {
         match reg {
             0..=15 => self
-                .w
+                .writer
                 .write_op((Op::StoreR0 as u8 + reg as u8).try_into().unwrap(), line),
             16..=255 => {
-                self.w.write_op(Op::StoreRegister, line);
-                self.w.write_u8(reg as u8)
+                self.writer.write_op(Op::StoreRegister, line);
+                self.writer.write_u8(reg as u8)
             }
             _ => {
-                self.w.write_op(Op::Wide, line);
-                self.w.write_op(Op::StoreRegister, line);
-                self.w.write_u16(reg)
+                self.writer.write_op(Op::Wide, line);
+                self.writer.write_op(Op::StoreRegister, line);
+                self.writer.write_u16(reg)
             }
         }
     }
@@ -106,9 +115,9 @@ impl<'gc> BytecodeCompiler<'gc> {
     fn write_op_move(&mut self, reg1: u16, reg2: u16, line: u32) {
         match (u8::try_from(reg1), u8::try_from(reg2)) {
             (Ok(reg1), Ok(reg2)) => {
-                self.w.write_op(Op::Move, line);
-                self.w.write_u8(reg1);
-                self.w.write_u8(reg2)
+                self.writer.write_op(Op::Move, line);
+                self.writer.write_u8(reg1);
+                self.writer.write_u8(reg2)
             }
             _ => todo!(),
         }
@@ -131,7 +140,7 @@ impl<'gc> BytecodeCompiler<'gc> {
     binary_op_int!(write_op_divide_int, DivideInt);
 
     fn write_op_negate(&mut self, line: u32) {
-        self.w.write_op(Op::Negate, line)
+        self.writer.write_op(Op::Negate, line)
     }
 }
 
@@ -272,17 +281,17 @@ impl<'gc> BytecodeCompiler<'gc> {
     pub fn undo_save_to_register(&mut self, result: &ExprResult) {
         match result {
             ExprResult::Register(_) => {
-                self.w.pop_last_op();
+                self.writer.pop_last_op();
             }
             ExprResult::Accumulator => {}
             ExprResult::Int(_) => {
-                self.w.pop_last_op();
+                self.writer.pop_last_op();
             }
             ExprResult::Float(_) => {
-                self.w.pop_last_op();
+                self.writer.pop_last_op();
             }
         }
-        self.w.pop_last_op();
+        self.writer.pop_last_op();
     }
     pub fn store_in_accumulator(&mut self, result: &ExprResult, line: u32) -> CompileResult<()> {
         match result {
@@ -290,7 +299,7 @@ impl<'gc> BytecodeCompiler<'gc> {
             ExprResult::Accumulator => Ok(()),
             ExprResult::Int(i) => Ok(self.write_op_load_int(*i, line)),
             ExprResult::Float(f) => {
-                self.w
+                self.writer
                     .write_value(Value::from_f64(*f), line)
                     .map_err(|_| CompileError {
                         message: "Cannot have more than 65535 constants per function".into(),
@@ -339,7 +348,7 @@ impl<'gc> BytecodeCompiler<'gc> {
                         self.write_op_store_register(reg, *line)
                     }
                     ExprResult::Float(f) => {
-                        self.w
+                        self.writer
                             .write_value(Value::from_f64(f), *line)
                             .map_err(|_| CompileError {
                                 message: "Cannot have more than 65535 constants per function"
