@@ -3,6 +3,7 @@ use crate::{
     CompileError, CompileResult,
 };
 use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
@@ -91,7 +92,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
@@ -113,7 +114,7 @@ pub enum Expr {
         line: u32,
     },
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
     VarDeclaration {
@@ -125,7 +126,7 @@ pub enum Statement {
     Block(Vec<Statement>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Mutability {
     Immutable,
     Mutable,
@@ -495,5 +496,65 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             }
         }
         Ok(Statement::Block(statements))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scanner::{are_brackets_balanced, Scanner};
+    use std::{fs, panic::PanicInfo};
+    #[test]
+    fn test() {
+        if std::env::var("GENERATE_TESTS").is_ok() {
+            fn gen_json(name: &str) {
+                let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", name)).unwrap();
+                let s = Scanner::new(&s);
+                let tokens = s.scan_tokens();
+                let parser = Parser::new(tokens.into_iter());
+                let (statements, errors) = parser.parse();
+                assert!(errors.is_empty());
+                std::fs::write(
+                    format!("tests/parser_tests/{}.json", name),
+                    serde_json::to_string(&statements).unwrap(),
+                )
+                .unwrap();
+            }
+            let tests: Vec<String> =
+                serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
+            for i in tests {
+                gen_json(&i);
+            }
+        } else {
+            let tests: Vec<String> =
+                serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
+
+            for test in tests {
+                let s1 = fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
+                let s2 =
+                    std::fs::read_to_string(format!("tests/parser_tests/{}.json", test)).unwrap();
+                let s = Scanner::new(&s1);
+                let tokens = s.scan_tokens();
+                let parser = Parser::new(tokens.into_iter());
+                let (statements, errors) = parser.parse();
+                assert!(errors.is_empty());
+                assert_eq!(serde_json::to_string(&statements).unwrap(), s2);
+            }
+        }
+    }
+    #[test]
+    fn error() {
+        if !std::env::var("GENERATE_TESTS").is_ok() {
+            let errors: Vec<String> =
+                serde_json::from_str(include_str!("../tests/parser_tests/errors.json")).unwrap();
+            for error in errors {
+                let s = fs::read_to_string(format!("tests/parser_tests/{}.np", error)).unwrap();
+                let s = Scanner::new(&s);
+                let tokens = s.scan_tokens();
+                let parser = Parser::new(tokens.into_iter());
+                let (_, errors) = parser.parse();
+                assert!(!errors.is_empty())
+            }
+        }
     }
 }

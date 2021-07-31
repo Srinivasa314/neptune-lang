@@ -1,0 +1,1 @@
+[{"VarDeclaration":{"name":"a","mutability":"Mutable","expr":{"Binary":{"left":{"Binary":{"left":{"Literal":{"inner":{"IntLiteral":1},"line":1}},"op":"Star","right":{"Literal":{"inner":{"IntLiteral":2},"line":1}},"line":1}},"op":"Plus","right":{"Literal":{"inner":{"IntLiteral":3},"line":1}},"line":1}},"line":1}}]

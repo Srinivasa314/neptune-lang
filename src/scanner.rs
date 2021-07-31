@@ -352,9 +352,7 @@ impl<'src> Scanner<'src> {
                         )) {
                             Ok(n) => {
                                 if let Some(c) = char::from_u32(n) {
-                                    for i in c.to_string().bytes() {
-                                        s.push(char::from_u32(i as u32).unwrap());
-                                    }
+                                    s.push(char::from_u32(c as u32).unwrap());
                                 } else {
                                     self.error(format!(
                                         "Cannot convert {} to a unicode character",
