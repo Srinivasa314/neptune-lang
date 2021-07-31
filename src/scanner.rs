@@ -795,20 +795,23 @@ mod tests {
                 serde_json::from_str(include_str!("../tests/scanner_tests/errors.json")).unwrap();
             for error in errors {
                 let s = fs::read_to_string(format!("tests/scanner_tests/{}.np", error)).unwrap();
-                assert!(Scanner::new(&s)
-                    .scan_tokens()
-                    .iter()
-                    .any(|t| matches!(t.token_type, TokenType::Error(_))))
+                assert!(
+                    Scanner::new(&s)
+                        .scan_tokens()
+                        .iter()
+                        .any(|t| matches!(t.token_type, TokenType::Error(_))),
+                    error
+                )
             }
         }
     }
 
     #[test]
     fn test_brackets_balanced() {
-        for s in ["'\"", "(", "'\\({)'", "'\\", "'srcbc", "'\\u"] {
+        for s in ["'\"", "(", "'\\({)'", "'\\", "'srcbc", "'\\u", "\"\\()\\\""] {
             assert!(!are_brackets_balanced(s), "{}", s)
         }
-        for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'"] {
+        for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'", "a", "[]"] {
             assert!(are_brackets_balanced(s), "{}", s)
         }
     }

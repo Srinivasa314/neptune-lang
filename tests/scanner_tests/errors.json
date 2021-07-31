@@ -11,5 +11,13 @@
     "test_invalid_unicode2",
     "test_wrong_number1",
     "test_wrong_number2",
-    "test_invalid_character"
+    "test_wrong_number3",
+    "test_wrong_number4",
+    "test_null",
+    "test_invalid_character",
+    "test_unterminated_comment",
+    "test_unterminated_escape",
+    "test_invalid_octal",
+    "test_invalid_escape",
+    "test_invalid_symbol"
 ]

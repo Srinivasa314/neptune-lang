@@ -15,7 +15,7 @@ pub struct CompileError {
 
 type CompileResult<T> = Result<T, CompileError>;
 fn main() {
-    let tokens = scanner::Scanner::new("let x=0\nlet y=10\nx*(x+y)\n").scan_tokens();
+    let tokens = scanner::Scanner::new("{let x=0\nlet y=10\nx*(x+y)}\n").scan_tokens();
     let ast = parser::Parser::new(tokens.into_iter()).parse();
     dbg!(ast.1);
     dbg!(&ast.0);
