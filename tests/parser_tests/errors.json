@@ -1,4 +1,7 @@
 [
     "test_invalid_expr",
-    "test_invalid_let"
+    "test_invalid_let",
+    "test_invalid_token",
+    "test_invalid_grouping",
+    "test_invalid_let2"
 ]

@@ -441,10 +441,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.expression_statement()
             }?;
             if needs_sep {
-                self.consume(
-                    TokenType::StatementSeparator,
-                    "Expect newline or semicolon".into(),
-                )?;
+                if !(self.match_token(TokenType::StatementSeparator)
+                    || self.match_token(TokenType::Eof))
+                {
+                    Err(self.error_at_current("Expect newline or semicolon".into()))?;
+                }
             }
             Ok(e)
         })() {
@@ -484,21 +485,15 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 
     fn block(&mut self) -> CompileResult<Statement> {
         let mut statements = vec![];
-        self.consume(TokenType::LeftBrace, "Expect { to begin block".into())?;
         loop {
-            if let Some(stmt) = self.statement(false) {
-                statements.push(stmt);
-            }
             if self.match_token(TokenType::RightBrace) {
                 break;
             } else if self.match_token(TokenType::StatementSeparator) {
                 if self.match_token(TokenType::RightBrace) {
                     break;
                 }
-            } else {
-                return Err(self.error_at_current(
-                    "Expect newline or semicolon or right brace after statement in block".into(),
-                ));
+            } else if let Some(stmt) = self.statement(false) {
+                statements.push(stmt);
             }
         }
         Ok(Statement::Block(statements))
@@ -518,6 +513,7 @@ mod tests {
                 let tokens = s.scan_tokens();
                 let parser = Parser::new(tokens.into_iter());
                 let (statements, errors) = parser.parse();
+                dbg!(&errors, name);
                 assert!(errors.is_empty());
                 std::fs::write(
                     format!("tests/parser_tests/{}.json", name),
@@ -560,7 +556,8 @@ mod tests {
                 let tokens = s.scan_tokens();
                 let parser = Parser::new(tokens.into_iter());
                 let (_, errors) = parser.parse();
-                assert!(!errors.is_empty())
+                assert!(!errors.is_empty());
+                dbg!((errors, error));
             }
         }
     }
