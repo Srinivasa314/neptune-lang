@@ -1,116 +1,206 @@
-use crate::{
-    bytecode::{BytecodeReader, Op},
-    gc::{self},
-    value::Value,
+use std::{
+    cell::Cell,
+    ops::{Add, Div, Mul, Sub},
 };
 
-struct Stack {
-    v: Vec<Value<'static>>,
-    bp: *mut Value<'static>,
-    end: *mut Value<'static>,
+use arrayvec::ArrayVec;
+
+use crate::{
+    bytecode::{Bytecode, BytecodeReader, Op},
+    gc::{self, GCSession, GC},
+    value::{ArithmeticError, RootedValue, Value},
+};
+
+struct VM<'gc> {
+    acc: Cell<RootedValue<'gc>>,
+    stack: Vec<RootedValue<'gc>>,
+    bp: *mut RootedValue<'gc>,
+    stack_end: *mut RootedValue<'gc>,
+    frames: ArrayVec<Frame<'gc>, 1024>,
+    globals: Vec<Cell<RootedValue<'gc>>>,
+    gc: GCSession<'gc>,
 }
 
-struct BasePointer(*mut Value<'static>);
 struct StackOverflowError;
 
-impl Stack {
-    fn new() -> Self {
-        let mut v = vec![Value::empty(); 1024 * 128];
-        let bp: *mut Value = v.as_mut_ptr();
-        let end = unsafe { bp.add(v.len()) };
-        Self { v, bp, end }
+struct Frame<'gc> {
+    reader: BytecodeReader<'gc>,
+    bp: *mut RootedValue<'gc>,
+}
+
+macro_rules! binary_int_op {
+    ($self:ident,$br:ident,$op:ident,$op_name:ident,$type:ty) => {{
+        let a = $self.geta();
+        if let Some(i) = a.as_i32() {
+            $self.seta(Value::from_i32(i.$op($br.read::<$type>() as i32)))
+        } else if let Some(f) = a.as_f64() {
+            $self.seta(Value::from_f64(f.$op($br.read::<$type>() as f64)))
+        } else {
+            return Err(format!(
+                "Cannot {} types {} and int",
+                stringify!(op_name),
+                a.type_string()
+            ));
+        }
+    }};
+}
+
+macro_rules! binary_reg_op {
+    ($self:ident,$br:ident,$op:ident,$op_name:ident,$type:ty) => {{
+        let left = $self.getr($br.read::<$type>() as u16);
+        let right = $self.geta();
+        match left.$op(right) {
+            Ok(v) => $self.seta(v),
+            Err(ArithmeticError::TypeError) => {
+                return Err(format!(
+                    "Cannot {} types {} and {}",
+                    stringify!(op_name),
+                    left.type_string(),
+                    right.type_string()
+                ))
+            }
+            Err(ArithmeticError::OverflowError) => {
+                return Err(format!(
+                    "Overflow when doing operation {} on {} and {}",
+                    stringify!($op_name),
+                    left,
+                    right
+                ))
+            }
+        }
+    }};
+}
+
+impl<'gc> VM<'gc> {
+    pub fn new(gc: &'gc GC) -> Self {
+        let mut stack = vec![RootedValue::from(Value::null()); 1024 * 128];
+        let bp = stack.as_mut_ptr();
+        let stack_end = unsafe { bp.add(stack.len()) };
+        Self {
+            acc: Cell::new(RootedValue::from(Value::null())),
+            stack,
+            bp,
+            stack_end,
+            frames: ArrayVec::new(),
+            globals: vec![],
+            gc: GCSession::new(gc),
+        }
     }
 
-    // The caller must ensure that a local at the given index exists on the stack
-    unsafe fn getr(&self, index: u8) -> Value<'static> {
-        let ptr = self.bp.add(index as usize);
-        debug_assert!(ptr < self.end);
-        ptr.read()
+    // The Values returned by the following functions have reduced lifetime
+    // as they are unrooted and do not survive garbage collection. Allocation which
+    // triggers garbage collection borrows the VM as mutable
+    fn getr<'a>(&'a self, index: u16) -> Value<'a> {
+        let ptr = unsafe { self.bp.add(index as usize) };
+        debug_assert!(ptr < self.stack_end);
+        unsafe { ptr.read().get_inner() }
     }
 
-    // The caller must ensure that a local at the given index exists on the stack
-    unsafe fn setr(&self, index: u8, v: Value<'static>) {
-        let ptr = self.bp.add(index as usize);
-        debug_assert!(ptr < self.end);
-        ptr.write(v)
+    fn setr<'a, 'b>(&'a self, index: u16, v: Value<'b>) {
+        let ptr = unsafe { self.bp.add(index as usize) };
+        debug_assert!(ptr < self.stack_end);
+        unsafe { ptr.write(RootedValue::from(v)) }
     }
 
-    fn get_bp(&self) -> BasePointer {
-        BasePointer(self.bp)
+    fn geta<'a>(&'a self) -> Value<'a> {
+        unsafe { self.acc.get().get_inner() }
     }
 
-    unsafe fn set_bp(&mut self, bp: BasePointer) {
-        self.bp = bp.0;
+    fn seta<'a, 'b>(&'a self, v: Value<'b>) {
+        self.acc.set(RootedValue::from(v))
+    }
+
+    fn get_global<'a>(&'a self, index: u32) -> Option<Value<'a>> {
+        debug_assert!((index as usize) < self.globals.len());
+        let v = unsafe { self.globals.get_unchecked(index as usize).get().get_inner() };
+        if v.is_empty() {
+            None
+        } else {
+            Some(v)
+        }
+    }
+
+    fn set_global<'a, 'b>(&'a self, index: u32, v: Value<'b>) {
+        debug_assert!((index as usize) < self.globals.len());
+        unsafe {
+            self.globals
+                .get_unchecked(index as usize)
+                .set(RootedValue::from(v))
+        };
     }
 
     fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
         let p = self.bp.wrapping_add(by as usize);
-        if p.wrapping_add(regcount as usize) > self.end {
+        if p.wrapping_add(regcount as usize) > self.stack_end {
             Err(StackOverflowError)
         } else {
             self.bp = p;
             Ok(())
         }
     }
-}
 
-struct Frame {
-    br: BytecodeReader<'static>,
-    bp: BasePointer,
-}
-
-//TODO: Return uncaught exception in future
-fn run(gc: &mut gc::GC, mut bc: BytecodeReader) -> Result<(), String> {
-    let mut frames: Vec<Frame> = Vec::with_capacity(1024);
-    let mut curr_frame = frames.as_mut_ptr();
-    let frames_end = unsafe { curr_frame.add(1024) };
-    unsafe {
-        loop {
-            match bc.read_op() {
-                Op::Wide => todo!(),
-                Op::ExtraWide => todo!(),
-                Op::LoadInt => todo!(),
-                Op::LoadRegister => todo!(),
-                Op::StoreR0 => todo!(),
-                Op::StoreR1 => todo!(),
-                Op::StoreR2 => todo!(),
-                Op::StoreR3 => todo!(),
-                Op::StoreR4 => todo!(),
-                Op::Move => todo!(),
-                Op::Increment => todo!(),
-                Op::Negate => todo!(),
-                Op::AddRegister => todo!(),
-                Op::AddInt => todo!(),
-                Op::SubtractRegister => todo!(),
-                Op::SubtractInt => todo!(),
-                Op::MultiplyRegister => todo!(),
-                Op::MultiplyInt => todo!(),
-                Op::DivideRegister => todo!(),
-                Op::DivideInt => todo!(),
-                Op::Less => todo!(),
-                Op::LoadConstant => todo!(),
-                Op::Return => todo!(),
-                Op::Jump => todo!(),
-                Op::JumpBack => todo!(),
-                Op::JumpIfFalse => todo!(),
-                Op::Call1Argument => todo!(),
-                Op::GetGlobal => todo!(),
-                Op::Exit => todo!(),
-                Op::StoreRegister => todo!(),
-                Op::Call => todo!(),
-                Op::Call0Argument => todo!(),
-                Op::Call2Argument => todo!(),
-                Op::StoreR5 => todo!(),
-                Op::StoreR6 => todo!(),
-                Op::StoreR7 => todo!(),
-                Op::StoreR8 => todo!(),
-                Op::StoreR9 => todo!(),
-                Op::StoreR10 => todo!(),
-                Op::StoreR11 => todo!(),
-                Op::StoreR12 => todo!(),
-                Op::StoreR13 => todo!(),
-                Op::StoreR14 => todo!(),
-                Op::StoreR15 => todo!(),
+    //TODO: Return uncaught exception in future
+    pub fn run(&mut self, bc: &'gc Bytecode<'gc>) -> Result<(), String> {
+        let mut br = BytecodeReader::new(bc);
+        self.frames.push(Frame {
+            reader: br,
+            bp: self.bp,
+        });
+        unsafe {
+            loop {
+                match br.read_op() {
+                    Op::Wide => todo!(),
+                    Op::ExtraWide => todo!(),
+                    Op::LoadRegister => self.seta(self.getr(br.read_u8() as u16)),
+                    Op::LoadInt => self.seta(Value::from_i32(br.read_i8() as i32)),
+                    Op::LoadConstant => self.seta(br.read_value::<u8>()),
+                    Op::StoreRegister => self.setr(br.read_u8() as u16, self.geta()),
+                    Op::Move => {
+                        let left = br.read_u8();
+                        let right = br.read_u8();
+                        self.setr(left as u16, self.getr(right as u16))
+                    }
+                    Op::GetGlobal => self.seta(
+                        self.get_global(br.read_u8() as u32)
+                            .ok_or_else(|| "todo".to_string())?,
+                    ),
+                    Op::AddRegister => binary_reg_op!(self, br, add, add, u8),
+                    Op::SubtractRegister => binary_reg_op!(self, br, sub, subtract, u8),
+                    Op::MultiplyRegister => binary_reg_op!(self, br, mul, multiply, u8),
+                    Op::DivideRegister => binary_reg_op!(self, br, div, divide, u8),
+                    Op::AddInt => binary_int_op!(self, br, add, add, i8),
+                    Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i8),
+                    Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i8),
+                    Op::DivideInt => binary_int_op!(self, br, div, divide, i8),
+                    Op::Increment => todo!(),
+                    Op::Negate => todo!(),
+                    Op::Call => todo!(),
+                    Op::Call0Argument => todo!(),
+                    Op::Call1Argument => todo!(),
+                    Op::Call2Argument => todo!(),
+                    Op::Less => todo!(),
+                    Op::Jump => todo!(),
+                    Op::JumpBack => todo!(),
+                    Op::JumpIfFalse => todo!(),
+                    Op::Return => todo!(),
+                    Op::Exit => return Ok(()),
+                    Op::StoreR0 => self.setr(0, self.geta()),
+                    Op::StoreR1 => self.setr(1, self.geta()),
+                    Op::StoreR2 => self.setr(2, self.geta()),
+                    Op::StoreR3 => self.setr(3, self.geta()),
+                    Op::StoreR4 => self.setr(4, self.geta()),
+                    Op::StoreR5 => self.setr(5, self.geta()),
+                    Op::StoreR6 => self.setr(6, self.geta()),
+                    Op::StoreR7 => self.setr(7, self.geta()),
+                    Op::StoreR8 => self.setr(8, self.geta()),
+                    Op::StoreR9 => self.setr(9, self.geta()),
+                    Op::StoreR10 => self.setr(10, self.geta()),
+                    Op::StoreR11 => self.setr(11, self.geta()),
+                    Op::StoreR12 => self.setr(12, self.geta()),
+                    Op::StoreR13 => self.setr(13, self.geta()),
+                    Op::StoreR14 => self.setr(14, self.geta()),
+                    Op::StoreR15 => self.setr(15, self.geta()),
+                }
             }
         }
     }

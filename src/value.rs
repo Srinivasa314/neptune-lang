@@ -1,4 +1,4 @@
-use crate::{gc::Object, gc::{NString, ObjectHeader}, util::unreachable};
+use crate::{gc::Object, gc::ObjectHeader, objects::NString, util::unreachable};
 use std::marker::PhantomData;
 
 // Values are represented by NaN Boxing.
@@ -210,21 +210,19 @@ impl<'a> Value<'a> {
     }
 }
 
-// Used for values that are rooted. When its inner value is got it will not be rooted
-// so its lifetime will be lesser than the lifetime of the gc so
+// Used for values that are rooted. When its inner value is got an unrooted value will be created
+// and its lifetime will be lesser than the lifetime of the gc so
 // its lifetime must be reduced so that it cannot be accessed after it is freed.
 #[derive(Clone, Copy)]
 pub struct RootedValue<'a>(Value<'a>);
 
 impl<'a> RootedValue<'a> {
-    unsafe fn get(&self) -> Value<'a> {
+    pub unsafe fn get_inner(&self) -> Value<'a> {
         self.0
     }
-}
 
-impl<'a> From<Value<'a>> for RootedValue<'a> {
-    fn from(v: Value<'a>) -> Self {
-        Self(v)
+    pub fn from<'b>(v: Value<'b>) -> RootedValue<'a> {
+        Self(unsafe { std::mem::transmute(v) })
     }
 }
 
@@ -276,17 +274,88 @@ impl PartialEq for Value<'_> {
 
 impl Eq for Value<'_> {}
 
+//Todo impl object  too and change this when new types added
 impl<'a> std::fmt::Debug for Value<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match () {
-            _ if self.is_bool() => write!(f, "{}", self.as_bool().unwrap()),
-            _ if self.is_i32() => write!(f, "{}", self.as_i32().unwrap()),
-            _ if self.is_f64() => write!(f, "{}", &self.as_f64().unwrap()),
-            _ if self.is_object() => write!(f, "object"),
-            _ => todo!(),
+        if let Some(i) = self.as_i32() {
+            write!(f, "{}", i)
+        } else if let Some(fl) = self.as_f64() {
+            write!(f, "{}", fl)
+        } else if let Some(o) = self.as_object() {
+            todo!()
+        } else if let Some(b) = self.as_bool() {
+            write!(f, "{}", b)
+        } else if self.is_null() {
+            write!(f, "null")
+        } else {
+            unreachable()
         }
     }
 }
+
+impl<'a> std::fmt::Display for Value<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl<'a> Value<'a> {
+    pub fn type_string(self) -> &'static str {
+        if self.is_i32() {
+            "int"
+        } else if self.is_f64() {
+            "float"
+        } else if self.is_null() {
+            "null"
+        } else if self.is_bool() {
+            "bool"
+        } else if let Some(o) = self.as_object() {
+            o.type_string()
+        } else {
+            unreachable()
+        }
+    }
+}
+
+pub enum ArithmeticError {
+    TypeError,
+    OverflowError,
+}
+
+macro_rules! binary_op_num {
+    ($op:ident,$checked_op:ident) => {
+        impl<'a> Value<'a> {
+            pub fn $op(self, other: Value<'a>) -> Result<Value<'static>, ArithmeticError> {
+                if let Some(i1) = self.as_i32() {
+                    if let Some(i2) = other.as_i32() {
+                        Ok(Value::from_i32(
+                            i1.$checked_op(i2).ok_or(ArithmeticError::OverflowError)?,
+                        ))
+                    } else if let Some(f2) = other.as_f64() {
+                        Ok(Value::from_f64(i1 as f64 + f2))
+                    } else {
+                        Err(ArithmeticError::TypeError)
+                    }
+                } else if let Some(f1) = self.as_f64() {
+                    if let Some(f2) = other.as_f64() {
+                        Ok(Value::from_f64(f1 + f2))
+                    } else if let Some(i2) = other.as_i32() {
+                        Ok(Value::from_f64(f1 + i2 as f64))
+                    } else {
+                        Err(ArithmeticError::TypeError)
+                    }
+                } else {
+                    Err(ArithmeticError::TypeError)
+                }
+            }
+        }
+    };
+}
+
+binary_op_num!(add, checked_add);
+binary_op_num!(sub, checked_sub);
+binary_op_num!(mul, checked_mul);
+binary_op_num!(div, checked_div);
 
 #[cfg(test)]
 mod tests {
@@ -311,7 +380,9 @@ mod tests {
         assert!(Value::from_bool(false).is_false());
         let gc = GC::new();
         let s = gc.alloc_constant(NString::from("abc"));
-        assert!(Value::from_object(s.into()).as_object().unwrap().ptr_eq(s.into()));
+        assert!(Value::from_object(s.into())
+            .as_object()
+            .unwrap()
+            .ptr_eq(s.into()));
     }
 }
-

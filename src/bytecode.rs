@@ -419,8 +419,8 @@ impl<'a> BytecodeReader<'a> {
         self.read::<i32>()
     }
 
-    pub unsafe fn read_value(&mut self) -> Value<'a> {
-        let u = self.read_u16() as usize;
+    pub unsafe fn read_value<T: Into<usize>>(&mut self) -> Value<'a> {
+        let u = self.read::<T>().into();
         debug_assert!(u < self.constants.len());
         *self.constants.get_unchecked(u)
     }

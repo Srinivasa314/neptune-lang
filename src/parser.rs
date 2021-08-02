@@ -89,6 +89,8 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::MinusEqual => Precedence::Assignment,
         TokenType::StarEqual => Precedence::Assignment,
         TokenType::SlashEqual => Precedence::Assignment,
+        TokenType::Tilde => Precedence::Additive,
+        TokenType::TildeEqual => Precedence::Assignment,
     }
 }
 
@@ -291,6 +293,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::MinusEqual => None,
             TokenType::StarEqual => None,
             TokenType::SlashEqual => None,
+            TokenType::Tilde => None,
+            TokenType::TildeEqual => None,
         }
     }
 
@@ -353,6 +357,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::MinusEqual => self.binary(left),
             TokenType::StarEqual => self.binary(left),
             TokenType::SlashEqual => self.binary(left),
+            TokenType::Tilde => self.binary(left),
+            TokenType::TildeEqual => self.binary(left),
         }
     }
 
@@ -502,8 +508,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scanner::{are_brackets_balanced, Scanner};
-    use std::{fs, panic::PanicInfo};
+    use crate::scanner::Scanner;
     #[test]
     fn test() {
         if std::env::var("GENERATE_TESTS").is_ok() {
@@ -530,7 +535,8 @@ mod tests {
                 serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
 
             for test in tests {
-                let s1 = fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
+                let s1 =
+                    std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
                 let s2 =
                     std::fs::read_to_string(format!("tests/parser_tests/{}.json", test)).unwrap();
                 let s = Scanner::new(&s1);
@@ -548,7 +554,8 @@ mod tests {
             let errors: Vec<String> =
                 serde_json::from_str(include_str!("../tests/parser_tests/errors.json")).unwrap();
             for error in errors {
-                let s = fs::read_to_string(format!("tests/parser_tests/{}.np", error)).unwrap();
+                let s =
+                    std::fs::read_to_string(format!("tests/parser_tests/{}.np", error)).unwrap();
                 let s = Scanner::new(&s);
                 let tokens = s.scan_tokens();
                 let parser = Parser::new(tokens.into_iter());

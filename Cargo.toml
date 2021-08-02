@@ -4,6 +4,7 @@ name = "neptune-lang"
 version = "0.1.0"
 
 [dependencies]
+arrayvec = "0.7.1"
 num_enum = "0.5"
 parse_int = "0.5.0"
 rustc-hash = "1.1"

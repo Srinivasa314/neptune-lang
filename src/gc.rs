@@ -1,43 +1,38 @@
 use std::{
-    any::TypeId,
+    any::{Any, TypeId},
     borrow::Borrow,
-    cell::{Cell, RefCell},
+    cell::{Cell, UnsafeCell},
     hash::Hash,
     marker::PhantomData,
 };
 
 use rustc_hash::FxHashMap;
 
-use crate::value::{RootedValue, Value};
+use crate::{
+    objects::{NString, NSymbol},
+    util::unreachable,
+    value::{RootedValue, Value},
+};
 
 pub struct GC {
     bytes_allocated: Cell<usize>,
-    constants: RefCell<Vec<*mut ObjectHeader>>,
+    constants: UnsafeCell<Vec<*mut ObjectHeader>>,
     first: Cell<*mut ObjectHeader>,
     threshold: usize,
-    symbol_table: RefCell<SymbolTable>,
+    symbol_table: UnsafeCell<SymbolTable>,
+    in_use: Cell<bool>,
 }
 
 impl GC {
     pub fn new() -> Self {
         Self {
             bytes_allocated: Cell::new(0),
-            constants: RefCell::new(vec![]),
+            constants: UnsafeCell::new(vec![]),
             first: Cell::new(std::ptr::null_mut()),
             threshold: 1024 * 1024,
-            symbol_table: RefCell::new(SymbolTable::default()),
+            symbol_table: UnsafeCell::new(SymbolTable::default()),
+            in_use: Cell::new(false),
         }
-    }
-
-    pub fn allocate<'gc, T: ObjectTrait, R: Root>(&'gc self, t: T, root: &R) -> RootedValue<'gc> {
-        if self.bytes_allocated.get() > self.threshold {
-            self.collect();
-        }
-        let o = self.allocate_internal(t);
-        (Value::from_object(Object::from_header(unsafe {
-            &mut *(o as *mut ObjectHeader)
-        })))
-        .into()
     }
 
     fn collect(&self) {
@@ -66,7 +61,7 @@ impl GC {
             inner: raw_o,
             _marker: PhantomData,
         };
-        self.constants.borrow_mut().push(raw_o as *mut ObjectHeader);
+        unsafe { &mut *self.constants.get() }.push(raw_o as *mut ObjectHeader);
         o
     }
 
@@ -75,7 +70,7 @@ impl GC {
     }
 
     pub fn intern_constant_symbol<'gc>(&'gc self, s: &str) -> TypedObject<'gc, NSymbol> {
-        let mut symbol_table = self.symbol_table.borrow_mut();
+        let symbol_table = unsafe { &mut *self.symbol_table.get() };
         if let Some((sym, stype)) = symbol_table.inner.get_key_value(s) {
             if stype.get() == SymbolType::Temporary {
                 stype.set(SymbolType::Constant)
@@ -85,7 +80,7 @@ impl GC {
                 _marker: PhantomData,
             }
         } else {
-            let raw_sym = self.allocate_internal(NSymbol(NString::from(s)));
+            let raw_sym = self.allocate_internal(NSymbol::from_string(NString::from(s)));
             symbol_table
                 .inner
                 .insert(SymbolTableEntry(raw_sym), Cell::new(SymbolType::Constant));
@@ -94,6 +89,35 @@ impl GC {
                 _marker: PhantomData,
             }
         }
+    }
+}
+
+pub struct GCSession<'gc>(pub &'gc GC);
+
+impl<'gc> GCSession<'gc> {
+    pub fn new(gc: &'gc GC) -> Self {
+        if gc.in_use.get() {
+            panic!("Cannot create a GCSession while another exists");
+        } else {
+            gc.in_use.set(true);
+            Self(gc)
+        }
+    }
+
+    pub fn allocate<T: ObjectTrait, R: Root>(&self, t: T, root: &R) -> RootedValue<'gc> {
+        if self.0.bytes_allocated.get() > self.0.threshold {
+            self.0.collect();
+        }
+        let o = self.0.allocate_internal(t);
+        RootedValue::from(Value::from_object(Object::from_header(unsafe {
+            &mut *(o as *mut ObjectHeader)
+        })))
+    }
+}
+
+impl<'gc> Drop for GCSession<'gc> {
+    fn drop(&mut self) {
+        self.0.in_use.set(false)
     }
 }
 
@@ -176,8 +200,23 @@ impl<'a> Object<'a> {
         }
     }
 
+    pub fn is<T: ObjectTrait>(self) -> bool {
+        unsafe { (*self.inner).type_id == TypeId::of::<T>() }
+    }
+
     pub fn ptr_eq(self, o: Object) -> bool {
         self.as_raw_ptr() == o.as_raw_ptr()
+    }
+
+    // todo: change this when more types added
+    pub fn type_string(self) -> &'static str {
+        if self.is::<NString>() {
+            "string"
+        } else if self.is::<NSymbol>() {
+            "symbol"
+        } else {
+            unreachable()
+        }
     }
 }
 
@@ -208,15 +247,6 @@ impl<'a, T: ObjectTrait> TypedObject<'a, T> {
     }
 }
 
-// In future have multiple representations (like rope) ?
-pub type NString = smartstring::SmartString<smartstring::LazyCompact>;
-
-unsafe impl ObjectTrait for NString {}
-
-pub struct NSymbol(NString);
-
-unsafe impl ObjectTrait for NSymbol {}
-
 #[derive(Default)]
 struct SymbolTable {
     inner: FxHashMap<SymbolTableEntry, Cell<SymbolType>>,
@@ -232,13 +262,13 @@ enum SymbolType {
 
 impl Hash for SymbolTableEntry {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        unsafe { (*self.0).inner.0.hash(state) }
+        unsafe { (*self.0).inner.to_string().hash(state) }
     }
 }
 
 impl PartialEq for SymbolTableEntry {
     fn eq(&self, other: &Self) -> bool {
-        unsafe { (*self.0).inner.0 == (*other.0).inner.0 }
+        unsafe { (*self.0).inner.to_string() == (*other.0).inner.to_string() }
     }
 }
 
@@ -246,6 +276,6 @@ impl Eq for SymbolTableEntry {}
 
 impl Borrow<str> for SymbolTableEntry {
     fn borrow(&self) -> &str {
-        &unsafe { &*self.0 }.inner.0
+        &unsafe { &*self.0 }.inner.to_string()
     }
 }

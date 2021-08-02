@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::gc::NString;
+use crate::objects::NString;
 pub struct Scanner<'src> {
     source: &'src str,
     tokens: Vec<Token<'src>>,
@@ -44,6 +44,8 @@ pub enum TokenType {
     MinusEqual,
     StarEqual,
     SlashEqual,
+    Tilde,
+    TildeEqual,
     // Literals.
     Identifier,
     String(NString),
@@ -290,6 +292,7 @@ impl<'src> Scanner<'src> {
             }
             b'"' => self.string(b'"'),
             b'\'' => self.string(b'\''),
+            b'~' => self.add_token_if_match(b'=', TokenType::TildeEqual, TokenType::Tilde),
             c => {
                 if isdigit(c) {
                     self.number(c);

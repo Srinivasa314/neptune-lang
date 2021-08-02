@@ -6,6 +6,7 @@ mod scanner;
 mod util;
 mod value;
 mod vm;
+mod objects;
 
 #[derive(Debug)]
 pub struct CompileError {
