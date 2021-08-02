@@ -128,7 +128,7 @@ pub enum Statement {
     Block(Vec<Statement>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Mutability {
     Immutable,
     Mutable,

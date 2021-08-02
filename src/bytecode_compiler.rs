@@ -1,17 +1,18 @@
 use crate::bytecode;
 use crate::bytecode::BytecodeWriter;
 use crate::bytecode::Op;
+use crate::parser::Mutability;
 use crate::parser::Statement;
 use crate::CompileError;
 use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType, value::Value};
 use std::convert::TryFrom;
 use std::convert::TryInto;
-use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 pub struct Local {
     name: String,
+    mutability: Mutability,
 }
 
 pub struct BytecodeCompiler<'gc> {
@@ -60,22 +61,18 @@ macro_rules! binary_op_register {
 
 macro_rules! binary_op_int {
     ($fn_name:ident,$inst_name:ident) => {
-        fn $fn_name(&mut self, i: Int, line: u32) {
-            match i {
-                Int::I8(i) => {
-                    self.writer.write_op(Op::$inst_name, line);
-                    self.writer.write_i8(i)
-                }
-                Int::I16(i) => {
-                    self.writer.write_op(Op::Wide, line);
-                    self.writer.write_op(Op::$inst_name, line);
-                    self.writer.write_i16(i)
-                }
-                Int::I32(i) => {
-                    self.writer.write_op(Op::ExtraWide, line);
-                    self.writer.write_op(Op::$inst_name, line);
-                    self.writer.write_i32(i)
-                }
+        fn $fn_name(&mut self, i: i32, line: u32) {
+            if let Ok(i) = i8::try_from(i) {
+                self.writer.write_op(Op::$inst_name, line);
+                self.writer.write_i8(i);
+            } else if let Ok(i) = i16::try_from(i) {
+                self.writer.write_op(Op::Wide, line);
+                self.writer.write_op(Op::$inst_name, line);
+                self.writer.write_i16(i);
+            } else {
+                self.writer.write_op(Op::ExtraWide, line);
+                self.writer.write_op(Op::$inst_name, line);
+                self.writer.write_i32(i);
             }
         }
     };
@@ -119,7 +116,12 @@ impl<'gc> BytecodeCompiler<'gc> {
                 self.writer.write_u8(reg1);
                 self.writer.write_u8(reg2)
             }
-            _ => todo!(),
+            _ => {
+                self.writer.write_op(Op::Wide, line);
+                self.writer.write_op(Op::Move, line);
+                self.writer.write_u16(reg1);
+                self.writer.write_u16(reg2)
+            }
         }
     }
 
@@ -144,85 +146,16 @@ impl<'gc> BytecodeCompiler<'gc> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum Int {
-    I8(i8),
-    I16(i16),
-    I32(i32),
-}
-impl Int {
-    fn add(self, rhs: Self) -> Option<Int> {
-        i32::from(self)
-            .checked_add(i32::from(rhs))
-            .map(|i| Int::from(i))
-    }
-
-    fn sub(self, rhs: Self) -> Option<Int> {
-        i32::from(self)
-            .checked_sub(i32::from(rhs))
-            .map(|i| Int::from(i))
-    }
-
-    fn mul(self, rhs: Self) -> Option<Int> {
-        i32::from(self)
-            .checked_mul(i32::from(rhs))
-            .map(|i| Int::from(i))
-    }
-
-    fn div(self, rhs: Self) -> Option<Int> {
-        i32::from(self)
-            .checked_div(i32::from(rhs))
-            .map(|i| Int::from(i))
-    }
-
-    fn neg(self) -> Option<Int> {
-        i32::from(self).checked_neg().map(|i| Int::from(i))
-    }
-}
-
-impl From<Int> for i32 {
-    fn from(i: Int) -> Self {
-        match i {
-            Int::I8(i) => i as i32,
-            Int::I16(i) => i as i32,
-            Int::I32(i) => i as i32,
-        }
-    }
-}
-impl From<i32> for Int {
-    fn from(i: i32) -> Self {
-        if let Ok(i) = i8::try_from(i) {
-            Int::I8(i)
-        } else if let Ok(i) = i16::try_from(i) {
-            Int::I16(i)
-        } else {
-            Int::I32(i)
-        }
-    }
-}
-
-impl From<Int> for f64 {
-    fn from(i: Int) -> Self {
-        f64::from(i32::from(i))
-    }
-}
-
-impl Display for Int {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", i32::from(*self))
-    }
-}
-
 #[derive(Debug)]
 pub enum ExprResult {
     Register(u16),
     Accumulator,
-    Int(Int),
+    Int(i32),
     Float(f64),
 }
 
 macro_rules! binary_op {
-    ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident) => {
+    ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident,$op_checked_fn:ident) => {
         fn $op(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
             let left = self.evaluate_expr(left)?;
             let reg = self.push_register().ok_or(CompileError {
@@ -236,15 +169,17 @@ macro_rules! binary_op {
             match (left, right) {
                 (ExprResult::Int(i1), ExprResult::Int(i2)) => {
                     self.undo_save_to_register(&ExprResult::Int(i1));
-                    Ok(ExprResult::Int(i1.$op_fn(i2).ok_or(CompileError {
-                        message: format!(
-                            "Cannot {} {} and {} as the result cannot be stored in an int",
-                            stringify!($op_fn),
-                            i1,
-                            i2
-                        ),
-                        line,
-                    })?))
+                    Ok(ExprResult::Int(i1.$op_checked_fn(i2).ok_or(
+                        CompileError {
+                            message: format!(
+                                "Cannot {} {} and {} as the result cannot be stored in an int",
+                                stringify!($op_fn),
+                                i1,
+                                i2
+                            ),
+                            line,
+                        },
+                    )?))
                 }
                 (ExprResult::Float(f), ExprResult::Int(i)) => {
                     self.undo_save_to_register(&ExprResult::Float(f));
@@ -338,6 +273,7 @@ impl<'gc> BytecodeCompiler<'gc> {
                 })?;
                 self.locals.push(Local {
                     name: name.to_string(),
+                    mutability: *mutability,
                 });
                 self.push_register();
                 match self.evaluate_expr(expr)? {
@@ -359,13 +295,13 @@ impl<'gc> BytecodeCompiler<'gc> {
                     }
                 }
             }),
-            Statement::Block(_) => todo!(),
+            Statement::Block(b) => self.evaluate_statements(b),
         }
     }
     pub fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
-                TokenType::IntLiteral(i) => Ok(ExprResult::Int(Int::from(*i))),
+                TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
                 TokenType::FloatLiteral(f) => Ok(ExprResult::Float(*f)),
                 _ => todo!(),
             },
@@ -379,6 +315,7 @@ impl<'gc> BytecodeCompiler<'gc> {
                 TokenType::Minus => self.subtract(left, right, *line),
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
+                TokenType::Equal => self.equal(left, right, *line),
                 _ => todo!(),
             },
             Expr::Unary { op, right, line } => match op {
@@ -402,23 +339,62 @@ impl<'gc> BytecodeCompiler<'gc> {
                 self.write_op_negate(line);
                 Ok(ExprResult::Accumulator)
             }
-            ExprResult::Int(i) => Ok(ExprResult::Int(i.neg().unwrap())),
+            ExprResult::Int(i) => Ok(ExprResult::Int(i.checked_neg().unwrap())),
             ExprResult::Float(f) => Ok(ExprResult::Float(-f)),
         }
     }
 
-    binary_op!(add, write_op_add_register, write_op_add_int, add);
+    fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+        if let Expr::Variable { name, line } = left {
+            let dest = self.resolve_variable(name).ok_or(CompileError {
+                message: format!("Cannot resolve {}", name),
+                line: *line,
+            })?;
+            match self.evaluate_expr(right)? {
+                ExprResult::Register(r) => {
+                    self.write_op_move(r, dest, *line);
+                    Ok(ExprResult::Register(dest))
+                }
+                res => {
+                    self.store_in_accumulator(&res, *line)?;
+                    self.write_op_store_register(dest, *line);
+                    Ok(ExprResult::Accumulator)
+                }
+            }
+        } else {
+            Err(CompileError {
+                message: "Invalid target for assignment".to_string(),
+                line,
+            })
+        }
+    }
+
+    binary_op!(
+        add,
+        write_op_add_register,
+        write_op_add_int,
+        add,
+        checked_add
+    );
     binary_op!(
         subtract,
         write_op_subtract_register,
         write_op_subtract_int,
-        sub
+        sub,
+        checked_sub
     );
     binary_op!(
         multiply,
         write_op_multiply_register,
         write_op_multiply_int,
-        mul
+        mul,
+        checked_mul
     );
-    binary_op!(divide, write_op_divide_register, write_op_divide_int, div);
+    binary_op!(
+        divide,
+        write_op_divide_register,
+        write_op_divide_int,
+        div,
+        checked_div
+    );
 }
