@@ -339,7 +339,15 @@ impl<'gc> BytecodeCompiler<'gc> {
                 self.write_op_negate(line);
                 Ok(ExprResult::Accumulator)
             }
-            ExprResult::Int(i) => Ok(ExprResult::Int(i.checked_neg().unwrap())),
+            ExprResult::Int(i) => Ok(ExprResult::Int(i.checked_neg().ok_or_else(|| {
+                CompileError {
+                    message: format!(
+                        "Cannot negate {} as the result cannot be stored in an int",
+                        i
+                    ),
+                    line,
+                }
+            })?)),
             ExprResult::Float(f) => Ok(ExprResult::Float(-f)),
         }
     }
@@ -347,7 +355,7 @@ impl<'gc> BytecodeCompiler<'gc> {
     fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         if let Expr::Variable { name, line } = left {
             let (dest, mutability) = self.resolve_variable(name).ok_or(CompileError {
-                message: format!("Cannot resolve {}", name),
+                message: format!("{} is not defined", name),
                 line: *line,
             })?;
             if mutability == Mutability::Const {
