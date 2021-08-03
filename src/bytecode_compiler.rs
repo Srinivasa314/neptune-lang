@@ -386,6 +386,18 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
                 TokenType::FloatLiteral(f) => Ok(ExprResult::Float(*f)),
+                TokenType::Null => {
+                    self.writer.write_op(Op::LoadNull, *line);
+                    Ok(ExprResult::Accumulator)
+                }
+                TokenType::True => {
+                    self.writer.write_op(Op::LoadTrue, *line);
+                    Ok(ExprResult::Accumulator)
+                }
+                TokenType::False => {
+                    self.writer.write_op(Op::LoadFalse, *line);
+                    Ok(ExprResult::Accumulator)
+                }
                 _ => todo!(),
             },
             Expr::Binary {

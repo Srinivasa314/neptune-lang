@@ -11,6 +11,9 @@ pub enum Op {
     ExtraWide,
     LoadRegister,
     LoadInt,
+    LoadNull,
+    LoadTrue,
+    LoadFalse,
     LoadConstant,
     StoreRegister,
     Move,
@@ -215,8 +218,11 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                         writeln!(f, "LoadRegister r{}", reader.read_u8())?;
                     }
                     Op::LoadInt => {
-                        writeln!(f, "LoadI8 {}", reader.read_i8())?;
+                        writeln!(f, "LoadInt {}", reader.read_i8())?;
                     }
+                    Op::LoadNull => writeln!(f, "LoadNull")?,
+                    Op::LoadTrue => writeln!(f, "LoadTrue")?,
+                    Op::LoadFalse => writeln!(f, "LoadFalse")?,
                     Op::LoadConstant => {
                         writeln!(f, "LoadConstant {}", reader.read_u16())?;
                     }
@@ -230,6 +236,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::LoadGlobal => {
                         writeln!(f, "LoadGlobal {}", reader.read_u8())?;
+                    }
+                    Op::StoreGlobal => {
+                        writeln!(f, "StoreGlobal {}", reader.read_u8())?;
                     }
                     Op::AddRegister => {
                         writeln!(f, "AddRegister r{}", reader.read_u8())?;
@@ -356,9 +365,6 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::StoreR15 => {
                         writeln!(f, "StoreR15")?;
-                    }
-                    Op::StoreGlobal => {
-                        writeln!(f, "StoreGlobal {}", reader.read_u8())?;
                     }
                 }
             })

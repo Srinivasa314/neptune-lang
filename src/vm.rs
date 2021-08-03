@@ -8,6 +8,7 @@ use arrayvec::ArrayVec;
 use crate::{
     bytecode::{Bytecode, BytecodeReader, Op},
     gc::{self, GCSession, GC},
+    util::unreachable,
     value::{ArithmeticError, RootedValue, Value},
 };
 
@@ -149,10 +150,57 @@ impl<'gc> VM<'gc> {
         unsafe {
             loop {
                 match br.read_op() {
-                    Op::Wide => todo!(),
-                    Op::ExtraWide => todo!(),
+                    Op::Wide => match br.read_op() {
+                        Op::LoadRegister => self.seta(self.getr(br.read_u16())),
+                        Op::LoadInt => self.seta(Value::from_i32(br.read_i16() as i32)),
+                        Op::LoadConstant => self.seta(br.read_value::<u16>()),
+                        Op::StoreRegister => self.setr(br.read_u16(), self.geta()),
+                        Op::Move => {
+                            let left = br.read_u16();
+                            let right = br.read_u16();
+                            self.setr(left, self.getr(right))
+                        }
+                        Op::LoadGlobal => self.seta(
+                            self.get_global(br.read_u16() as u32)
+                                .ok_or_else(|| "todo".to_string())?,
+                        ),
+                        Op::StoreGlobal => self.set_global(br.read_u16() as u32, self.geta()),
+                        Op::AddRegister => binary_reg_op!(self, br, add, add, u16),
+                        Op::SubtractRegister => binary_reg_op!(self, br, sub, subtract, u16),
+                        Op::MultiplyRegister => binary_reg_op!(self, br, mul, multiply, u16),
+                        Op::DivideRegister => binary_reg_op!(self, br, div, divide, u16),
+                        Op::AddInt => binary_int_op!(self, br, add, add, i16),
+                        Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i16),
+                        Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i16),
+                        Op::DivideInt => binary_int_op!(self, br, div, divide, i16),
+                        Op::Call => todo!(),
+                        Op::Call0Argument => todo!(),
+                        Op::Call1Argument => todo!(),
+                        Op::Call2Argument => todo!(),
+                        Op::Less => todo!(),
+                        Op::Jump => todo!(),
+                        Op::JumpBack => todo!(),
+                        Op::JumpIfFalse => todo!(),
+                        _ => unreachable(),
+                    },
+                    Op::ExtraWide => match br.read_op() {
+                        Op::LoadInt => self.seta(Value::from_i32(br.read_i32())),
+                        Op::LoadGlobal => self.seta(
+                            self.get_global(br.read_u32())
+                                .ok_or_else(|| "todo".to_string())?,
+                        ),
+                        Op::StoreGlobal => self.set_global(br.read_u32(), self.geta()),
+                        Op::AddInt => binary_int_op!(self, br, add, add, i32),
+                        Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i32),
+                        Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i32),
+                        Op::DivideInt => binary_int_op!(self, br, div, divide, i32),
+                        _ => unreachable(),
+                    },
                     Op::LoadRegister => self.seta(self.getr(br.read_u8() as u16)),
                     Op::LoadInt => self.seta(Value::from_i32(br.read_i8() as i32)),
+                    Op::LoadNull => self.seta(Value::null()),
+                    Op::LoadTrue => self.seta(Value::new_true()),
+                    Op::LoadFalse => self.seta(Value::new_false()),
                     Op::LoadConstant => self.seta(br.read_value::<u8>()),
                     Op::StoreRegister => self.setr(br.read_u8() as u16, self.geta()),
                     Op::Move => {
@@ -174,7 +222,20 @@ impl<'gc> VM<'gc> {
                     Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i8),
                     Op::DivideInt => binary_int_op!(self, br, div, divide, i8),
                     Op::Increment => todo!(),
-                    Op::Negate => todo!(),
+                    Op::Negate => {
+                        let a = self.geta();
+                        if let Some(i) = a.as_i32() {
+                            if let Some(res) = i.checked_neg() {
+                                self.seta(Value::from_i32(res))
+                            } else {
+                                return Err(format!("Overflow on negating {}", i));
+                            }
+                        } else if let Some(f) = a.as_f64() {
+                            self.seta(Value::from_f64(-f))
+                        } else {
+                            return Err(format!("Cannot negate type {}", a.type_string()));
+                        }
+                    }
                     Op::Call => todo!(),
                     Op::Call0Argument => todo!(),
                     Op::Call1Argument => todo!(),
