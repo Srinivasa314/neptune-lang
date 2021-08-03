@@ -20,7 +20,7 @@ fn main() {
     let ast = parser::Parser::new(tokens.into_iter()).parse();
     dbg!(ast.1);
     dbg!(&ast.0);
-    let mut bytecode_compiler = bytecode_compiler::BytecodeCompiler::new();
-    bytecode_compiler.evaluate_statements(&ast.0).unwrap();
-    dbg!(bytecode_compiler.writer.bytecode());
+    //let mut bytecode_compiler = bytecode_compiler::BytecodeCompiler::new();
+    //bytecode_compiler.evaluate_statements(&ast.0).unwrap();
+    //dbg!(bytecode_compiler.writer.bytecode());
 }

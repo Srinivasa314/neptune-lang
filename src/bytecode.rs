@@ -12,10 +12,10 @@ pub enum Op {
     LoadRegister,
     LoadInt,
     LoadConstant,
-    LoadGlobal,
     StoreRegister,
-    StoreGlobal,
     Move,
+    LoadGlobal,
+    StoreGlobal,
     AddRegister,
     SubtractRegister,
     MultiplyRegister,
@@ -378,7 +378,7 @@ impl<'a> BytecodeReader<'a> {
         }
     }
 
-    pub fn is_at_end(&self) -> bool {
+    fn is_at_end(&self) -> bool {
         self.ptr == self.end
     }
 
@@ -391,7 +391,7 @@ impl<'a> BytecodeReader<'a> {
         ret
     }
 
-    pub fn offset(&self) -> usize {
+    fn offset(&self) -> usize {
         unsafe { self.ptr.offset_from(self.start) as usize }
     }
 

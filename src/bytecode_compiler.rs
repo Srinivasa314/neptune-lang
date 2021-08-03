@@ -3,7 +3,7 @@ use rustc_hash::FxHashMap;
 use crate::bytecode;
 use crate::bytecode::BytecodeWriter;
 use crate::bytecode::Op;
-use crate::parser::Mutability;
+use crate::gc::GC;
 use crate::parser::Statement;
 use crate::CompileError;
 use crate::CompileResult;
@@ -12,29 +12,38 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ops::{Add, Div, Mul, Sub};
 
-pub struct Local {
-    name: String,
-    mutability: Mutability,
+pub struct Compiler<'gc> {
+    globals: FxHashMap<String, u32>,
+    errors: Vec<CompileError>,
+    gc: &'gc GC,
 }
 
-pub struct BytecodeCompiler<'gc> {
-    pub writer: BytecodeWriter<'gc>,
-    locals: Vec<Local>,
+impl<'gc> Compiler<'gc> {
+    pub fn new(gc: &'gc GC) -> Self {
+        Self {
+            gc,
+            globals: FxHashMap::default(),
+            errors: vec![],
+        }
+    }
+}
+
+struct BytecodeCompiler<'c, 'gc> {
+    compiler: Option<&'c mut Compiler<'gc>>,
+    writer: BytecodeWriter<'gc>,
+    locals: Vec<String>,
     depth: u32,
-    globals: FxHashMap<String, (u32, Mutability)>,
-    errors: Vec<CompileError>,
     regcount: u16,
 }
 
-impl<'gc> BytecodeCompiler<'gc> {
-    pub fn new() -> Self {
+impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
+    fn new(c: &'c mut Compiler<'gc>) -> Self {
         Self {
             writer: bytecode::BytecodeWriter::new(),
             locals: vec![],
             regcount: 0,
             depth: 0,
-            errors: vec![],
-            globals: FxHashMap::default(),
+            compiler: Some(c),
         }
     }
 
@@ -49,6 +58,21 @@ impl<'gc> BytecodeCompiler<'gc> {
 
     fn pop_register(&mut self) {
         self.regcount -= 1;
+    }
+
+    fn get_global(&self, name: &str) -> Option<u32> {
+        self.compiler.as_ref().unwrap().globals.get(name).cloned()
+    }
+
+    fn new_global(&mut self, name: &str) -> u32 {
+        let g = &mut self.compiler.as_mut().unwrap().globals;
+        let len = g.len() as u32;
+        g.insert(name.to_string(), len);
+        len
+    }
+
+    fn error(&mut self, e: CompileError) {
+        self.compiler.as_mut().unwrap().errors.push(e)
     }
 }
 
@@ -86,7 +110,7 @@ macro_rules! binary_op_int {
     };
 }
 
-impl<'gc> BytecodeCompiler<'gc> {
+impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
     fn write_op_load_register(&mut self, reg: u16, line: u32) {
         if let Ok(reg) = u8::try_from(reg) {
             self.writer.write_op(Op::LoadRegister, line);
@@ -184,8 +208,8 @@ impl<'gc> BytecodeCompiler<'gc> {
     }
 }
 
-#[derive(Debug)]
-pub enum ExprResult {
+#[derive(Debug, Clone, Copy)]
+enum ExprResult {
     Register(u16),
     Accumulator,
     Int(i32),
@@ -200,13 +224,13 @@ macro_rules! binary_op {
                 message: "Cannot have more than 65535 locals+expressions".into(),
                 line,
             })?;
-            self.store_in_accumulator(&left, line)?;
+            self.store_in_accumulator(left, line)?;
             self.write_op_store_register(reg, line);
             let right = self.evaluate_expr(right)?;
             self.pop_register();
             match (left, right) {
                 (ExprResult::Int(i1), ExprResult::Int(i2)) => {
-                    self.undo_save_to_register(&ExprResult::Int(i1));
+                    self.undo_save_to_register(ExprResult::Int(i1));
                     Ok(ExprResult::Int(i1.$op_checked_fn(i2).ok_or(
                         CompileError {
                             message: format!(
@@ -220,28 +244,28 @@ macro_rules! binary_op {
                     )?))
                 }
                 (ExprResult::Float(f), ExprResult::Int(i)) => {
-                    self.undo_save_to_register(&ExprResult::Float(f));
+                    self.undo_save_to_register(ExprResult::Float(f));
                     Ok(ExprResult::Float(f.$op_fn(f64::from(i))))
                 }
                 (ExprResult::Int(i), ExprResult::Float(f)) => {
-                    self.undo_save_to_register(&ExprResult::Int(i));
+                    self.undo_save_to_register(ExprResult::Int(i));
                     Ok(ExprResult::Float(f64::from(i).$op_fn(f)))
                 }
                 (left, ExprResult::Int(i)) => {
-                    self.undo_save_to_register(&left);
-                    self.store_in_accumulator(&left, line)?;
+                    self.undo_save_to_register(left);
+                    self.store_in_accumulator(left, line)?;
                     self.$int_inst(i, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.undo_save_to_register(&ExprResult::Register(r));
-                    self.store_in_accumulator(&right, line)?;
+                    self.undo_save_to_register(ExprResult::Register(r));
+                    self.store_in_accumulator(right, line)?;
                     self.$register_inst(r, line);
                     Ok(ExprResult::Accumulator)
                 }
 
                 (_, right) => {
-                    self.store_in_accumulator(&right, line)?;
+                    self.store_in_accumulator(right, line)?;
                     self.$register_inst(reg, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -250,8 +274,8 @@ macro_rules! binary_op {
     };
 }
 
-impl<'gc> BytecodeCompiler<'gc> {
-    pub fn undo_save_to_register(&mut self, result: &ExprResult) {
+impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
+    fn undo_save_to_register(&mut self, result: ExprResult) {
         match result {
             ExprResult::Register(_) => {
                 self.writer.pop_last_op();
@@ -266,14 +290,14 @@ impl<'gc> BytecodeCompiler<'gc> {
         }
         self.writer.pop_last_op();
     }
-    pub fn store_in_accumulator(&mut self, result: &ExprResult, line: u32) -> CompileResult<()> {
+    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
         match result {
-            ExprResult::Register(reg) => Ok(self.write_op_load_register(*reg, line)),
+            ExprResult::Register(reg) => Ok(self.write_op_load_register(reg, line)),
             ExprResult::Accumulator => Ok(()),
-            ExprResult::Int(i) => Ok(self.write_op_load_int(*i, line)),
+            ExprResult::Int(i) => Ok(self.write_op_load_int(i, line)),
             ExprResult::Float(f) => {
                 self.writer
-                    .write_value(Value::from_f64(*f), line)
+                    .write_value(Value::from_f64(f), line)
                     .map_err(|_| CompileError {
                         message: "Cannot have more than 65535 constants per function".into(),
                         line,
@@ -281,91 +305,83 @@ impl<'gc> BytecodeCompiler<'gc> {
             }
         }
     }
-    pub fn resolve_local(&self, name: &str) -> Option<(u16, Mutability)> {
+    fn resolve_local(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
-            if local.name == name {
-                return Some((index as u16, local.mutability));
+            if local == name {
+                return Some(index as u16);
             }
         }
         None
     }
 
-    pub fn resolve_global(&self, name: &str) -> Option<(u32, Mutability)> {
-        self.globals.get(name).cloned()
-    }
-
-    pub fn evaluate_statments(&mut self, statements: &[Statement]) {
+    fn evaluate_statments(&mut self, statements: &[Statement]) {
         for statement in statements {
             self.evaluate_statement(statement)
         }
     }
-    pub fn var_declaration(
-        &mut self,
-        name: &str,
-        mutability: &Mutability,
-        expr: &Expr,
-        line: &u32,
-    ) -> CompileResult<()> {
+    fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
+        if self.resolve_local(name).is_some() || self.get_global(name).is_some() {
+            return Err(CompileError {
+                message: "Cannot redeclare variable".into(),
+                line,
+            });
+        }
         if self.depth != 0 {
             let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
-                line: *line,
+                line,
                 message: "Cannot have more than 65535 locals".into(),
             })?;
-            self.locals.push(Local {
-                name: name.to_string(),
-                mutability: *mutability,
-            });
+            self.locals.push(name.to_string());
             self.push_register();
             match self.evaluate_expr(expr)? {
-                ExprResult::Register(reg2) => self.write_op_move(reg, reg2, *line),
-                ExprResult::Accumulator => self.write_op_store_register(reg, *line),
+                ExprResult::Register(reg2) => self.write_op_move(reg, reg2, line),
+                ExprResult::Accumulator => self.write_op_store_register(reg, line),
                 ExprResult::Int(i) => {
-                    self.write_op_load_int(i, *line);
-                    self.write_op_store_register(reg, *line)
+                    self.write_op_load_int(i, line);
+                    self.write_op_store_register(reg, line)
                 }
                 ExprResult::Float(f) => {
                     self.writer
-                        .write_value(Value::from_f64(f), *line)
+                        .write_value(Value::from_f64(f), line)
                         .map_err(|_| CompileError {
                             message: "Cannot have more than 65535 constants per function".into(),
-                            line: *line,
+                            line,
                         })?;
-                    self.write_op_store_register(reg, *line)
+                    self.write_op_store_register(reg, line)
                 }
             }
         } else {
-            let global = self.globals.len();
-            self.globals
-                .insert(name.to_string(), (global as u32, *mutability));
+            let g = self.new_global(name);
             let res = self.evaluate_expr(expr)?;
-            self.store_in_accumulator(&res, *line)?;
-            self.write_op_store_global(global as u32, *line);
+            self.store_in_accumulator(res, line)?;
+            self.write_op_store_global(g, line);
         }
         Ok(())
     }
 
-    pub fn evaluate_statement(&mut self, statement: &Statement) {
-        match statement {
-            Statement::Expr(expr) => {
-                self.evaluate_expr(expr).map_err(|e| self.errors.push(e));
-            }
-            Statement::VarDeclaration {
-                name,
-                mutability,
-                expr,
-                line,
-            } => {
-                self.var_declaration(name, mutability, expr, line)
-                    .map_err(|e| self.errors.push(e));
-            }
-            Statement::Block(b) => {
-                self.depth += 1;
-                self.evaluate_statments(b);
-                self.depth -= 1;
-            }
+    fn evaluate_statement(&mut self, statement: &Statement) {
+        match (|| -> CompileResult<()> {
+            match statement {
+                Statement::Expr(expr) => {
+                    self.evaluate_expr(expr)?;
+                }
+                Statement::VarDeclaration { name, expr, line } => {
+                    self.var_declaration(name, expr, *line)?;
+                }
+                Statement::Block(b) => {
+                    self.depth += 1;
+                    self.evaluate_statments(b);
+                    self.depth -= 1;
+                }
+            };
+            Ok(())
+        })() {
+            Err(e) => self.error(e),
+            _ => {}
         }
     }
-    pub fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
+
+    fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
@@ -390,14 +406,14 @@ impl<'gc> BytecodeCompiler<'gc> {
                 _ => todo!(),
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
-                Some((index, _)) => Ok(ExprResult::Register(index)),
-                None => match self.resolve_global(name) {
-                    Some((global, _)) => {
-                        self.write_op_load_global(global, *line);
-                        Ok(ExprResult::Accumulator)
-                    }
-                    None => todo!(),
-                },
+                Some(index) => Ok(ExprResult::Register(index)),
+                None => {
+                    let global = self
+                        .get_global(name)
+                        .unwrap_or_else(|| self.new_global(name));
+                    self.write_op_load_global(global, *line);
+                    Ok(ExprResult::Accumulator)
+                }
             },
         }
     }
@@ -427,39 +443,32 @@ impl<'gc> BytecodeCompiler<'gc> {
 
     fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         if let Expr::Variable { name, line } = left {
-            if let Some((dest, mutability)) = self.resolve_local(name) {
-                if mutability == Mutability::Const {
-                    Err(CompileError {
-                        message: format!("Cannot mutate constant {}", name),
-                        line: *line,
-                    })
-                } else {
-                    match self.evaluate_expr(right)? {
-                        ExprResult::Register(r) => {
-                            self.write_op_move(r, dest, *line);
-                            Ok(ExprResult::Register(dest))
-                        }
-                        res => {
-                            self.store_in_accumulator(&res, *line)?;
-                            self.write_op_store_register(dest, *line);
-                            Ok(ExprResult::Accumulator)
-                        }
+            if name.chars().next().unwrap().is_ascii_uppercase() {
+                return Err(CompileError {
+                    message: format!("Cannot modify constant {}", name),
+                    line: *line,
+                });
+            }
+            if let Some(dest) = self.resolve_local(name) {
+                match self.evaluate_expr(right)? {
+                    ExprResult::Register(r) => {
+                        self.write_op_move(r, dest, *line);
+                        Ok(ExprResult::Register(dest))
+                    }
+                    res => {
+                        self.store_in_accumulator(res, *line)?;
+                        self.write_op_store_register(dest, *line);
+                        Ok(ExprResult::Accumulator)
                     }
                 }
-            } else if let Some((global, mutability)) = self.resolve_global(name) {
-                if mutability == Mutability::Const {
-                    Err(CompileError {
-                        message: format!("Cannot mutate constant {}", name),
-                        line: *line,
-                    })
-                } else {
-                    let res = self.evaluate_expr(right)?;
-                    self.store_in_accumulator(&res, *line)?;
-                    self.write_op_store_global(global as u32, *line);
-                    Ok(ExprResult::Accumulator)
-                }
             } else {
-                todo!()
+                let global = self
+                    .get_global(name)
+                    .unwrap_or_else(|| self.new_global(name));
+                let res = self.evaluate_expr(right)?;
+                self.store_in_accumulator(res, *line)?;
+                self.write_op_store_global(global, *line);
+                Ok(ExprResult::Accumulator)
             }
         } else {
             Err(CompileError {

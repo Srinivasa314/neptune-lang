@@ -72,7 +72,6 @@ pub enum TokenType {
     True,
     Let,
     While,
-    Const,
     //Other types
     Interpolation, // It stores
     Error(String),
@@ -101,7 +100,6 @@ fn get_keyword(s: &str) -> Option<TokenType> {
         "true" => Some(TokenType::True),
         "let" => Some(TokenType::Let),
         "while" => Some(TokenType::While),
-        "const" => Some(TokenType::Const),
         _ => None,
     }
 }

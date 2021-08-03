@@ -126,7 +126,7 @@ impl<'gc> Drop for GCSession<'gc> {
 pub unsafe trait Root {}
 
 //TODO: Include class
-pub struct ObjectHeader {
+pub(crate) struct ObjectHeader {
     type_id: TypeId,
     is_dark: bool,
     next: *mut ObjectHeader,
@@ -166,14 +166,14 @@ struct ObjectInner<T: ObjectTrait> {
 }
 
 impl<'a> Object<'a> {
-    pub fn from_header(o: &'a mut ObjectHeader) -> Object<'a> {
+    pub(crate) fn from_header(o: &'a mut ObjectHeader) -> Object<'a> {
         Object {
             inner: o,
             _marker: PhantomData,
         }
     }
 
-    pub fn as_raw_ptr(self) -> *mut ObjectHeader {
+    pub(crate) fn as_raw_ptr(self) -> *mut ObjectHeader {
         self.inner
     }
 

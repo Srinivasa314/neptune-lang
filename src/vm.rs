@@ -164,6 +164,7 @@ impl<'gc> VM<'gc> {
                         self.get_global(br.read_u8() as u32)
                             .ok_or_else(|| "todo".to_string())?,
                     ),
+                    Op::StoreGlobal => self.set_global(br.read_u8() as u32, self.geta()),
                     Op::AddRegister => binary_reg_op!(self, br, add, add, u8),
                     Op::SubtractRegister => binary_reg_op!(self, br, sub, subtract, u8),
                     Op::MultiplyRegister => binary_reg_op!(self, br, mul, multiply, u8),
@@ -200,7 +201,6 @@ impl<'gc> VM<'gc> {
                     Op::StoreR13 => self.setr(13, self.geta()),
                     Op::StoreR14 => self.setr(14, self.geta()),
                     Op::StoreR15 => self.setr(15, self.geta()),
-                    Op::StoreGlobal => todo!(),
                 }
             }
         }

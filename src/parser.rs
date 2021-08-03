@@ -79,7 +79,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::This => Precedence::None,
         TokenType::True => Precedence::None,
         TokenType::Let => Precedence::None,
-        TokenType::Const => Precedence::None,
         TokenType::While => Precedence::None,
         TokenType::Interpolation => Precedence::None,
         TokenType::Eof => Precedence::None,
@@ -118,19 +117,8 @@ pub enum Expr {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
-    VarDeclaration {
-        name: String,
-        mutability: Mutability,
-        expr: Expr,
-        line: u32,
-    },
+    VarDeclaration { name: String, expr: Expr, line: u32 },
     Block(Vec<Statement>),
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Mutability {
-    Mutable,
-    Const,
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -281,7 +269,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::This => Some(todo!()),
             TokenType::True => Some(self.literal()),
             TokenType::Let => None,
-            TokenType::Const => None,
             TokenType::While => None,
             TokenType::Interpolation => None,
             TokenType::Eof => None,
@@ -344,7 +331,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::This => unreachable!(),
             TokenType::True => unreachable!(),
             TokenType::Let => unreachable!(),
-            TokenType::Const => unreachable!(),
             TokenType::While => unreachable!(),
             TokenType::Interpolation => unreachable!(),
             TokenType::Eof => unreachable!(),
@@ -406,7 +392,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 TokenType::Class
                 | TokenType::Fun
                 | TokenType::Let
-                | TokenType::Const
                 | TokenType::For
                 | TokenType::If
                 | TokenType::While
@@ -425,9 +410,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn statement(&mut self, needs_sep: bool) -> Option<Statement> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
-                self.var_declaration(Mutability::Mutable)
-            } else if self.match_token(TokenType::Const) {
-                self.var_declaration(Mutability::Const)
+                self.var_declaration()
             } else if self.match_token(TokenType::LeftBrace) {
                 self.block()
             } else {
@@ -451,19 +434,14 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         }
     }
 
-    fn var_declaration(&mut self, mutability: Mutability) -> CompileResult<Statement> {
+    fn var_declaration(&mut self) -> CompileResult<Statement> {
         if TokenType::Identifier == self.current.token_type {
             self.advance();
             let name = self.previous.inner.into();
             let line = self.previous.line;
             self.consume(TokenType::Equal, "Variable must be initialized".into())?;
             let expr = self.expression()?;
-            Ok(Statement::VarDeclaration {
-                name,
-                expr,
-                mutability,
-                line,
-            })
+            Ok(Statement::VarDeclaration { name, expr, line })
         } else {
             Err(self.error_at_current("Expect identifier".into()))
         }
