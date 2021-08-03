@@ -80,7 +80,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::True => Precedence::None,
         TokenType::Let => Precedence::None,
         TokenType::Const => Precedence::None,
-        TokenType::Final => Precedence::None,
         TokenType::While => Precedence::None,
         TokenType::Interpolation => Precedence::None,
         TokenType::Eof => Precedence::None,
@@ -128,9 +127,8 @@ pub enum Statement {
     Block(Vec<Statement>),
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Mutability {
-    Immutable,
     Mutable,
     Const,
 }
@@ -284,7 +282,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::True => Some(self.literal()),
             TokenType::Let => None,
             TokenType::Const => None,
-            TokenType::Final => None,
             TokenType::While => None,
             TokenType::Interpolation => None,
             TokenType::Eof => None,
@@ -348,7 +345,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::True => unreachable!(),
             TokenType::Let => unreachable!(),
             TokenType::Const => unreachable!(),
-            TokenType::Final => unreachable!(),
             TokenType::While => unreachable!(),
             TokenType::Interpolation => unreachable!(),
             TokenType::Eof => unreachable!(),
@@ -411,7 +407,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 | TokenType::Fun
                 | TokenType::Let
                 | TokenType::Const
-                | TokenType::Final
                 | TokenType::For
                 | TokenType::If
                 | TokenType::While
@@ -431,8 +426,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
                 self.var_declaration(Mutability::Mutable)
-            } else if self.match_token(TokenType::Final) {
-                self.var_declaration(Mutability::Immutable)
             } else if self.match_token(TokenType::Const) {
                 self.var_declaration(Mutability::Const)
             } else if self.match_token(TokenType::LeftBrace) {

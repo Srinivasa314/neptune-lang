@@ -243,10 +243,10 @@ impl<'gc> BytecodeCompiler<'gc> {
             }
         }
     }
-    pub fn resolve_variable(&self, name: &str) -> Option<u16> {
+    pub fn resolve_variable(&self, name: &str) -> Option<(u16, Mutability)> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local.name == name {
-                return Some(index as u16);
+                return Some((index as u16, local.mutability));
             }
         }
         None
@@ -323,7 +323,7 @@ impl<'gc> BytecodeCompiler<'gc> {
                 _ => todo!(),
             },
             Expr::Variable { name, line } => match self.resolve_variable(name) {
-                Some(index) => Ok(ExprResult::Register(index)),
+                Some((index, _)) => Ok(ExprResult::Register(index)),
                 None => todo!(),
             },
         }
@@ -346,19 +346,26 @@ impl<'gc> BytecodeCompiler<'gc> {
 
     fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         if let Expr::Variable { name, line } = left {
-            let dest = self.resolve_variable(name).ok_or(CompileError {
+            let (dest, mutability) = self.resolve_variable(name).ok_or(CompileError {
                 message: format!("Cannot resolve {}", name),
                 line: *line,
             })?;
-            match self.evaluate_expr(right)? {
-                ExprResult::Register(r) => {
-                    self.write_op_move(r, dest, *line);
-                    Ok(ExprResult::Register(dest))
-                }
-                res => {
-                    self.store_in_accumulator(&res, *line)?;
-                    self.write_op_store_register(dest, *line);
-                    Ok(ExprResult::Accumulator)
+            if mutability == Mutability::Const {
+                Err(CompileError {
+                    message: format!("Cannot mutate constant {}", name),
+                    line: *line,
+                })
+            } else {
+                match self.evaluate_expr(right)? {
+                    ExprResult::Register(r) => {
+                        self.write_op_move(r, dest, *line);
+                        Ok(ExprResult::Register(dest))
+                    }
+                    res => {
+                        self.store_in_accumulator(&res, *line)?;
+                        self.write_op_store_register(dest, *line);
+                        Ok(ExprResult::Accumulator)
+                    }
                 }
             }
         } else {
