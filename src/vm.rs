@@ -160,7 +160,7 @@ impl<'gc> VM<'gc> {
                         let right = br.read_u8();
                         self.setr(left as u16, self.getr(right as u16))
                     }
-                    Op::GetGlobal => self.seta(
+                    Op::LoadGlobal => self.seta(
                         self.get_global(br.read_u8() as u32)
                             .ok_or_else(|| "todo".to_string())?,
                     ),
@@ -200,6 +200,7 @@ impl<'gc> VM<'gc> {
                     Op::StoreR13 => self.setr(13, self.geta()),
                     Op::StoreR14 => self.setr(14, self.geta()),
                     Op::StoreR15 => self.setr(15, self.geta()),
+                    Op::StoreGlobal => todo!(),
                 }
             }
         }

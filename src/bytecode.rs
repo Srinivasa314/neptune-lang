@@ -12,9 +12,10 @@ pub enum Op {
     LoadRegister,
     LoadInt,
     LoadConstant,
+    LoadGlobal,
     StoreRegister,
+    StoreGlobal,
     Move,
-    GetGlobal,
     AddRegister,
     SubtractRegister,
     MultiplyRegister,
@@ -227,8 +228,8 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                         let src = reader.read_u8();
                         writeln!(f, "Move r{},r{}", dest, src)?;
                     }
-                    Op::GetGlobal => {
-                        writeln!(f, "GetGlobal {}", reader.read_u8())?;
+                    Op::LoadGlobal => {
+                        writeln!(f, "LoadGlobal {}", reader.read_u8())?;
                     }
                     Op::AddRegister => {
                         writeln!(f, "AddRegister r{}", reader.read_u8())?;
@@ -355,6 +356,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::StoreR15 => {
                         writeln!(f, "StoreR15")?;
+                    }
+                    Op::StoreGlobal => {
+                        writeln!(f, "StoreGlobal {}", reader.read_u8())?;
                     }
                 }
             })
