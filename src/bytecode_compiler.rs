@@ -74,6 +74,10 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
     fn error(&mut self, e: CompileError) {
         self.compiler.as_mut().unwrap().errors.push(e)
     }
+
+    fn gc(&self) -> &'gc GC {
+        self.compiler.as_ref().unwrap().gc
+    }
 }
 
 macro_rules! binary_op_register {
@@ -290,21 +294,34 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
         }
         self.writer.pop_last_op();
     }
+
     fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
         match result {
             ExprResult::Register(reg) => Ok(self.write_op_load_register(reg, line)),
             ExprResult::Accumulator => Ok(()),
             ExprResult::Int(i) => Ok(self.write_op_load_int(i, line)),
-            ExprResult::Float(f) => {
-                self.writer
-                    .write_value(Value::from_f64(f), line)
-                    .map_err(|_| CompileError {
-                        message: "Cannot have more than 65535 constants per function".into(),
-                        line,
-                    })
-            }
+            ExprResult::Float(f) => self.load_const(Value::from_f64(f), line),
         }
     }
+
+    fn load_const(&mut self, v: Value<'gc>, line: u32) -> CompileResult<()> {
+        let c = self.writer.new_constant(v).map_err(|_| CompileError {
+            message: "Cannot have more than 65535 constants per function".into(),
+            line,
+        })?;
+        match u8::try_from(c) {
+            Ok(u) => {
+                self.writer.write_op(Op::LoadConstant, line);
+                self.writer.write_u8(u);
+            }
+            Err(_) => {
+                self.writer.write_op(Op::LoadConstant, line);
+                self.writer.write_u16(c);
+            }
+        }
+        Ok(())
+    }
+
     fn resolve_local(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local == name {
@@ -341,12 +358,7 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                     self.write_op_store_register(reg, line)
                 }
                 ExprResult::Float(f) => {
-                    self.writer
-                        .write_value(Value::from_f64(f), line)
-                        .map_err(|_| CompileError {
-                            message: "Cannot have more than 65535 constants per function".into(),
-                            line,
-                        })?;
+                    self.load_const(Value::from_f64(f), line)?;
                     self.write_op_store_register(reg, line)
                 }
             }
@@ -396,6 +408,11 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                 }
                 TokenType::False => {
                     self.writer.write_op(Op::LoadFalse, *line);
+                    Ok(ExprResult::Accumulator)
+                }
+                TokenType::Symbol(sym) => {
+                    let sym = self.gc().intern_constant_symbol(sym);
+                    self.load_const(Value::from_object(sym.into()), *line)?;
                     Ok(ExprResult::Accumulator)
                 }
                 _ => todo!(),

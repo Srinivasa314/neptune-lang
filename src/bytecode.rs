@@ -155,20 +155,17 @@ impl<'gc> BytecodeWriter<'gc> {
         self.b.code[(bytecode_index + 1)] = (offset >> 8) as u8;
     }
 
-    pub fn write_value(&mut self, v: Value<'gc>, line: u32) -> Result<(), ExceededMaxConstants> {
-        self.write_op(Op::LoadConstant, line);
+    pub fn new_constant(&mut self, v: Value<'gc>) -> Result<u16, ExceededMaxConstants> {
         for (i, constant) in self.b.constants.iter().enumerate() {
             if *constant == v {
-                self.write_u16(i as u16);
-                return Ok(());
+                return Ok(i as u16);
             }
         }
         if self.b.constants.len() == 1 << 16 {
             Err(ExceededMaxConstants)
         } else {
             self.b.constants.push(v);
-            self.write_u16((self.b.constants.len() - 1) as u16);
-            Ok(())
+            Ok((self.b.constants.len() - 1) as u16)
         }
     }
 
