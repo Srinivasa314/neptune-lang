@@ -3,8 +3,10 @@ use rustc_hash::FxHashMap;
 use crate::bytecode;
 use crate::bytecode::BytecodeWriter;
 use crate::bytecode::Op;
+use crate::gc;
 use crate::gc::GC;
 use crate::parser::Statement;
+use crate::parser::Substring;
 use crate::CompileError;
 use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType, value::Value};
@@ -28,16 +30,16 @@ impl<'gc> Compiler<'gc> {
     }
 }
 
-struct BytecodeCompiler<'c, 'gc> {
+pub struct BytecodeCompiler<'c, 'gc> {
     compiler: Option<&'c mut Compiler<'gc>>,
-    writer: BytecodeWriter<'gc>,
+    pub writer: BytecodeWriter<'gc>,
     locals: Vec<String>,
     depth: u32,
     regcount: u16,
 }
 
 impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
-    fn new(c: &'c mut Compiler<'gc>) -> Self {
+    pub fn new(c: &'c mut Compiler<'gc>) -> Self {
         Self {
             writer: bytecode::BytecodeWriter::new(),
             locals: vec![],
@@ -309,15 +311,13 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
             message: "Cannot have more than 65535 constants per function".into(),
             line,
         })?;
-        match u8::try_from(c) {
-            Ok(u) => {
-                self.writer.write_op(Op::LoadConstant, line);
-                self.writer.write_u8(u);
-            }
-            Err(_) => {
-                self.writer.write_op(Op::LoadConstant, line);
-                self.writer.write_u16(c);
-            }
+        if let Ok(c) = u8::try_from(c) {
+            self.writer.write_op(Op::LoadConstant, line);
+            self.writer.write_u8(c);
+        } else if let Ok(c) = u16::try_from(c) {
+            self.writer.write_op(Op::Wide, line);
+            self.writer.write_op(Op::LoadConstant, line);
+            self.writer.write_u16(c);
         }
         Ok(())
     }
@@ -331,7 +331,7 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
         None
     }
 
-    fn evaluate_statments(&mut self, statements: &[Statement]) {
+    pub fn evaluate_statments(&mut self, statements: &[Statement]) {
         for statement in statements {
             self.evaluate_statement(statement)
         }
@@ -444,6 +444,64 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                     Ok(ExprResult::Accumulator)
                 }
             },
+            Expr::String { inner, line } => {
+                if let Substring::String(s) = &inner[0] {
+                    self.load_const(
+                        Value::from_object(gc::Object::from(
+                            self.compiler.as_ref().unwrap().gc.alloc_constant(s.clone()),
+                        )),
+                        *line,
+                    )
+                    .map_err(|e| CompileError {
+                        message: "too many constants".to_string(),
+                        line: *line,
+                    })?;
+                } else {
+                    unreachable!()
+                }
+                if inner.len() > 1 {
+                    let reg = self.push_register().ok_or(CompileError {
+                        message: "Cannot have more than 65535 locals+expressions".into(),
+                        line: *line,
+                    })?;
+                    self.write_op_store_register(reg, *line);
+                    for i in &inner[1..] {
+                        match i {
+                            Substring::String(s) => {
+                                if !s.is_empty() {
+                                    self.load_const(
+                                        Value::from_object(gc::Object::from(
+                                            self.compiler
+                                                .as_ref()
+                                                .unwrap()
+                                                .gc
+                                                .alloc_constant(s.clone()),
+                                        )),
+                                        *line,
+                                    )
+                                    .map_err(|e| {
+                                        CompileError {
+                                            message: "too many constants".to_string(),
+                                            line: *line,
+                                        }
+                                    })?
+                                } else {
+                                    continue;
+                                }
+                            }
+                            Substring::Expr(expr) => {
+                                let expr = self.evaluate_expr(expr)?;
+                                self.store_in_accumulator(expr, *line)?;
+                                self.writer.write_op(Op::ToString, *line);
+                            }
+                        }
+                        self.write_op_add_register(reg, *line);
+                        self.write_op_store_register(reg, *line);
+                    }
+                    self.pop_register();
+                }
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {

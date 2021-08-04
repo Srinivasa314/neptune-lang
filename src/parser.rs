@@ -1,4 +1,5 @@
 use crate::{
+    objects::NString,
     scanner::{Token, TokenType},
     CompileError, CompileResult,
 };
@@ -91,7 +92,11 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::TildeEqual => Precedence::Assignment,
     }
 }
-
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Substring {
+    String(NString),
+    Expr(Expr),
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Expr {
     Binary {
@@ -111,6 +116,10 @@ pub enum Expr {
     },
     Variable {
         name: String,
+        line: u32,
+    },
+    String {
+        inner: Vec<Substring>,
         line: u32,
     },
 }
@@ -247,7 +256,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Less => None,
             TokenType::LessEqual => None,
             TokenType::Identifier => Some(self.variable()),
-            TokenType::String(_) => Some(todo!()),
+            TokenType::String(_) => Some(self.string()),
             TokenType::IntLiteral(_) => Some(self.literal()),
             TokenType::FloatLiteral(_) => Some(self.literal()),
             TokenType::Symbol(_) => Some(self.literal()),
@@ -445,6 +454,30 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         } else {
             Err(self.error_at_current("Expect identifier".into()))
         }
+    }
+
+    fn string(&mut self) -> CompileResult<Expr> {
+        let mut substrings = vec![];
+        let line: u32;
+        if let TokenType::String(s) = &self.previous.token_type {
+            substrings.push(Substring::String(s.clone()));
+            line = self.previous.line;
+            while self.match_token(TokenType::Interpolation) {
+                substrings.push(Substring::Expr(self.expression()?));
+                if let TokenType::String(s) = &self.current.token_type {
+                    substrings.push(Substring::String(s.clone()));
+                    self.advance();
+                } else {
+                    unreachable!()
+                }
+            }
+        } else {
+            unreachable!()
+        }
+        Ok(Expr::String {
+            inner: substrings,
+            line,
+        })
     }
 
     fn variable(&mut self) -> CompileResult<Expr> {

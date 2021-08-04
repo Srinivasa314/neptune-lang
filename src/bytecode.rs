@@ -55,6 +55,7 @@ pub enum Op {
     StoreR13,
     StoreR14,
     StoreR15,
+    ToString,
 }
 
 #[derive(Default)]
@@ -221,7 +222,7 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     Op::LoadTrue => writeln!(f, "LoadTrue")?,
                     Op::LoadFalse => writeln!(f, "LoadFalse")?,
                     Op::LoadConstant => {
-                        writeln!(f, "LoadConstant {}", reader.read_u16())?;
+                        writeln!(f, "LoadConstant {}", reader.read_u8())?;
                     }
                     Op::StoreRegister => {
                         todo!()
@@ -362,6 +363,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::StoreR15 => {
                         writeln!(f, "StoreR15")?;
+                    }
+                    Op::ToString => {
+                        writeln!(f, "ToString")?;
                     }
                 }
             })

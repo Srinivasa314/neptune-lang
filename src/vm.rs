@@ -262,6 +262,7 @@ impl<'gc> VM<'gc> {
                     Op::StoreR13 => self.setr(13, self.geta()),
                     Op::StoreR14 => self.setr(14, self.geta()),
                     Op::StoreR15 => self.setr(15, self.geta()),
+                    Op::ToString => todo!(),
                 }
             }
         }
