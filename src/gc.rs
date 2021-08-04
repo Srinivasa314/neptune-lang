@@ -1,5 +1,4 @@
 use std::{
-    any::{Any, TypeId},
     borrow::Borrow,
     cell::{Cell, UnsafeCell},
     hash::Hash,
@@ -46,7 +45,7 @@ impl GC {
         let o = Box::into_raw(Box::new(ObjectInner {
             inner: t,
             header: ObjectHeader {
-                type_id: TypeId::of::<T>(),
+                type_id: T::type_id,
                 is_dark: false,
                 next: self.first.get(),
             },
@@ -132,6 +131,12 @@ pub(crate) struct ObjectHeader {
     next: *mut ObjectHeader,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TypeId {
+    NString,
+    NSymbol,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Object<'a> {
     inner: *mut ObjectHeader,
@@ -155,8 +160,9 @@ impl<'a, T: ObjectTrait> Clone for TypedObject<'a, T> {
 impl<'a, T: ObjectTrait> Copy for TypedObject<'a, T> {}
 
 // To safely implement this trait properly implement the trace method
-pub unsafe trait ObjectTrait: 'static {
+pub unsafe trait ObjectTrait {
     //TODO: Include trace method in future
+    const type_id: TypeId;
 }
 
 #[repr(C)]
@@ -179,7 +185,7 @@ impl<'a> Object<'a> {
 
     pub fn cast<T: ObjectTrait>(self) -> Option<&'a T> {
         unsafe {
-            if (*self.inner).type_id == TypeId::of::<T>() {
+            if (*self.inner).type_id == T::type_id {
                 Some(&(*self.inner.cast::<ObjectInner<T>>()).inner)
             } else {
                 None
@@ -189,7 +195,7 @@ impl<'a> Object<'a> {
 
     pub fn as_typed_object<T: ObjectTrait>(self) -> Option<TypedObject<'a, T>> {
         unsafe {
-            if (*self.inner).type_id == TypeId::of::<T>() {
+            if (*self.inner).type_id == T::type_id {
                 Some(TypedObject {
                     inner: self.inner.cast::<ObjectInner<T>>(),
                     _marker: PhantomData,
@@ -201,7 +207,7 @@ impl<'a> Object<'a> {
     }
 
     pub fn is<T: ObjectTrait>(self) -> bool {
-        unsafe { (*self.inner).type_id == TypeId::of::<T>() }
+        unsafe { (*self.inner).type_id == T::type_id }
     }
 
     pub fn ptr_eq(self, o: Object) -> bool {
@@ -210,12 +216,9 @@ impl<'a> Object<'a> {
 
     // todo: change this when more types added
     pub fn type_string(self) -> &'static str {
-        if self.is::<NString>() {
-            "string"
-        } else if self.is::<NSymbol>() {
-            "symbol"
-        } else {
-            unreachable()
+        match unsafe { (*self.inner).type_id } {
+            TypeId::NString => "string",
+            TypeId::NSymbol => "symbol",
         }
     }
 }
