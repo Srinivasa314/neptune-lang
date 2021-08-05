@@ -457,6 +457,46 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
                 TokenType::Equal => self.equal(left, right, *line),
+                TokenType::PlusEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Plus,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::MinusEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Minus,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::StarEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Star,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::SlashEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Slash,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
                 _ => todo!(),
             },
             Expr::Unary { op, right, line } => match op {
@@ -641,4 +681,21 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
         div,
         checked_div
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{parser::Parser, scanner::Scanner};
+    #[test]
+    fn bc_test() {
+        let s = Scanner::new("{let a=9\na+=1}").scan_tokens();
+        let p = Parser::new(s.into_iter()).parse();
+        let g = GC::new();
+        let mut v = vec![];
+        let mut c = Compiler::new(&g, &mut v);
+        let mut bc = BytecodeCompiler::new(&mut c);
+        bc.evaluate_statments(&p.0);
+        dbg!(bc.writer.bytecode());
+    }
 }
