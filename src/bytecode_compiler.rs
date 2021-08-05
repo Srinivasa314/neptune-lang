@@ -14,6 +14,7 @@ use crate::{parser::Expr, scanner::TokenType, value::Value};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use std::io::SeekFrom;
 use std::ops::{Add, Div, Mul, Sub};
 
 pub struct Compiler<'gc, 'g> {
@@ -40,6 +41,7 @@ struct BytecodeCompiler<'c, 'gc, 'g> {
     locals: Vec<String>,
     depth: u32,
     regcount: u16,
+    max_registers: u16,
 }
 
 impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
@@ -50,6 +52,7 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
             regcount: 0,
             depth: 0,
             compiler: Some(c),
+            max_registers: 0,
         }
     }
 
@@ -58,6 +61,9 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
             None
         } else {
             self.regcount += 1;
+            if self.regcount > self.max_registers {
+                self.max_registers = self.regcount;
+            }
             Some(self.regcount - 1)
         }
     }
@@ -502,8 +508,7 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
                                 self.writer.write_op(Op::ToString, *line);
                             }
                         }
-                        //self.write_op_concat(reg, *line);
-                        self.write_op_store_register(reg, *line);
+                        self.write_op_concat(reg, *line);
                     }
                     self.pop_register();
                 }
