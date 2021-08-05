@@ -34,7 +34,7 @@ const NANBOX_MASK_POINTER: u64 = 0x0000fffffffffffc;
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 impl<'a> Value<'a> {
     pub fn from_i32(i: i32) -> Value<'static> {
-        Value(NANBOX_MIN_NUMBER | (i as u64), PhantomData)
+        Value(NANBOX_MIN_NUMBER | (i as u32 as u64), PhantomData)
     }
     pub fn from_f64(f: f64) -> Value<'static> {
         Value(f.to_bits() + NANBOX_DOUBLE_ENCODE_OFFSET, PhantomData)
@@ -282,7 +282,7 @@ impl<'a> std::fmt::Debug for Value<'a> {
         } else if let Some(fl) = self.as_f64() {
             write!(f, "{}", fl)
         } else if let Some(o) = self.as_object() {
-            todo!()
+            write!(f, "{}", o)
         } else if let Some(b) = self.as_bool() {
             write!(f, "{}", b)
         } else if self.is_null() {
@@ -359,13 +359,19 @@ binary_op_num!(div, checked_div);
 
 #[cfg(test)]
 mod tests {
+    use std::f64::{INFINITY, NAN};
+
     use crate::gc::GC;
 
     use super::*;
     #[test]
     fn test_value() {
         assert_eq!(Value::from_i32(42).as_i32(), Some(42));
+        assert_eq!(Value::from_i32(-42).as_i32(), Some(-42));
         assert_eq!(Value::from_f64(4.2).as_f64(), Some(4.2));
+        assert_eq!(Value::from_f64(INFINITY).as_f64(), Some(INFINITY));
+        assert_eq!(Value::from_f64(-INFINITY).as_f64(), Some(-INFINITY));
+        assert!(Value::from_f64(NAN).as_f64().unwrap().is_nan());
         assert!(Value::from_i32(42).is_number());
         assert!(Value::from_f64(4.2).is_number());
         assert_eq!(Value::from_bool(true).as_bool(), Some(true));

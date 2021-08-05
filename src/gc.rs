@@ -1,6 +1,7 @@
 use std::{
     borrow::Borrow,
     cell::{Cell, UnsafeCell},
+    fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
 };
@@ -137,7 +138,7 @@ pub enum TypeId {
     NSymbol,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Object<'a> {
     inner: *mut ObjectHeader,
     _marker: PhantomData<&'a ObjectHeader>,
@@ -223,13 +224,24 @@ impl<'a> Object<'a> {
     }
 }
 
-impl<'a> PartialEq for Object<'a> {
-    fn eq(&self, other: &Object) -> bool {
-        todo!()
+impl<'a> Debug for Object<'a> {
+    // todo: change this when more types added
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ns) = self.cast::<NString>() {
+            write!(f, "{:?}", ns)
+        } else if let Some(sym) = self.cast::<NSymbol>() {
+            write!(f, "@{}", sym.to_string())
+        } else {
+            unreachable()
+        }
     }
 }
 
-impl<'a> Eq for Object<'a> {}
+impl<'a> Display for Object<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 impl<'a, T: ObjectTrait> From<TypedObject<'a, T>> for Object<'a> {
     fn from(tobj: TypedObject<'a, T>) -> Object<'a> {

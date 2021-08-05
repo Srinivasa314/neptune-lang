@@ -23,17 +23,18 @@ pub enum Op {
     SubtractRegister,
     MultiplyRegister,
     DivideRegister,
+    ConcatRegister,
     AddInt,
     SubtractInt,
     MultiplyInt,
     DivideInt,
-    Increment,
     Negate,
     Call,
     Call0Argument,
     Call1Argument,
     Call2Argument,
     Less,
+    ToString,
     Jump,
     JumpBack,
     JumpIfFalse,
@@ -55,7 +56,6 @@ pub enum Op {
     StoreR13,
     StoreR14,
     StoreR15,
-    ToString,
 }
 
 #[derive(Default)]
@@ -250,6 +250,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     Op::DivideRegister => {
                         writeln!(f, "DivideRegister r{}", reader.read_u8())?;
                     }
+                    Op::ConcatRegister => {
+                        writeln!(f, "ConcatRegister r{}", reader.read_u8())?;
+                    }
                     Op::AddInt => {
                         writeln!(f, "AddInt {}", reader.read_i8())?;
                     }
@@ -261,9 +264,6 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::DivideInt => {
                         writeln!(f, "Divide {}", reader.read_i8())?;
-                    }
-                    Op::Increment => {
-                        writeln!(f, "Increment")?;
                     }
                     Op::Negate => writeln!(f, "Negate")?,
                     Op::Call => {
@@ -282,6 +282,9 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::Less => {
                         writeln!(f, "Less r{}", reader.read_u8())?;
+                    }
+                    Op::ToString => {
+                        writeln!(f, "ToString")?;
                     }
                     Op::Jump => {
                         let offset = reader.read_u16();
@@ -363,9 +366,6 @@ impl<'gc> fmt::Debug for Bytecode<'gc> {
                     }
                     Op::StoreR15 => {
                         writeln!(f, "StoreR15")?;
-                    }
-                    Op::ToString => {
-                        writeln!(f, "ToString")?;
                     }
                 }
             })

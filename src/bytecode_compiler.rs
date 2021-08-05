@@ -3,43 +3,47 @@ use rustc_hash::FxHashMap;
 use crate::bytecode;
 use crate::bytecode::BytecodeWriter;
 use crate::bytecode::Op;
-use crate::gc;
+use crate::gc::Object;
 use crate::gc::GC;
 use crate::parser::Statement;
 use crate::parser::Substring;
+use crate::value::RootedValue;
 use crate::CompileError;
 use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType, value::Value};
+use std::cell::Cell;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ops::{Add, Div, Mul, Sub};
 
-pub struct Compiler<'gc> {
+pub struct Compiler<'gc, 'g> {
     globals: FxHashMap<String, u32>,
+    vm_globals: &'g mut Vec<(Cell<RootedValue<'gc>>, String)>,
     errors: Vec<CompileError>,
     gc: &'gc GC,
 }
 
-impl<'gc> Compiler<'gc> {
-    pub fn new(gc: &'gc GC) -> Self {
+impl<'gc, 'g> Compiler<'gc, 'g> {
+    pub fn new(gc: &'gc GC, vm_globals: &'g mut Vec<(Cell<RootedValue<'gc>>, String)>) -> Self {
         Self {
             gc,
             globals: FxHashMap::default(),
             errors: vec![],
+            vm_globals,
         }
     }
 }
 
-pub struct BytecodeCompiler<'c, 'gc> {
-    compiler: Option<&'c mut Compiler<'gc>>,
-    pub writer: BytecodeWriter<'gc>,
+struct BytecodeCompiler<'c, 'gc, 'g> {
+    compiler: Option<&'c mut Compiler<'gc, 'g>>,
+    writer: BytecodeWriter<'gc>,
     locals: Vec<String>,
     depth: u32,
     regcount: u16,
 }
 
-impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
-    pub fn new(c: &'c mut Compiler<'gc>) -> Self {
+impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
+    fn new(c: &'c mut Compiler<'gc, 'g>) -> Self {
         Self {
             writer: bytecode::BytecodeWriter::new(),
             locals: vec![],
@@ -67,9 +71,13 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
     }
 
     fn new_global(&mut self, name: &str) -> u32 {
-        let g = &mut self.compiler.as_mut().unwrap().globals;
-        let len = g.len() as u32;
-        g.insert(name.to_string(), len);
+        let comp = &mut self.compiler.as_mut().unwrap();
+        let len = comp.globals.len() as u32;
+        comp.globals.insert(name.to_string(), len);
+        comp.vm_globals.push((
+            Cell::new(RootedValue::from(Value::empty())),
+            name.to_string(),
+        ));
         len
     }
 
@@ -116,7 +124,7 @@ macro_rules! binary_op_int {
     };
 }
 
-impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
+impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
     fn write_op_load_register(&mut self, reg: u16, line: u32) {
         if let Ok(reg) = u8::try_from(reg) {
             self.writer.write_op(Op::LoadRegister, line);
@@ -193,6 +201,17 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
         }
     }
 
+    fn write_op_concat(&mut self, reg: u16, line: u32) {
+        if let Ok(reg) = u8::try_from(reg) {
+            self.writer.write_op(Op::ConcatRegister, line);
+            self.writer.write_u8(reg)
+        } else {
+            self.writer.write_op(Op::Wide, line);
+            self.writer.write_op(Op::ConcatRegister, line);
+            self.writer.write_u16(reg);
+        }
+    }
+
     binary_op_register!(write_op_add_register, AddRegister);
 
     binary_op_register!(write_op_subtract_register, SubtractRegister);
@@ -226,14 +245,19 @@ macro_rules! binary_op {
     ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident,$op_checked_fn:ident) => {
         fn $op(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
             let left = self.evaluate_expr(left)?;
-            let reg = self.push_register().ok_or(CompileError {
-                message: "Cannot have more than 65535 locals+expressions".into(),
-                line,
-            })?;
-            self.store_in_accumulator(left, line)?;
-            self.write_op_store_register(reg, line);
+            let mut reg = 0;
+            if !matches!(left, ExprResult::Register(_)) {
+                reg = self.push_register().ok_or(CompileError {
+                    message: "Cannot have more than 65535 locals+expressions".into(),
+                    line,
+                })?;
+                self.store_in_accumulator(left, line)?;
+                self.write_op_store_register(reg, line);
+            }
             let right = self.evaluate_expr(right)?;
-            self.pop_register();
+            if !matches!(left, ExprResult::Register(_)) {
+                self.pop_register();
+            }
             match (left, right) {
                 (ExprResult::Int(i1), ExprResult::Int(i2)) => {
                     self.undo_save_to_register(ExprResult::Int(i1));
@@ -264,7 +288,6 @@ macro_rules! binary_op {
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.undo_save_to_register(ExprResult::Register(r));
                     self.store_in_accumulator(right, line)?;
                     self.$register_inst(r, line);
                     Ok(ExprResult::Accumulator)
@@ -280,7 +303,7 @@ macro_rules! binary_op {
     };
 }
 
-impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
+impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
     fn undo_save_to_register(&mut self, result: ExprResult) {
         match result {
             ExprResult::Register(_) => {
@@ -331,7 +354,7 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
         None
     }
 
-    pub fn evaluate_statments(&mut self, statements: &[Statement]) {
+    fn evaluate_statments(&mut self, statements: &[Statement]) {
         for statement in statements {
             self.evaluate_statement(statement)
         }
@@ -447,15 +470,9 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
             Expr::String { inner, line } => {
                 if let Substring::String(s) = &inner[0] {
                     self.load_const(
-                        Value::from_object(gc::Object::from(
-                            self.compiler.as_ref().unwrap().gc.alloc_constant(s.clone()),
-                        )),
+                        Value::from_object(Object::from(self.gc().alloc_constant(s.clone()))),
                         *line,
-                    )
-                    .map_err(|e| CompileError {
-                        message: "too many constants".to_string(),
-                        line: *line,
-                    })?;
+                    )?;
                 } else {
                     unreachable!()
                 }
@@ -470,21 +487,11 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                             Substring::String(s) => {
                                 if !s.is_empty() {
                                     self.load_const(
-                                        Value::from_object(gc::Object::from(
-                                            self.compiler
-                                                .as_ref()
-                                                .unwrap()
-                                                .gc
-                                                .alloc_constant(s.clone()),
+                                        Value::from_object(Object::from(
+                                            self.gc().alloc_constant(s.clone()),
                                         )),
                                         *line,
-                                    )
-                                    .map_err(|e| {
-                                        CompileError {
-                                            message: "too many constants".to_string(),
-                                            line: *line,
-                                        }
-                                    })?
+                                    )?
                                 } else {
                                     continue;
                                 }
@@ -495,7 +502,7 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                                 self.writer.write_op(Op::ToString, *line);
                             }
                         }
-                        self.write_op_add_register(reg, *line);
+                        //self.write_op_concat(reg, *line);
                         self.write_op_store_register(reg, *line);
                     }
                     self.pop_register();
@@ -525,6 +532,42 @@ impl<'c, 'gc> BytecodeCompiler<'c, 'gc> {
                 }
             })?)),
             ExprResult::Float(f) => Ok(ExprResult::Float(-f)),
+        }
+    }
+
+    fn concat(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+        let left = self.evaluate_expr(left)?;
+        let reg;
+        match left {
+            ExprResult::Register(r) => reg = r,
+            ExprResult::Accumulator => {
+                reg = self.push_register().ok_or(CompileError {
+                    message: "Cannot have more than 65535 locals+expressions".into(),
+                    line,
+                })?;
+                self.write_op_store_register(reg, line)
+            }
+            ExprResult::Int(_) | ExprResult::Float(_) => {
+                return Err(CompileError {
+                    message:
+                        "Can only perform concat operation on string.Consider using interpolation"
+                            .into(),
+                    line,
+                })
+            }
+        }
+        let right = self.evaluate_expr(right)?;
+        if matches!(left, ExprResult::Accumulator) {
+            self.pop_register();
+        }
+        match right {
+            ExprResult::Int(_) => todo!(),
+            ExprResult::Float(_) => todo!(),
+            right => {
+                self.store_in_accumulator(right, line);
+                self.write_op_concat(reg, line);
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
 

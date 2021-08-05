@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    fmt::Write,
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -7,7 +8,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     bytecode::{Bytecode, BytecodeReader, Op},
-    gc::{self, GCSession, GC},
+    gc::{self, GCSession, ObjectTrait, Root, GC},
+    objects::NString,
     util::unreachable,
     value::{ArithmeticError, RootedValue, Value},
 };
@@ -18,7 +20,7 @@ struct VM<'gc> {
     bp: *mut RootedValue<'gc>,
     stack_end: *mut RootedValue<'gc>,
     frames: ArrayVec<Frame<'gc>, 1024>,
-    globals: Vec<Cell<RootedValue<'gc>>>,
+    globals: Vec<(Cell<RootedValue<'gc>>, String)>,
     gc: GCSession<'gc>,
 }
 
@@ -37,11 +39,11 @@ macro_rules! binary_int_op {
         } else if let Some(f) = a.as_f64() {
             $self.seta(Value::from_f64(f.$op($br.read::<$type>() as f64)))
         } else {
-            return Err(format!(
-                "Cannot {} types {} and int",
-                stringify!(op_name),
-                a.type_string()
-            ));
+            let ts = a.type_string();
+            $self.throw(
+                format!("Cannot {} types {} and int", stringify!(op_name), ts),
+                &mut $br,
+            )?;
         }
     }};
 }
@@ -53,20 +55,20 @@ macro_rules! binary_reg_op {
         match left.$op(right) {
             Ok(v) => $self.seta(v),
             Err(ArithmeticError::TypeError) => {
-                return Err(format!(
-                    "Cannot {} types {} and {}",
-                    stringify!(op_name),
-                    left.type_string(),
-                    right.type_string()
-                ))
+                let (lts, rts) = (left.type_string(), right.type_string());
+                $self.throw(
+                    format!("Cannot {} types {} and {}", stringify!(op_name), lts, rts),
+                    &mut $br,
+                )?;
             }
             Err(ArithmeticError::OverflowError) => {
-                return Err(format!(
+                let err_msg = format!(
                     "Overflow when doing operation {} on {} and {}",
                     stringify!($op_name),
                     left,
                     right
-                ))
+                );
+                $self.throw(err_msg, &mut $br)?;
             }
         }
     }};
@@ -90,17 +92,18 @@ impl<'gc> VM<'gc> {
 
     // The Values returned by the following functions have reduced lifetime
     // as they are unrooted and do not survive garbage collection. Allocation which
-    // triggers garbage collection borrows the VM as mutable
-    fn getr<'a>(&'a self, index: u16) -> Value<'a> {
+    // triggers garbage collection borrows the VM as mutable. The functions below that are
+    // unsafe do not do bounds checking, other than that they are safe.
+    unsafe fn getr<'a>(&'a self, index: u16) -> Value<'a> {
         let ptr = unsafe { self.bp.add(index as usize) };
         debug_assert!(ptr < self.stack_end);
-        unsafe { ptr.read().get_inner() }
+        ptr.read().get_inner()
     }
 
-    fn setr<'a, 'b>(&'a self, index: u16, v: Value<'b>) {
+    unsafe fn setr<'a, 'b>(&'a self, index: u16, v: Value<'b>) {
         let ptr = unsafe { self.bp.add(index as usize) };
         debug_assert!(ptr < self.stack_end);
-        unsafe { ptr.write(RootedValue::from(v)) }
+        ptr.write(RootedValue::from(v))
     }
 
     fn geta<'a>(&'a self) -> Value<'a> {
@@ -111,9 +114,14 @@ impl<'gc> VM<'gc> {
         self.acc.set(RootedValue::from(v))
     }
 
-    fn get_global<'a>(&'a self, index: u32) -> Option<Value<'a>> {
+    unsafe fn get_global<'a>(&'a self, index: u32) -> Option<Value<'a>> {
         debug_assert!((index as usize) < self.globals.len());
-        let v = unsafe { self.globals.get_unchecked(index as usize).get().get_inner() };
+        let v = self
+            .globals
+            .get_unchecked(index as usize)
+            .0
+            .get()
+            .get_inner();
         if v.is_empty() {
             None
         } else {
@@ -121,13 +129,22 @@ impl<'gc> VM<'gc> {
         }
     }
 
-    fn set_global<'a, 'b>(&'a self, index: u32, v: Value<'b>) {
+    unsafe fn get_global_name(&self, index: u32) -> &str {
         debug_assert!((index as usize) < self.globals.len());
-        unsafe {
-            self.globals
-                .get_unchecked(index as usize)
-                .set(RootedValue::from(v))
-        };
+        &self.globals.get_unchecked(index as usize).1
+    }
+
+    unsafe fn set_global<'a, 'b>(&'a self, index: u32, v: Value<'b>) {
+        debug_assert!((index as usize) < self.globals.len());
+
+        self.globals
+            .get_unchecked(index as usize)
+            .0
+            .set(RootedValue::from(v))
+    }
+
+    fn allocate<T: ObjectTrait>(&mut self, t: T) {
+        self.acc.set(self.gc.allocate(t, self))
     }
 
     fn extend_bp(&mut self, by: u16, regcount: u16) -> Result<(), StackOverflowError> {
@@ -140,13 +157,17 @@ impl<'gc> VM<'gc> {
         }
     }
 
+    // Throws an exception. Returns Err if there are no exception handlers.
+    // Todo: return Value and do unwinding.
+    #[cold]
+    #[inline(never)]
+    fn throw(&mut self, s: String, br: &mut BytecodeReader) -> Result<(), String> {
+        Err(s)
+    }
+
     //TODO: Return uncaught exception in future
     pub fn run(&mut self, bc: &'gc Bytecode<'gc>) -> Result<(), String> {
         let mut br = BytecodeReader::new(bc);
-        self.frames.push(Frame {
-            reader: br,
-            bp: self.bp,
-        });
         unsafe {
             loop {
                 match br.read_op() {
@@ -160,15 +181,24 @@ impl<'gc> VM<'gc> {
                             let right = br.read_u16();
                             self.setr(left, self.getr(right))
                         }
-                        Op::LoadGlobal => self.seta(
-                            self.get_global(br.read_u16() as u32)
-                                .ok_or_else(|| "todo".to_string())?,
-                        ),
+                        Op::LoadGlobal => {
+                            let g = br.read_u16() as u32;
+                            match self.get_global(g) {
+                                Some(v) => self.seta(v),
+                                None => {
+                                    self.throw(
+                                        format!("{} is not defined", self.get_global_name(g)),
+                                        &mut br,
+                                    )?;
+                                }
+                            }
+                        }
                         Op::StoreGlobal => self.set_global(br.read_u16() as u32, self.geta()),
                         Op::AddRegister => binary_reg_op!(self, br, add, add, u16),
                         Op::SubtractRegister => binary_reg_op!(self, br, sub, subtract, u16),
                         Op::MultiplyRegister => binary_reg_op!(self, br, mul, multiply, u16),
                         Op::DivideRegister => binary_reg_op!(self, br, div, divide, u16),
+                        Op::ConcatRegister => todo!(),
                         Op::AddInt => binary_int_op!(self, br, add, add, i16),
                         Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i16),
                         Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i16),
@@ -185,10 +215,18 @@ impl<'gc> VM<'gc> {
                     },
                     Op::ExtraWide => match br.read_op() {
                         Op::LoadInt => self.seta(Value::from_i32(br.read_i32())),
-                        Op::LoadGlobal => self.seta(
-                            self.get_global(br.read_u32())
-                                .ok_or_else(|| "todo".to_string())?,
-                        ),
+                        Op::LoadGlobal => {
+                            let g = br.read_u32();
+                            match self.get_global(g) {
+                                Some(v) => self.seta(v),
+                                None => {
+                                    self.throw(
+                                        format!("{} is not defined", self.get_global_name(g)),
+                                        &mut br,
+                                    )?;
+                                }
+                            }
+                        }
                         Op::StoreGlobal => self.set_global(br.read_u32(), self.geta()),
                         Op::AddInt => binary_int_op!(self, br, add, add, i32),
                         Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i32),
@@ -208,32 +246,70 @@ impl<'gc> VM<'gc> {
                         let right = br.read_u8();
                         self.setr(left as u16, self.getr(right as u16))
                     }
-                    Op::LoadGlobal => self.seta(
-                        self.get_global(br.read_u8() as u32)
-                            .ok_or_else(|| "todo".to_string())?,
-                    ),
+                    Op::LoadGlobal => {
+                        let g = br.read_u8() as u32;
+                        match self.get_global(g) {
+                            Some(v) => self.seta(v),
+                            None => {
+                                self.throw(
+                                    format!("{} is not defined", self.get_global_name(g)),
+                                    &mut br,
+                                )?;
+                            }
+                        }
+                    }
                     Op::StoreGlobal => self.set_global(br.read_u8() as u32, self.geta()),
                     Op::AddRegister => binary_reg_op!(self, br, add, add, u8),
                     Op::SubtractRegister => binary_reg_op!(self, br, sub, subtract, u8),
                     Op::MultiplyRegister => binary_reg_op!(self, br, mul, multiply, u8),
                     Op::DivideRegister => binary_reg_op!(self, br, div, divide, u8),
+                    Op::ConcatRegister => {
+                        let left = self.getr(br.read_u8() as u16);
+                        let right = self.geta();
+                        match (left.as_object(), right.as_object()) {
+                            (Some(o1), Some(o2)) => {
+                                match (o1.cast::<NString>(), o2.cast::<NString>()) {
+                                    (Some(s1), Some(s2)) => {
+                                        let result = s1.clone() + s2;
+                                        self.allocate(result);
+                                    }
+                                    _ => {
+                                        let msg = format!(
+                                            "Cannot concat types {} and {}",
+                                            left.type_string(),
+                                            right.type_string()
+                                        );
+                                        self.throw(msg, &mut br)?;
+                                    }
+                                }
+                            }
+                            _ => {
+                                let msg = format!(
+                                    "Cannot concat types {} and {}",
+                                    left.type_string(),
+                                    right.type_string()
+                                );
+                                self.throw(msg, &mut br)?;
+                            }
+                        }
+                    }
                     Op::AddInt => binary_int_op!(self, br, add, add, i8),
                     Op::SubtractInt => binary_int_op!(self, br, sub, subtract, i8),
                     Op::MultiplyInt => binary_int_op!(self, br, mul, multiply, i8),
                     Op::DivideInt => binary_int_op!(self, br, div, divide, i8),
-                    Op::Increment => todo!(),
                     Op::Negate => {
                         let a = self.geta();
                         if let Some(i) = a.as_i32() {
                             if let Some(res) = i.checked_neg() {
                                 self.seta(Value::from_i32(res))
                             } else {
-                                return Err(format!("Overflow on negating {}", i));
+                                self.throw(format!("Overflow on negating {}", i), &mut br)?;
                             }
                         } else if let Some(f) = a.as_f64() {
                             self.seta(Value::from_f64(-f))
                         } else {
-                            return Err(format!("Cannot negate type {}", a.type_string()));
+                            let ts = a.type_string();
+                            self.throw(format!("Cannot negate type {}", ts), &mut br)?;
                         }
                     }
                     Op::Call => todo!(),
@@ -241,6 +317,22 @@ impl<'gc> VM<'gc> {
                     Op::Call1Argument => todo!(),
                     Op::Call2Argument => todo!(),
                     Op::Less => todo!(),
+                    Op::ToString => {
+                        let a = self.geta();
+                        if let Some(o) = a.as_object() {
+                            if !o.is::<NString>() {
+                                let mut s = NString::new();
+                                let res = write!(s, "{}", o);
+                                debug_assert!(res.is_ok(), "It should never fail");
+                                self.allocate(s)
+                            }
+                        } else {
+                            let mut s = NString::new();
+                            let res = write!(s, "{}", a);
+                            debug_assert!(res.is_ok(), "It should never fail");
+                            self.allocate(s)
+                        }
+                    }
                     Op::Jump => todo!(),
                     Op::JumpBack => todo!(),
                     Op::JumpIfFalse => todo!(),
@@ -262,9 +354,10 @@ impl<'gc> VM<'gc> {
                     Op::StoreR13 => self.setr(13, self.geta()),
                     Op::StoreR14 => self.setr(14, self.geta()),
                     Op::StoreR15 => self.setr(15, self.geta()),
-                    Op::ToString => todo!(),
                 }
             }
         }
     }
 }
+
+unsafe impl<'gc> Root for VM<'gc> {}
