@@ -1,11 +1,6 @@
-mod bytecode;
 mod bytecode_compiler;
-mod gc;
-mod objects;
 mod parser;
 mod scanner;
-mod util;
-mod value;
 mod vm;
 
 #[derive(Debug)]

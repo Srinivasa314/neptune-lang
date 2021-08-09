@@ -1,5 +1,4 @@
 use crate::{
-    objects::NString,
     scanner::{Token, TokenType},
     CompileError, CompileResult,
 };
@@ -94,7 +93,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Substring {
-    String(NString),
+    String(String),
     Expr(Expr),
 }
 #[derive(Debug, Serialize, Deserialize)]

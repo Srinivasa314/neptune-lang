@@ -1,13 +1,7 @@
-use rustc_hash::FxHashMap;
+/*use rustc_hash::FxHashMap;
 
-use crate::bytecode;
-use crate::bytecode::BytecodeWriter;
-use crate::bytecode::Op;
-use crate::gc::Object;
-use crate::gc::GC;
 use crate::parser::Statement;
 use crate::parser::Substring;
-use crate::value::RootedValue;
 use crate::CompileError;
 use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType, value::Value};
@@ -61,8 +55,8 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
             None
         } else {
             self.regcount += 1;
-            if self.regcount > self.max_registers {
-                self.max_registers = self.regcount;
+            if self.regcount>self.max_registers{
+                self.max_registers=self.regcount;
             }
             Some(self.regcount - 1)
         }
@@ -642,3 +636,4 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
         checked_div
     );
 }
+*/

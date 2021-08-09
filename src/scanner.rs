@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::objects::NString;
 pub struct Scanner<'src> {
     source: &'src str,
     tokens: Vec<Token<'src>>,
@@ -48,10 +47,10 @@ pub enum TokenType {
     TildeEqual,
     // Literals.
     Identifier,
-    String(NString),
+    String(String),
     IntLiteral(i32),
     FloatLiteral(f64),
-    Symbol(NString),
+    Symbol(String),
     // Keywords.
     And,
     Break,
@@ -315,7 +314,7 @@ impl<'src> Scanner<'src> {
         String(abc) Interpolation LeftParen Identifier(d) RightParen String(efg) Interpolation LeftParen Identifier(h) RightParen String(ij)
         */
         self.start += 1;
-        let mut s = NString::new();
+        let mut s = String::new();
         while self.peek() != Some(delim) && self.peek() != None {
             if self.peek() == Some(b'\n') {
                 self.line += 1;
