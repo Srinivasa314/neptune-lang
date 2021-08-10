@@ -127,7 +127,7 @@ enum class Op : uint8_t {
   StoreR15,
 };
 
-struct FunctionInfo : Object {
+class FunctionInfo : Object {
   struct LineInfo {
     uint32_t offset;
     uint32_t line;
@@ -152,5 +152,9 @@ public:
   uint16_t symbol_constant(const char *s, size_t len);
   void shrink();
   void shrink_to(size_t);
+};
+class VM {
+public:
+  void run(uint8_t *bytecode);
 };
 } // namespace neptune_vm
