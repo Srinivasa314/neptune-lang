@@ -1,8 +1,3 @@
-
-#include "object.h"
-#include "value.h"
-
-namespace neptune_vm
-{
-    using value::Value;
-}
+#include "function.cc"
+#include "object.cc"
+#include "value.cc"
