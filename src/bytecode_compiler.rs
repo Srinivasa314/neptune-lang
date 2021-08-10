@@ -389,6 +389,46 @@ impl<'c, 'gc, 'g> BytecodeCompiler<'c, 'gc, 'g> {
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
                 TokenType::Equal => self.equal(left, right, *line),
+                TokenType::PlusEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Plus,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::MinusEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Minus,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::StarEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Star,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
+                TokenType::SlashEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Slash,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
                 _ => todo!(),
             },
             Expr::Unary { op, right, line } => match op {

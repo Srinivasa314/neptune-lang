@@ -91,12 +91,12 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::TildeEqual => Precedence::Assignment,
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Substring {
     String(String),
     Expr(Expr),
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
