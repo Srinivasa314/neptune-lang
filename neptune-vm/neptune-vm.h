@@ -9,6 +9,10 @@
 #endif
 
 namespace neptune_vm {
+struct StringSlice {
+  char *bytes;
+  size_t len;
+};
 class Object {};
 
 class Value {
@@ -73,6 +77,7 @@ public:
   Object *as_object() const;
   bool is_null() const;
   bool is_empty() const;
+  bool operator==(Value rhs);
 };
 
 enum class Op : uint8_t {
@@ -138,6 +143,8 @@ class FunctionInfo : Object {
   std::vector<Value> constants;
   std::vector<LineInfo> lines;
 
+  uint16_t constant(Value v);
+
 public:
   template <typename T> void write(T t);
   void write_op(Op op, uint32_t line);
@@ -147,14 +154,25 @@ public:
   void write_i8(int8_t i);
   void write_i16(int16_t i);
   void write_i32(int32_t i);
-  uint16_t float_constant();
-  uint16_t string_constant(const char *s, size_t len);
-  uint16_t symbol_constant(const char *s, size_t len);
+  uint16_t float_constant(double d);
+  uint16_t string_constant(StringSlice s);
+  uint16_t symbol_constant(StringSlice s);
   void shrink();
   void shrink_to(size_t);
 };
+
+class GC{
+  size_t bytes_allocated;
+  std::vector<Object*> constants; // these live as long the GC
+  // Linked list of all objects
+  Object* first_obj;
+  size_t threshhold;
+  
+};
+
 class VM {
 public:
   void run(uint8_t *bytecode);
 };
+
 } // namespace neptune_vm

@@ -1,7 +1,7 @@
 #include "neptune-vm.h"
 namespace neptune_vm {
 void VM::run(uint8_t *bytecode) {
-#define WIDE(x) ((x) + 10)
+/*#define WIDE(x) ((x) + 10)
 #define EXTRAWIDE(x) ((x) + 20)
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {};
@@ -30,6 +30,6 @@ void VM::run(uint8_t *bytecode) {
   INTERPRET_LOOP {
     CASE(Wide) : DISPATCH_WIDE();
     CASE(ExtraWide) : DISPATCH_EXTRAWIDE();
-  }
+  }*/
 }
 } // namespace neptune_vm

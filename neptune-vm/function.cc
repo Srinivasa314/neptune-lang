@@ -1,4 +1,6 @@
 #include "neptune-vm.h"
+#include <algorithm>
+#include <stdexcept>
 
 namespace neptune_vm {
 template <typename T> void FunctionInfo::write(T t) {
@@ -13,9 +15,29 @@ void FunctionInfo::write_u32(uint32_t u) { write(u); }
 void FunctionInfo::write_i8(int8_t i) { write(i); }
 void FunctionInfo::write_i16(int16_t i) { write(i); }
 void FunctionInfo::write_i32(int32_t i) { write(i); }
-uint16_t FunctionInfo::float_constant() {}
-uint16_t FunctionInfo::string_constant(const char *s, size_t len) {}
-uint16_t FunctionInfo::symbol_constant(const char *s, size_t len) {}
+
+constexpr size_t MAX_CONSTANTS = 65535;
+
+uint16_t FunctionInfo::constant(Value v) {
+  if (constants.size() == MAX_CONSTANTS) {
+    throw std::overflow_error("Cannot store more than 65535 constants");
+  } else {
+    auto pos = std::find(constants.begin(), constants.end(), v);
+    if (pos != constants.end()) {
+      return static_cast<uint16_t>(pos - constants.begin());
+    } else {
+      constants.push_back(v);
+      return constants.size() - 1;
+    }
+  }
+}
+
+uint16_t FunctionInfo::float_constant(double d) {
+  return constant(Value{d});
+}
+uint16_t FunctionInfo::string_constant(StringSlice s) {
+}
+uint16_t FunctionInfo::symbol_constant(StringSlice s) {}
 void FunctionInfo::shrink() {
   bytecode.shrink_to_fit();
   constants.shrink_to_fit();
