@@ -20,5 +20,8 @@ public:
   // SAFETY:must not be null bytecode must be valid
   void run(uint8_t *bytecode);
   void add_global(StringSlice name) const;
+  FunctionInfoHandle new_function_info() const {
+    return FunctionInfoHandle(gc.make_handle(new FunctionInfo));
+  }
 };
 } // namespace neptune_vm

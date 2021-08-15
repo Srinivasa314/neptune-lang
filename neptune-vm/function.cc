@@ -63,8 +63,4 @@ void FunctionInfo::pop_last_op(size_t last_op_pos) {
     lines.pop_back();
   }
 }
-
-std::unique_ptr<FunctionInfo> new_function_info() {
-  return std::unique_ptr<FunctionInfo>(new FunctionInfo);
-}
 } // namespace neptune_vm

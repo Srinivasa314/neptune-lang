@@ -1,7 +1,7 @@
 use cxx::{type_id, ExternType};
-use std::marker::PhantomData;
+use std::{ffi::c_void, marker::PhantomData};
 
-struct StringSlice<'a> {
+pub struct StringSlice<'a> {
     data: *const u8,
     len: usize,
     _marker: PhantomData<&'a [u8]>,
@@ -19,6 +19,15 @@ impl<'a> From<&'a str> for StringSlice<'a> {
 
 unsafe impl<'a> ExternType for StringSlice<'a> {
     type Id = type_id!("neptune_vm::StringSlice");
+    type Kind = cxx::kind::Trivial;
+}
+#[repr(C)]
+pub struct FunctionInfoHandle {
+    inner: *const c_void,
+}
+
+unsafe impl ExternType for FunctionInfoHandle {
+    type Id = type_id!("neptune_vm::FunctionInfoHandle");
     type Kind = cxx::kind::Trivial;
 }
 
@@ -96,23 +105,23 @@ mod ffi {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
         type Op;
-        type FunctionInfo;
+        type FunctionInfoHandle = super::FunctionInfoHandle;
         type VM;
-        fn write_op(self: Pin<&mut FunctionInfo>, op: Op, line: u32) -> usize;
-        fn write_u8(self: Pin<&mut FunctionInfo>, u: u8);
-        fn write_u16(self: Pin<&mut FunctionInfo>, u: u16);
-        fn write_u32(self: Pin<&mut FunctionInfo>, u: u32);
-        fn write_i8(self: Pin<&mut FunctionInfo>, i: i8);
-        fn write_i16(self: Pin<&mut FunctionInfo>, i: i16);
-        fn write_i32(self: Pin<&mut FunctionInfo>, i: i32);
-        fn float_constant(self: Pin<&mut FunctionInfo>, f: f64) -> Result<u16>;
-        fn string_constant(self: Pin<&mut FunctionInfo>, s: StringSlice, vm: &VM) -> Result<u16>;
-        fn symbol_constant(self: Pin<&mut FunctionInfo>, s: StringSlice, vm: &VM) -> Result<u16>;
-        fn shrink(self: Pin<&mut FunctionInfo>);
-        fn pop_last_op(self: Pin<&mut FunctionInfo>, last_op_pos: usize);
-        fn new_function_info() -> UniquePtr<FunctionInfo>;
+        fn write_op(self: &FunctionInfoHandle, op: Op, line: u32) -> usize;
+        fn write_u8(self: &FunctionInfoHandle, u: u8);
+        fn write_u16(self: &FunctionInfoHandle, u: u16);
+        fn write_u32(self: &FunctionInfoHandle, u: u32);
+        fn write_i8(self: &FunctionInfoHandle, i: i8);
+        fn write_i16(self: &FunctionInfoHandle, i: i16);
+        fn write_i32(self: &FunctionInfoHandle, i: i32);
+        fn float_constant(self: &FunctionInfoHandle, f: f64) -> Result<u16>;
+        fn string_constant(self: &FunctionInfoHandle, s: StringSlice, vm: &VM) -> Result<u16>;
+        fn symbol_constant(self: &FunctionInfoHandle, s: StringSlice, vm: &VM) -> Result<u16>;
+        fn shrink(self: &FunctionInfoHandle);
+        fn pop_last_op(self: &FunctionInfoHandle, last_op_pos: usize);
         fn add_global(self: &VM, name: StringSlice);
+        fn new_function_info(self: &VM) -> FunctionInfoHandle;
     }
 }
 
-pub use ffi::{new_function_info, FunctionInfo, Op, VM};
+pub use ffi::{Op, VM};

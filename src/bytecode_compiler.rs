@@ -3,8 +3,7 @@ use cxx::UniquePtr;
 
 use crate::parser::Statement;
 use crate::parser::Substring;
-use crate::vm::new_function_info;
-use crate::vm::FunctionInfo;
+use crate::vm::FunctionInfoHandle;
 use crate::vm::Op;
 use crate::vm::VM;
 use crate::CompileError;
@@ -36,7 +35,7 @@ impl<'vm> Compiler<'vm> {
 
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
-    bytecode: UniquePtr<FunctionInfo>,
+    bytecode: FunctionInfoHandle,
     op_positions: Vec<usize>,
     locals: Vec<String>,
     depth: u32,
@@ -47,7 +46,7 @@ struct BytecodeCompiler<'c, 'vm> {
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>) -> Self {
         Self {
-            bytecode: new_function_info(),
+            bytecode: c.vm.new_function_info(),
             locals: vec![],
             regcount: 0,
             depth: 0,
@@ -89,8 +88,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.compiler.as_mut().unwrap().errors.push(e)
     }
 
-    fn bc(&mut self) -> Pin<&mut FunctionInfo> {
-        self.bytecode.as_mut().unwrap()
+    fn bc(&self) -> &FunctionInfoHandle {
+        &self.bytecode
     }
 
     fn vm<'a>(&'a self) -> &'vm VM {

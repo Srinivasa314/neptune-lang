@@ -1,9 +1,12 @@
 #pragma once
+#include "neptune-vm.h"
 #include <cstddef>
 #include <cstdint>
-
 namespace neptune_vm {
-struct StringSlice;
+struct StringSlice {
+  char *data;
+  size_t len;
+};
 enum class Type : uint8_t { String, Symbol };
 
 class Object {
