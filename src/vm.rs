@@ -1,11 +1,8 @@
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::pin::Pin;
-
 use cxx::{type_id, ExternType};
+use std::marker::PhantomData;
 
 struct StringSlice<'a> {
-    bytes: *const u8,
+    data: *const u8,
     len: usize,
     _marker: PhantomData<&'a [u8]>,
 }
@@ -13,7 +10,7 @@ struct StringSlice<'a> {
 impl<'a> From<&'a str> for StringSlice<'a> {
     fn from(s: &'a str) -> Self {
         Self {
-            bytes: s.as_ptr(),
+            data: s.as_ptr(),
             len: s.len(),
             _marker: PhantomData,
         }
@@ -77,25 +74,45 @@ mod ffi {
         StoreR13,
         StoreR14,
         StoreR15,
+        LoadR0,
+        LoadR1,
+        LoadR2,
+        LoadR3,
+        LoadR4,
+        LoadR5,
+        LoadR6,
+        LoadR7,
+        LoadR8,
+        LoadR9,
+        LoadR10,
+        LoadR11,
+        LoadR12,
+        LoadR13,
+        LoadR14,
+        LoadR15,
     }
 
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
         type Op;
-        type Value;
         type FunctionInfo;
-        fn write_op(self: Pin<&mut FunctionInfo>, op: Op, line: u32);
+        type VM;
+        fn write_op(self: Pin<&mut FunctionInfo>, op: Op, line: u32) -> usize;
         fn write_u8(self: Pin<&mut FunctionInfo>, u: u8);
         fn write_u16(self: Pin<&mut FunctionInfo>, u: u16);
         fn write_u32(self: Pin<&mut FunctionInfo>, u: u32);
         fn write_i8(self: Pin<&mut FunctionInfo>, i: i8);
         fn write_i16(self: Pin<&mut FunctionInfo>, i: i16);
         fn write_i32(self: Pin<&mut FunctionInfo>, i: i32);
-        fn float_constant(self: Pin<&mut FunctionInfo, f: f64>) -> Result<u16>;
-        unsafe fn string_constant(self: Pin<&mut FunctionInfo>, s: StringSlice) -> Result<u16>;
-        unsafe fn symbol_constant(self: Pin<&mut FunctionInfo>, s: StringSlice) -> Result<u16>;
+        fn float_constant(self: Pin<&mut FunctionInfo>, f: f64) -> Result<u16>;
+        fn string_constant(self: Pin<&mut FunctionInfo>, s: StringSlice, vm: &VM) -> Result<u16>;
+        fn symbol_constant(self: Pin<&mut FunctionInfo>, s: StringSlice, vm: &VM) -> Result<u16>;
         fn shrink(self: Pin<&mut FunctionInfo>);
-        fn shrink_to(self: Pin<&mut FunctionInfo>, size: usize);
+        fn pop_last_op(self: Pin<&mut FunctionInfo>, last_op_pos: usize);
+        fn new_function_info() -> UniquePtr<FunctionInfo>;
+        fn add_global(self: &VM, name: StringSlice);
     }
 }
+
+pub use ffi::{new_function_info, FunctionInfo, Op, VM};

@@ -1,8 +1,8 @@
 #include "neptune-vm.h"
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #define ASSERT(x)                                                              \
   do {                                                                         \
@@ -17,19 +17,17 @@ namespace neptune_vm {
 
 /*
   On x86_64 and aarch64 the following scheme is used to represent values.
-  
+
   Empty   0x0000 0000 0000 0000
   Null    0x0000 0000 0000 0001
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
-  Pointer 0x0000 XXXX XXXX XXXX [due to pointer alignment we can use the last 2 bits]
-  Integer 0x0001 0000 XXXX XXXX
-          0x0002 0000 0000 0000
-  Double             to
-          0xFFFA 0000 0000 0000
-  
-  Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48 they lie in 
-  the range listed above.
+  Pointer 0x0000 XXXX XXXX XXXX [due to pointer alignment we can use the last 2
+  bits] Integer 0x0001 0000 XXXX XXXX 0x0002 0000 0000 0000 Double to 0xFFFA
+  0000 0000 0000
+
+  Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
+  they lie in the range listed above.
 */
 
 constexpr uint64_t INT_ENCODING_OFFSET = (1llu << 48);
@@ -77,7 +75,7 @@ bool Value::is_null_or_false() const {
 }
 
 bool Value::is_object() const {
-  return ((inner >> 48) == 0) && inner > VALUE_FALSE;
+  return ((inner >> 48) == 0) && ((inner % 4) == 0);
 }
 
 Object *Value::as_object() const {
@@ -89,11 +87,10 @@ bool Value::is_null() const { return inner == VALUE_NULL; }
 
 bool Value::is_empty() const { return inner == 0; }
 
-bool Value::operator==(Value rhs){
-  //todo
+bool Value::operator==(Value rhs) {
+  // todo
   return true;
-}  
-
+}
 
 #else
 Value::Value(int32_t i) {
@@ -148,10 +145,10 @@ bool Value::is_null() const { return tag == Tag::Null; }
 
 bool Value::is_empty() const { return tag == Tag::Empty; }
 
-bool Value::operator==(Value rhs){
-  //todo
+bool Value::operator==(Value rhs) {
+  // todo
   return true;
-}  
+}
 
 #endif
 } // namespace neptune_vm
