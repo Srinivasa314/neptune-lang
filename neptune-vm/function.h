@@ -42,7 +42,7 @@ class FunctionInfoHandle {
   Handle<FunctionInfo *> *inner;
 
 public:
-  FunctionInfoHandle(Handle<FunctionInfo *> *inner) : inner(inner) {}
+  explicit FunctionInfoHandle(Handle<FunctionInfo *> *inner_) : inner(inner_) {}
   size_t write_op(Op op, uint32_t line) const {
     return inner->object->write_op(op, line);
   }

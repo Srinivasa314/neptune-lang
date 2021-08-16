@@ -43,7 +43,7 @@ Value::Value(double d) {
   inner = u + DOUBLE_ENCODING_OFFSET;
 }
 
-Value::Value(Object *o) { inner = (uint64_t)o; }
+Value::Value(Object *o) { inner = reinterpret_cast<uint64_t>(o); }
 
 Value::Value(bool b) {
   if (b) {
@@ -87,7 +87,7 @@ bool Value::is_null() const { return inner == VALUE_NULL; }
 
 bool Value::is_empty() const { return inner == 0; }
 
-bool Value::operator==(Value rhs) {
+bool Value::operator==(Value rhs) const {
   // todo
   return true;
 }

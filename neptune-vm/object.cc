@@ -4,7 +4,7 @@
 
 namespace neptune_vm {
 String *String::from_string_slice(StringSlice s) {
-  String *p = (String *)malloc(sizeof(String) + s.len);
+  String *p = static_cast<String *>(malloc(sizeof(String) + s.len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }
@@ -14,7 +14,7 @@ String *String::from_string_slice(StringSlice s) {
 }
 
 Symbol *Symbol::from_string_slice(StringSlice s) {
-  Symbol *p = (Symbol *)malloc(sizeof(Symbol) + s.len);
+  Symbol *p = static_cast<Symbol *>(malloc(sizeof(Symbol) + s.len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }

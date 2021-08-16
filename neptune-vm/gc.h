@@ -9,8 +9,8 @@ template <typename T> class Handle {
 
 public:
   T object;
-  Handle(Handle *previous, T object, Handle *next)
-      : previous(previous), next(next), object(object) {}
+  Handle(Handle *previous_, T object_, Handle *next_)
+      : previous(previous_), next(next_), object(object_) {}
   ~Handle() {
     if (this->previous != nullptr)
       this->previous->next = this->next;
@@ -34,14 +34,15 @@ public:
   template <typename T> Handle<T> *make_handle(T object) {
     if (this->handles == nullptr)
       return reinterpret_cast<Handle<T> *>(
-          this->handles = new Handle(static_cast<Handle<Object *> *>(nullptr),
-                                     static_cast<Object *>(object),
-                                     static_cast<Handle<Object *> *>(nullptr)));
+          this->handles =
+              new Handle<Object *>(static_cast<Handle<Object *> *>(nullptr),
+                                   static_cast<Object *>(object),
+                                   static_cast<Handle<Object *> *>(nullptr)));
     else
       return reinterpret_cast<Handle<T> *>(
-          this->handles->next =
-              new Handle(this->handles->next, static_cast<Object *>(object),
-                         static_cast<Handle<Object *> *>(nullptr)));
+          this->handles->next = new Handle<Object *>(
+              this->handles->next, static_cast<Object *>(object),
+              static_cast<Handle<Object *> *>(nullptr)));
   }
 };
 } // namespace neptune_vm

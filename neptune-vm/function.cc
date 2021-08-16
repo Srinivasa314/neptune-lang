@@ -34,7 +34,7 @@ uint16_t FunctionInfo::constant(Value v) {
       return static_cast<uint16_t>(pos - constants.begin());
     } else {
       constants.push_back(v);
-      return constants.size() - 1;
+      return static_cast<uint16_t>(constants.size() - 1);
     }
   }
 }

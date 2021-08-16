@@ -12,7 +12,7 @@ class Value {
   static constexpr uint64_t VALUE_NULL = 1;
   static constexpr uint64_t VALUE_TRUE = 2;
   static constexpr uint64_t VALUE_FALSE = 3;
-  Value(uint64_t u) { inner = u; }
+  explicit Value(uint64_t u) { inner = u; }
 
 public:
   static Value new_true() { return Value(VALUE_TRUE); }
@@ -21,7 +21,7 @@ public:
 
   static Value null() { return Value(VALUE_NULL); }
 
-  static Value empty() { return Value((uint64_t)0); }
+  static Value empty() { return Value(static_cast<uint64_t>(0)); }
 
 #else
   enum class Tag : uint8_t {
@@ -41,7 +41,7 @@ public:
     Object *as_object;
   } value;
 
-  Value(Tag t) { tag = t; }
+  explicit Value(Tag t) { tag = t; }
 
 public:
   static Value new_true() { return Value(Tag::True); }
@@ -68,6 +68,6 @@ public:
   Object *as_object() const;
   bool is_null() const;
   bool is_empty() const;
-  bool operator==(Value rhs);
+  bool operator==(Value rhs) const;
 };
 } // namespace neptune_vm
