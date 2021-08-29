@@ -1,6 +1,6 @@
 #pragma once
 #include "function.h"
-#include "gc.h"
+#include "handle.h"
 #include "object.h"
 #include "op.h"
 #include "stddef.h"

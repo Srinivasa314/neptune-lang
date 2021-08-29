@@ -798,6 +798,7 @@ mod tests {
                         .scan_tokens()
                         .iter()
                         .any(|t| matches!(t.token_type, TokenType::Error(_))),
+                    "{}",
                     error
                 )
             }

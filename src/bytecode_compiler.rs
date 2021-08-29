@@ -1,9 +1,8 @@
 use cxx::Exception;
-use cxx::UniquePtr;
 
 use crate::parser::Statement;
 use crate::parser::Substring;
-use crate::vm::FunctionInfoHandle;
+use crate::vm::FunctionInfoWriter;
 use crate::vm::Op;
 use crate::vm::VM;
 use crate::CompileError;
@@ -11,11 +10,7 @@ use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::convert::TryInto;
-use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Sub};
-use std::pin::Pin;
-use std::vec;
 
 pub struct Compiler<'vm> {
     globals: HashMap<String, u32>,
@@ -31,16 +26,29 @@ impl<'vm> Compiler<'vm> {
             errors: vec![],
         }
     }
+
+    pub fn compile(
+        mut self,
+        ast: Vec<Statement>,
+    ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
+        let mut b = BytecodeCompiler::new(&mut self);
+        b.evaluate_statments(&ast);
+        let bytecode = b.bytecode;
+        if self.errors.is_empty() {
+            Ok(bytecode)
+        } else {
+            Err(self.errors)
+        }
+    }
 }
 
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
-    bytecode: FunctionInfoHandle,
-    op_positions: Vec<usize>,
+    bytecode: FunctionInfoWriter<'vm>,
     locals: Vec<String>,
-    depth: u32,
-    regcount: u16,
+    regcounts: Vec<u16>,
     max_registers: u16,
+    op_positions: Vec<usize>,
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
@@ -48,28 +56,35 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Self {
             bytecode: c.vm.new_function_info(),
             locals: vec![],
-            regcount: 0,
-            depth: 0,
+            regcounts: vec![0],
             compiler: Some(c),
             max_registers: 0,
             op_positions: vec![],
         }
     }
 
+    fn regcount(&self) -> u16 {
+        self.regcounts.last().cloned().unwrap()
+    }
+
+    fn regcount_mut(&mut self) -> &mut u16 {
+        self.regcounts.last_mut().unwrap()
+    }
+
     fn push_register(&mut self) -> Option<u16> {
-        if self.regcount == u16::MAX {
+        if self.regcount() == u16::MAX {
             None
         } else {
-            self.regcount += 1;
-            if self.regcount > self.max_registers {
-                self.max_registers = self.regcount;
+            *self.regcount_mut() += 1;
+            if self.regcount() > self.max_registers {
+                self.max_registers = self.regcount();
             }
-            Some(self.regcount - 1)
+            Some(self.regcount() - 1)
         }
     }
 
     fn pop_register(&mut self) {
-        self.regcount -= 1;
+        *self.regcount_mut() -= 1;
     }
 
     fn get_global(&self, name: &str) -> Option<u32> {
@@ -88,74 +103,61 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.compiler.as_mut().unwrap().errors.push(e)
     }
 
-    fn bc(&self) -> &FunctionInfoHandle {
-        &self.bytecode
-    }
-
-    fn vm<'a>(&'a self) -> &'vm VM {
-        self.compiler.as_ref().unwrap().vm
-    }
-
-    fn write_op(&mut self, op: Op, line: u32) {
-        let pos = self.bc().write_op(op, line);
+    fn write0(&mut self, op: Op, line: u32) {
+        let pos = self.bytecode.write_op(op, line);
         self.op_positions.push(pos);
+    }
+
+    fn write1(&mut self, op: Op, u: u32, line: u32) {
+        if let Ok(u) = u8::try_from(u) {
+            self.write0(op, line);
+            self.bytecode.write_u8(u);
+        } else if let Ok(u) = u16::try_from(u) {
+            self.write0(Op::Wide, line);
+            self.write0(op, line);
+            self.bytecode.write_u16(u);
+        } else {
+            self.write0(Op::ExtraWide, line);
+            self.write0(op, line);
+            self.bytecode.write_u32(u);
+        }
+    }
+
+    fn write2(&mut self, op: Op, u1: u16, u2: u16, line: u32) {
+        match (u8::try_from(u1), u8::try_from(u2)) {
+            (Ok(u1), Ok(u2)) => {
+                self.write0(op, line);
+                self.bytecode.write_u8(u1);
+                self.bytecode.write_u8(u2)
+            }
+            _ => {
+                self.write0(Op::Wide, line);
+                self.write0(op, line);
+                self.bytecode.write_u16(u1);
+                self.bytecode.write_u16(u2)
+            }
+        }
     }
 
     fn pop_last_op(&mut self) {
         let pos = self.op_positions.pop().unwrap();
-        self.bc().pop_last_op(pos);
+        self.bytecode.pop_last_op(pos);
     }
-}
-
-macro_rules! binary_op_int {
-    ($fn_name:ident,$inst_name:ident) => {
-        fn $fn_name(&mut self, i: i32, line: u32) {
-            if let Ok(i) = i8::try_from(i) {
-                self.write_op(Op::$inst_name, line);
-                self.bc().write_i8(i);
-            } else if let Ok(i) = i16::try_from(i) {
-                self.write_op(Op::Wide, line);
-                self.write_op(Op::$inst_name, line);
-                self.bc().write_i16(i);
-            } else {
-                self.write_op(Op::ExtraWide, line);
-                self.write_op(Op::$inst_name, line);
-                self.bc().write_i32(i);
-            }
-        }
-    };
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
-    fn write_op_u16arg(&mut self, op: Op, arg: u16, line: u32) {
-        if let Ok(arg) = u8::try_from(arg) {
-            self.write_op(op, line);
-            self.bc().write_u8(arg)
-        } else {
-            self.write_op(Op::Wide, line);
-            self.write_op(op, line);
-            self.bc().write_u16(arg)
-        }
-    }
-
     fn write_op_store_register(&mut self, reg: u16, line: u32) {
         match reg {
             0..=15 => {
-                self.bc().write_op(
+                self.write0(
                     Op {
                         repr: (Op::StoreR0.repr + reg as u8),
                     },
                     line,
                 );
             }
-            16..=255 => {
-                self.write_op(Op::StoreRegister, line);
-                self.bc().write_u8(reg as u8);
-            }
             _ => {
-                self.write_op(Op::Wide, line);
-                self.write_op(Op::StoreRegister, line);
-                self.bc().write_u16(reg);
+                self.write1(Op::StoreRegister, reg as u32, line);
             }
         }
     }
@@ -163,92 +165,30 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn write_op_load_register(&mut self, reg: u16, line: u32) {
         match reg {
             0..=15 => {
-                self.bc().write_op(
+                self.write0(
                     Op {
                         repr: (Op::LoadR0.repr + reg as u8),
                     },
                     line,
                 );
             }
-            16..=255 => {
-                self.write_op(Op::LoadRegister, line);
-                self.bc().write_u8(reg as u8);
-            }
             _ => {
-                self.write_op(Op::Wide, line);
-                self.write_op(Op::LoadRegister, line);
-                self.bc().write_u16(reg);
+                self.write1(Op::LoadRegister, reg as u32, line);
             }
-        }
-    }
-
-    binary_op_int!(write_op_load_int, LoadInt);
-
-    fn write_op_move(&mut self, reg1: u16, reg2: u16, line: u32) {
-        match (u8::try_from(reg1), u8::try_from(reg2)) {
-            (Ok(reg1), Ok(reg2)) => {
-                self.write_op(Op::Move, line);
-                self.bc().write_u8(reg1);
-                self.bc().write_u8(reg2)
-            }
-            _ => {
-                self.write_op(Op::Wide, line);
-                self.write_op(Op::Move, line);
-                self.bc().write_u16(reg1);
-                self.bc().write_u16(reg2)
-            }
-        }
-    }
-
-    fn write_op_store_global(&mut self, global: u32, line: u32) {
-        if let Ok(global) = u8::try_from(global) {
-            self.write_op(Op::StoreGlobal, line);
-            self.bc().write_u8(global);
-        } else if let Ok(global) = u16::try_from(global) {
-            self.write_op(Op::Wide, line);
-            self.write_op(Op::StoreGlobal, line);
-            self.bc().write_u16(global);
-        } else {
-            self.write_op(Op::ExtraWide, line);
-            self.write_op(Op::StoreGlobal, line);
-            self.bc().write_u32(global);
-        }
-    }
-
-    fn write_op_load_global(&mut self, global: u32, line: u32) {
-        if let Ok(global) = u8::try_from(global) {
-            self.write_op(Op::LoadGlobal, line);
-            self.bc().write_u8(global);
-        } else if let Ok(global) = u16::try_from(global) {
-            self.write_op(Op::Wide, line);
-            self.write_op(Op::LoadGlobal, line);
-            self.bc().write_u16(global);
-        } else {
-            self.write_op(Op::ExtraWide, line);
-            self.write_op(Op::LoadGlobal, line);
-            self.bc().write_u32(global);
         }
     }
 
     fn load_const(&mut self, constant: Result<u16, Exception>, line: u32) -> CompileResult<()> {
-        self.write_op_u16arg(
+        self.write1(
             Op::LoadConstant,
-            constant.map_err(|e| CompileError {
+            constant.map_err(|_| CompileError {
                 line,
                 message: "Cannot have more than 65535 constants per function".into(),
-            })?,
+            })? as u32,
             line,
         );
         Ok(())
     }
-
-    binary_op_int!(write_op_add_int, AddInt);
-
-    binary_op_int!(write_op_subtract_int, SubtractInt);
-
-    binary_op_int!(write_op_multiply_int, MultiplyInt);
-
-    binary_op_int!(write_op_divide_int, DivideInt);
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -302,18 +242,18 @@ macro_rules! binary_op {
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
                     self.store_in_accumulator(left, line)?;
-                    self.$int_inst(i, line);
+                    self.write1(Op::$int_inst, i as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
                     self.store_in_accumulator(right, line)?;
-                    self.write_op_u16arg(Op::$register_inst, r, line);
+                    self.write1(Op::$register_inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
 
                 (_, right) => {
                     self.store_in_accumulator(right, line)?;
-                    self.write_op_u16arg(Op::$register_inst, reg, line);
+                    self.write1(Op::$register_inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
             }
@@ -342,9 +282,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match result {
             ExprResult::Register(reg) => Ok(self.write_op_load_register(reg, line)),
             ExprResult::Accumulator => Ok(()),
-            ExprResult::Int(i) => Ok(self.write_op_load_int(i, line)),
+            ExprResult::Int(i) => Ok(self.write1(Op::LoadInt, i as u32, line)),
             ExprResult::Float(f) => {
-                let c = self.bc().float_constant(f);
+                let c = self.bytecode.float_constant(f);
                 self.load_const(c, line)
             }
         }
@@ -363,6 +303,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         for statement in statements {
             self.evaluate_statement(statement)
         }
+        self.bytecode.shrink();
     }
     fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
         if self.resolve_local(name).is_some() || self.get_global(name).is_some() {
@@ -371,7 +312,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             });
         }
-        if self.depth != 0 {
+        if self.regcounts.len() != 1 {
             let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
                 line,
                 message: "Cannot have more than 65535 locals".into(),
@@ -379,14 +320,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.locals.push(name.to_string());
             self.push_register();
             match self.evaluate_expr(expr)? {
-                ExprResult::Register(reg2) => self.write_op_move(reg, reg2, line),
+                ExprResult::Register(reg2) => self.write2(Op::Move, reg, reg2, line),
                 ExprResult::Accumulator => self.write_op_store_register(reg, line),
                 ExprResult::Int(i) => {
-                    self.write_op_load_int(i, line);
+                    self.write1(Op::LoadInt, i as u32, line);
                     self.write_op_store_register(reg, line)
                 }
                 ExprResult::Float(f) => {
-                    let c = self.bc().float_constant(f);
+                    let c = self.bytecode.float_constant(f);
                     self.load_const(c, line)?;
                     self.write_op_store_register(reg, line)
                 }
@@ -395,7 +336,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             let g = self.new_global(name);
             let res = self.evaluate_expr(expr)?;
             self.store_in_accumulator(res, line)?;
-            self.write_op_store_global(g, line);
+            self.write1(Op::StoreGlobal, g, line);
         }
         Ok(())
     }
@@ -410,9 +351,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.var_declaration(name, expr, *line)?;
                 }
                 Statement::Block(b) => {
-                    self.depth += 1;
+                    let count = self.regcount();
+                    self.regcounts.push(count);
                     self.evaluate_statments(b);
-                    self.depth -= 1;
+                    self.regcounts.pop();
+                    self.locals.truncate(self.regcount() as usize);
                 }
             };
             Ok(())
@@ -428,22 +371,20 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
                 TokenType::FloatLiteral(f) => Ok(ExprResult::Float(*f)),
                 TokenType::Null => {
-                    self.write_op(Op::LoadNull, *line);
+                    self.write0(Op::LoadNull, *line);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::True => {
-                    self.write_op(Op::LoadTrue, *line);
+                    self.write0(Op::LoadTrue, *line);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::False => {
-                    self.write_op(Op::LoadFalse, *line);
+                    self.write0(Op::LoadFalse, *line);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::Symbol(sym) => {
-                    self.load_const(
-                        self.bc().symbol_constant(sym.as_str().into(), self.vm()),
-                        *line,
-                    )?;
+                    let sym = self.bytecode.symbol_constant(sym.as_str().into());
+                    self.load_const(sym, *line)?;
                     Ok(ExprResult::Accumulator)
                 }
                 _ => todo!(),
@@ -499,6 +440,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     },
                     *line,
                 ),
+                TokenType::Tilde => self.concat(left, right, *line),
+                TokenType::TildeEqual => self.equal(
+                    left,
+                    &Expr::Binary {
+                        left: left.clone(),
+                        op: TokenType::Tilde,
+                        right: right.clone(),
+                        line: *line,
+                    },
+                    *line,
+                ),
                 _ => todo!(),
             },
             Expr::Unary { op, right, line } => match op {
@@ -511,16 +463,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let global = self
                         .get_global(name)
                         .unwrap_or_else(|| self.new_global(name));
-                    self.write_op_load_global(global, *line);
+                    self.write1(Op::LoadGlobal, global, *line);
                     Ok(ExprResult::Accumulator)
                 }
             },
             Expr::String { inner, line } => {
                 if let Substring::String(s) = &inner[0] {
-                    self.load_const(
-                        self.bc().string_constant(s.as_str().into(), self.vm()),
-                        *line,
-                    )?;
+                    let str = self.bytecode.string_constant(s.as_str().into());
+                    self.load_const(str, *line)?;
                 } else {
                     unreachable!()
                 }
@@ -534,10 +484,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         match i {
                             Substring::String(s) => {
                                 if !s.is_empty() {
-                                    self.load_const(
-                                        self.bc().string_constant(s.as_str().into(), self.vm()),
-                                        *line,
-                                    )?;
+                                    let str = self.bytecode.string_constant(s.as_str().into());
+                                    self.load_const(str, *line)?;
                                 } else {
                                     continue;
                                 }
@@ -545,10 +493,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             Substring::Expr(expr) => {
                                 let expr = self.evaluate_expr(expr)?;
                                 self.store_in_accumulator(expr, *line)?;
-                                self.write_op(Op::ToString, *line);
+                                self.write0(Op::ToString, *line);
                             }
                         }
-                        self.write_op_u16arg(Op::ConcatRegister, reg, *line);
+                        self.write1(Op::ConcatRegister, reg as u32, *line);
                     }
                     self.pop_register();
                 }
@@ -560,11 +508,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match self.evaluate_expr(right)? {
             ExprResult::Register(r) => {
                 self.write_op_load_register(r, line);
-                self.write_op(Op::Negate, line);
+                self.write0(Op::Negate, line);
                 Ok(ExprResult::Accumulator)
             }
             ExprResult::Accumulator => {
-                self.write_op(Op::Negate, line);
+                self.write0(Op::Negate, line);
                 Ok(ExprResult::Accumulator)
             }
             ExprResult::Int(i) => Ok(ExprResult::Int(i.checked_neg().ok_or_else(|| {
@@ -595,7 +543,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ExprResult::Int(_) | ExprResult::Float(_) => {
                 return Err(CompileError {
                     message:
-                        "Can only perform concat operation on string.Consider using interpolation"
+                        "Can only perform concat operation on string. Consider using interpolation"
                             .into(),
                     line,
                 })
@@ -609,8 +557,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ExprResult::Int(_) => todo!(),
             ExprResult::Float(_) => todo!(),
             right => {
-                self.store_in_accumulator(right, line);
-                self.write_op_u16arg(Op::ConcatRegister, reg, line);
+                self.store_in_accumulator(right, line)?;
+                self.write1(Op::ConcatRegister, reg as u32, line);
                 Ok(ExprResult::Accumulator)
             }
         }
@@ -627,7 +575,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             if let Some(dest) = self.resolve_local(name) {
                 match self.evaluate_expr(right)? {
                     ExprResult::Register(r) => {
-                        self.write_op_move(r, dest, *line);
+                        self.write2(Op::Move, r, dest, *line);
                         Ok(ExprResult::Register(dest))
                     }
                     res => {
@@ -642,7 +590,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     .unwrap_or_else(|| self.new_global(name));
                 let res = self.evaluate_expr(right)?;
                 self.store_in_accumulator(res, *line)?;
-                self.write_op_store_global(global, *line);
+                self.write1(Op::StoreGlobal, global, *line);
                 Ok(ExprResult::Accumulator)
             }
         } else {
@@ -653,26 +601,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    binary_op!(add, AddRegister, write_op_add_int, add, checked_add);
-    binary_op!(
-        subtract,
-        SubtractRegister,
-        write_op_subtract_int,
-        sub,
-        checked_sub
-    );
-    binary_op!(
-        multiply,
-        MultiplyRegister,
-        write_op_multiply_int,
-        mul,
-        checked_mul
-    );
-    binary_op!(
-        divide,
-        DivideRegister,
-        write_op_divide_int,
-        div,
-        checked_div
-    );
+    binary_op!(add, AddRegister, AddInt, add, checked_add);
+    binary_op!(subtract, SubtractRegister, SubtractInt, sub, checked_sub);
+    binary_op!(multiply, MultiplyRegister, MultiplyInt, mul, checked_mul);
+    binary_op!(divide, DivideRegister, DivideInt, div, checked_div);
 }

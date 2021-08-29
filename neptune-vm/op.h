@@ -1,72 +1,74 @@
 #pragma once
 
-namespace neptune_vm {
-enum class Op : uint8_t {
-  Wide,
-  ExtraWide,
-  LoadRegister,
-  LoadInt,
-  LoadNull,
-  LoadTrue,
-  LoadFalse,
-  LoadConstant,
-  StoreRegister,
-  Move,
-  LoadGlobal,
-  StoreGlobal,
-  AddRegister,
-  SubtractRegister,
-  MultiplyRegister,
-  DivideRegister,
-  ConcatRegister,
-  AddInt,
-  SubtractInt,
-  MultiplyInt,
-  DivideInt,
-  Negate,
-  Call,
-  Call0Argument,
-  Call1Argument,
-  Call2Argument,
-  Less,
-  ToString,
-  Jump,
-  JumpBack,
-  JumpIfFalse,
-  Return,
-  Exit,
-  StoreR0,
-  StoreR1,
-  StoreR2,
-  StoreR3,
-  StoreR4,
-  StoreR5,
-  StoreR6,
-  StoreR7,
-  StoreR8,
-  StoreR9,
-  StoreR10,
-  StoreR11,
-  StoreR12,
-  StoreR13,
-  StoreR14,
-  StoreR15,
-  LoadR0,
-  LoadR1,
-  LoadR2,
-  LoadR3,
-  LoadR4,
-  LoadR5,
-  LoadR6,
-  LoadR7,
-  LoadR8,
-  LoadR9,
-  LoadR10,
-  LoadR11,
-  LoadR12,
-  LoadR13,
-  LoadR14,
-  LoadR15,
+#define OPS                                                                    \
+  OP(Wide)                                                                     \
+  OP(ExtraWide)                                                                \
+  OP(LoadRegister)                                                             \
+  OP(LoadR0)                                                                   \
+  OP(LoadR1)                                                                   \
+  OP(LoadR2)                                                                   \
+  OP(LoadR3)                                                                   \
+  OP(LoadR4)                                                                   \
+  OP(LoadR5)                                                                   \
+  OP(LoadR6)                                                                   \
+  OP(LoadR7)                                                                   \
+  OP(LoadR8)                                                                   \
+  OP(LoadR9)                                                                   \
+  OP(LoadR10)                                                                  \
+  OP(LoadR11)                                                                  \
+  OP(LoadR12)                                                                  \
+  OP(LoadR13)                                                                  \
+  OP(LoadR14)                                                                  \
+  OP(LoadR15)                                                                  \
+  OP(LoadInt)                                                                  \
+  OP(LoadNull)                                                                 \
+  OP(LoadTrue)                                                                 \
+  OP(LoadFalse)                                                                \
+  OP(LoadConstant)                                                             \
+  OP(StoreRegister)                                                            \
+  OP(StoreR0)                                                                  \
+  OP(StoreR1)                                                                  \
+  OP(StoreR2)                                                                  \
+  OP(StoreR3)                                                                  \
+  OP(StoreR4)                                                                  \
+  OP(StoreR5)                                                                  \
+  OP(StoreR6)                                                                  \
+  OP(StoreR7)                                                                  \
+  OP(StoreR8)                                                                  \
+  OP(StoreR9)                                                                  \
+  OP(StoreR10)                                                                 \
+  OP(StoreR11)                                                                 \
+  OP(StoreR12)                                                                 \
+  OP(StoreR13)                                                                 \
+  OP(StoreR14)                                                                 \
+  OP(StoreR15)                                                                 \
+  OP(Move)                                                                     \
+  OP(LoadGlobal)                                                               \
+  OP(StoreGlobal)                                                              \
+  OP(AddRegister)                                                              \
+  OP(SubtractRegister)                                                         \
+  OP(MultiplyRegister)                                                         \
+  OP(DivideRegister)                                                           \
+  OP(ConcatRegister)                                                           \
+  OP(AddInt)                                                                   \
+  OP(SubtractInt)                                                              \
+  OP(MultiplyInt)                                                              \
+  OP(DivideInt)                                                                \
+  OP(Negate)                                                                   \
+  OP(Call)                                                                     \
+  OP(Call0Argument)                                                            \
+  OP(Call1Argument)                                                            \
+  OP(Call2Argument)                                                            \
+  OP(Less)                                                                     \
+  OP(ToString)                                                                 \
+  OP(Jump)                                                                     \
+  OP(JumpBack)                                                                 \
+  OP(JumpIfFalse)                                                              \
+  OP(Return)                                                                   \
+  OP(Exit)
 
-};
-}
+#define OP(x) x,
+namespace neptune_vm {
+enum class Op : uint8_t { OPS };
+#undef OP
+} // namespace neptune_vm

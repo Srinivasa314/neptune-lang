@@ -1,16 +1,6 @@
-mod bytecode_compiler;
-mod parser;
-mod scanner;
-mod vm;
-
-#[derive(Debug)]
-pub struct CompileError {
-    message: String,
-    line: u32,
-}
-
-pub type CompileResult<T> = Result<T, CompileError>;
+use neptune_lang::Neptune;
 
 fn main() {
-    todo!()
+    let n = Neptune::new();
+    n.exec("let a=1+1").unwrap();
 }

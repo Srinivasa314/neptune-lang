@@ -1,16 +1,5 @@
 #include "neptune-vm.h"
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
-
-#define ASSERT(x)                                                              \
-  do {                                                                         \
-    if (!(x)) {                                                                \
-      puts("Assertion " #x " failed");                                         \
-      abort();                                                                 \
-    }                                                                          \
-  } while (0)
 
 namespace neptune_vm {
 #ifdef NANBOX
@@ -22,9 +11,11 @@ namespace neptune_vm {
   Null    0x0000 0000 0000 0001
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
-  Pointer 0x0000 XXXX XXXX XXXX [due to pointer alignment we can use the last 2
-  bits] Integer 0x0001 0000 XXXX XXXX 0x0002 0000 0000 0000 Double to 0xFFFA
-  0000 0000 0000
+  Pointer 0x0000 XXXX XXXX XXXX [due to pointer alignment we can use the last 2bits]
+  Integer 0x0001 0000 XXXX XXXX
+          0x0002 0000 0000 0000
+  Double          to
+          0xFFFA 0000 0000 0000
 
   Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
   they lie in the range listed above.
@@ -56,14 +47,14 @@ Value::Value(bool b) {
 bool Value::is_int() const { return (inner >> 48) == 1llu; }
 
 int32_t Value::as_int() const {
-  ASSERT(is_int());
+  assert(is_int());
   return static_cast<int32_t>(inner);
 }
 
 bool Value::is_float() const { return inner >= DOUBLE_ENCODING_OFFSET; }
 
 double Value::as_float() const {
-  ASSERT(is_float());
+  assert(is_float());
   double d;
   uint64_t u = inner - DOUBLE_ENCODING_OFFSET;
   memcpy(&d, &u, sizeof(u));
@@ -79,7 +70,7 @@ bool Value::is_object() const {
 }
 
 Object *Value::as_object() const {
-  ASSERT(is_object());
+  assert(is_object());
   return reinterpret_cast<Object *>(inner);
 }
 
@@ -119,14 +110,14 @@ Value::Value(bool b) {
 bool Value::is_int() const { return tag == Tag::Int; }
 
 int32_t Value::as_int() const {
-  ASSERT(is_int());
+  assert(is_int());
   return value.as_int;
 }
 
 bool Value::is_float() const { return tag == Tag::Float; }
 
 double Value::as_float() const {
-  ASSERT(is_float());
+  assert(is_float());
   return value.as_float;
 }
 
@@ -137,7 +128,7 @@ bool Value::is_null_or_false() const {
 bool Value::is_object() const { return tag == Tag::Object; }
 
 Object *Value::as_object() const {
-  ASSERT(is_object());
+  assert(is_object());
   return value.as_object;
 }
 
@@ -145,7 +136,7 @@ bool Value::is_null() const { return tag == Tag::Null; }
 
 bool Value::is_empty() const { return tag == Tag::Empty; }
 
-bool Value::operator==(Value rhs) {
+bool Value::operator==(Value rhs) const {
   // todo
   return true;
 }
@@ -153,4 +144,4 @@ bool Value::operator==(Value rhs) {
 #endif
 } // namespace neptune_vm
 
-#undef ASSERT
+#undef assert
