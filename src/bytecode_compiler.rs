@@ -2,6 +2,7 @@ use cxx::Exception;
 
 use crate::parser::Statement;
 use crate::parser::Substring;
+use crate::scanner::Token;
 use crate::vm::FunctionInfoWriter;
 use crate::vm::Op;
 use crate::vm::VM;
@@ -345,6 +346,75 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match (|| -> CompileResult<()> {
             match statement {
                 Statement::Expr(expr) => {
+                    match expr {
+                        Expr::Binary {
+                            left,
+                            op,
+                            right,
+                            line,
+                        } => {
+                            if *op == TokenType::Equal {
+                                self.equal(left, right, *line)?;
+                            } else if *op == TokenType::PlusEqual {
+                                self.equal(
+                                    left,
+                                    &Expr::Binary {
+                                        left: left.clone(),
+                                        op: TokenType::Plus,
+                                        right: right.clone(),
+                                        line: *line,
+                                    },
+                                    *line,
+                                )?;
+                            } else if *op == TokenType::MinusEqual {
+                                self.equal(
+                                    left,
+                                    &Expr::Binary {
+                                        left: left.clone(),
+                                        op: TokenType::Minus,
+                                        right: right.clone(),
+                                        line: *line,
+                                    },
+                                    *line,
+                                )?;
+                            } else if *op == TokenType::StarEqual {
+                                self.equal(
+                                    left,
+                                    &Expr::Binary {
+                                        left: left.clone(),
+                                        op: TokenType::Star,
+                                        right: right.clone(),
+                                        line: *line,
+                                    },
+                                    *line,
+                                )?;
+                            } else if *op == TokenType::SlashEqual {
+                                self.equal(
+                                    left,
+                                    &Expr::Binary {
+                                        left: left.clone(),
+                                        op: TokenType::Slash,
+                                        right: right.clone(),
+                                        line: *line,
+                                    },
+                                    *line,
+                                )?;
+                            } else if *op == TokenType::TildeEqual {
+                                self.equal(
+                                    left,
+                                    &Expr::Binary {
+                                        left: left.clone(),
+                                        op: TokenType::Tilde,
+                                        right: right.clone(),
+                                        line: *line,
+                                    },
+                                    *line,
+                                )?;
+                            }
+                        }
+                        _ => {}
+                    }
+
                     self.evaluate_expr(expr)?;
                 }
                 Statement::VarDeclaration { name, expr, line } => {
@@ -399,58 +469,31 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::Minus => self.subtract(left, right, *line),
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
-                TokenType::Equal => self.equal(left, right, *line),
-                TokenType::PlusEqual => self.equal(
-                    left,
-                    &Expr::Binary {
-                        left: left.clone(),
-                        op: TokenType::Plus,
-                        right: right.clone(),
-                        line: *line,
-                    },
-                    *line,
-                ),
-                TokenType::MinusEqual => self.equal(
-                    left,
-                    &Expr::Binary {
-                        left: left.clone(),
-                        op: TokenType::Minus,
-                        right: right.clone(),
-                        line: *line,
-                    },
-                    *line,
-                ),
-                TokenType::StarEqual => self.equal(
-                    left,
-                    &Expr::Binary {
-                        left: left.clone(),
-                        op: TokenType::Star,
-                        right: right.clone(),
-                        line: *line,
-                    },
-                    *line,
-                ),
-                TokenType::SlashEqual => self.equal(
-                    left,
-                    &Expr::Binary {
-                        left: left.clone(),
-                        op: TokenType::Slash,
-                        right: right.clone(),
-                        line: *line,
-                    },
-                    *line,
-                ),
+                TokenType::Equal => Err(CompileError {
+                    message: "= is not an expression".to_string(),
+                    line: *line,
+                }),
+                TokenType::PlusEqual => Err(CompileError {
+                    message: "+= is not an expression".to_string(),
+                    line: *line,
+                }),
+                TokenType::MinusEqual => Err(CompileError {
+                    message: "-= is not an expression".to_string(),
+                    line: *line,
+                }),
+                TokenType::StarEqual => Err(CompileError {
+                    message: "*= is not an expression".to_string(),
+                    line: *line,
+                }),
+                TokenType::SlashEqual => Err(CompileError {
+                    message: "/= is not an expression".to_string(),
+                    line: *line,
+                }),
                 TokenType::Tilde => self.concat(left, right, *line),
-                TokenType::TildeEqual => self.equal(
-                    left,
-                    &Expr::Binary {
-                        left: left.clone(),
-                        op: TokenType::Tilde,
-                        right: right.clone(),
-                        line: *line,
-                    },
-                    *line,
-                ),
+                TokenType::TildeEqual => Err(CompileError {
+                    message: "~= is not an expression".to_string(),
+                    line: *line,
+                }),
                 _ => todo!(),
             },
             Expr::Unary { op, right, line } => match op {
@@ -564,7 +607,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+    fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<()> {
         if let Expr::Variable { name, line } = left {
             if name.chars().next().unwrap().is_ascii_uppercase() {
                 return Err(CompileError {
@@ -576,12 +619,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 match self.evaluate_expr(right)? {
                     ExprResult::Register(r) => {
                         self.write2(Op::Move, r, dest, *line);
-                        Ok(ExprResult::Register(dest))
+                        Ok(())
                     }
                     res => {
                         self.store_in_accumulator(res, *line)?;
                         self.write_op_store_register(dest, *line);
-                        Ok(ExprResult::Accumulator)
+                        Ok(())
                     }
                 }
             } else {
@@ -591,7 +634,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let res = self.evaluate_expr(right)?;
                 self.store_in_accumulator(res, *line)?;
                 self.write1(Op::StoreGlobal, global, *line);
-                Ok(ExprResult::Accumulator)
+                Ok(())
             }
         } else {
             Err(CompileError {

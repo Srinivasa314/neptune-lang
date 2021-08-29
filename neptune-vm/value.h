@@ -58,7 +58,6 @@ public:
   explicit Value(double d);
   explicit Value(Object *o);
   explicit Value(bool b);
-  // SAFETY: as_*
   bool is_int() const;
   int32_t as_int() const;
   bool is_float() const;

@@ -28,30 +28,37 @@ class String : public Object {
 public:
   static constexpr Type type = Type::String;
   static String *from_string_slice(StringSlice s);
+  explicit operator StringSlice();
 };
 
 class Symbol : public Object {
   size_t len;
   char data[];
-  friend struct StringEquality;
-  friend struct StringHasher;
   friend class VM;
 
 public:
   static constexpr Type type = Type::Symbol;
+  explicit operator StringSlice();
 };
 
 struct StringEquality {
   using is_transparent = void;
   bool operator()(Symbol *const sym, StringSlice s) const {
-    return sym->len == s.len && memcmp(sym->data, s.data, s.len) == 0;
+    return StringEquality{}(static_cast<StringSlice>(*sym), s);
   }
   bool operator()(StringSlice s, Symbol *const sym) const {
-    return sym->len == s.len && memcmp(sym->data, s.data, s.len) == 0;
+    return StringEquality{}(s, static_cast<StringSlice>(*sym));
   }
-  bool operator()(Symbol *const sym1, Symbol *const sym2) const {
-    return sym1->len == sym2->len &&
-           memcmp(sym1->data, sym2->data, sym1->len) == 0;
+  bool operator()(Symbol *sym1, Symbol *sym2) const {
+    return StringEquality{}(static_cast<StringSlice>(*sym1),
+                            static_cast<StringSlice>(*sym2));
+  }
+  bool operator()(StringSlice s1, StringSlice s2) const {
+    return s1.len == s2.len && memcmp(s1.data, s2.data, s1.len) == 0;
+  }
+  bool operator()(String *s1, String *s2) const {
+    return StringEquality{}(static_cast<StringSlice>(*s1),
+                            static_cast<StringSlice>(*s2));
   }
 };
 

@@ -12,7 +12,8 @@ String *String::from_string_slice(StringSlice s) {
   p->len = s.len;
   return p;
 }
-
+String::operator StringSlice() { return StringSlice{data, len}; }
+Symbol::operator StringSlice() { return StringSlice{data, len}; }
 template <typename O> bool Object::is() { return type == O::type; }
 template <typename O> O *Object::as() {
   assert(is<O>());
@@ -38,7 +39,7 @@ size_t StringHasher::operator()(StringSlice s) const {
 }
 
 size_t StringHasher::operator()(Symbol *sym) const {
-  return StringHasher{}(StringSlice{sym->data, sym->len});
+  return StringHasher{}(static_cast<StringSlice>(*sym));
 }
 
 } // namespace neptune_vm

@@ -25,7 +25,6 @@ class VM {
   mutable Handle<Object> *handles;
 
 public:
-  // SAFETY:must not be null bytecode must be valid
   void run(FunctionInfo *f) const;
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info() const;

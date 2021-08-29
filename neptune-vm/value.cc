@@ -78,11 +78,6 @@ bool Value::is_null() const { return inner == VALUE_NULL; }
 
 bool Value::is_empty() const { return inner == 0; }
 
-bool Value::operator==(Value rhs) const {
-  // todo
-  return true;
-}
-
 #else
 Value::Value(int32_t i) {
   tag = Tag::Int;
@@ -135,13 +130,37 @@ Object *Value::as_object() const {
 bool Value::is_null() const { return tag == Tag::Null; }
 
 bool Value::is_empty() const { return tag == Tag::Empty; }
+#endif
 
 bool Value::operator==(Value rhs) const {
-  // todo
-  return true;
+  if (is_int()) {
+    if (rhs.is_int())
+      return as_int() == rhs.as_int();
+    else if (rhs.is_float())
+      return double(as_int()) == rhs.as_float();
+    else
+      return false;
+  } else if (is_float()) {
+    if (rhs.is_float())
+      return as_float() == rhs.as_float();
+    else if (rhs.is_int())
+      return as_float() == double(rhs.as_int());
+    else
+      return false;
+  } else if (is_object()) {
+    auto l = as_object();
+    if (l->is<String>()) {
+      auto r = rhs.as_object();
+      if (r->is<String>()) {
+        return StringEquality{}(l->as<String>(), r->as<String>());
+      } else {
+        return false;
+      }
+    } else
+      return l == rhs.as_object();
+  }
 }
 
-#endif
 } // namespace neptune_vm
 
 #undef assert
