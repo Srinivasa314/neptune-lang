@@ -111,13 +111,20 @@ mod ffi {
         Exit,
     }
 
+    enum VMResult {
+        Success,
+        Error,
+    }
+
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
         type Op;
+        type VMResult;
         type VM;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
+        fn run(self: &mut FunctionInfoWriter) -> VMResult;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
@@ -139,4 +146,4 @@ mod ffi {
     }
 }
 
-pub use ffi::{new_vm, Op, VM};
+pub use ffi::{new_vm, Op, VMResult, VM};

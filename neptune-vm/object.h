@@ -5,7 +5,7 @@
 #include <cstring>
 namespace neptune_vm {
 struct StringSlice {
-  char *data;
+  const char *data;
   size_t len;
 };
 enum class Type : uint8_t { String, Symbol };
@@ -17,7 +17,7 @@ class Object {
   friend class VM;
 
 public:
-  template <typename O> bool is();
+  template <typename O> bool is() const;
   template <typename O> O *as();
 };
 

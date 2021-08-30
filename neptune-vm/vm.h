@@ -13,29 +13,34 @@ struct Global {
   Value value;
 };
 
+enum class VMResult : uint8_t { Success, Error };
+
 class VM {
+  Value accumulator;
   std::vector<Value> stack;
   std::vector<Frame> frames;
   mutable std::vector<Global> globals;
-  mutable size_t bytes_allocated;
+  size_t bytes_allocated;
   // Linked list of all objects
-  mutable Object *first_obj;
+  Object *first_obj;
   size_t threshhold;
-  mutable tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
-  mutable Handle<Object> *handles;
+  tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
+  Handle<Object> *handles;
 
 public:
-  void run(FunctionInfo *f) const;
+  void store_panic(StringSlice str);
+  VMResult run(FunctionInfo *f);
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info() const;
-  template <typename O> O *manage(O *t) const;
-  template <typename O> Handle<O> *make_handle(O *object) const;
-  template <typename O> void release(Handle<O> *handle) const;
-  Symbol *intern(StringSlice s) const;
-  void release(Object *o) const;
+  template <typename O> O *manage(O *t);
+  template <typename O> Handle<O> *make_handle(O *object);
+  template <typename O> void release(Handle<O> *handle);
+  Symbol *intern(StringSlice s);
+  void release(Object *o);
   VM()
-      : stack(1024 * 1024, Value::null()), frames(1024), bytes_allocated(0),
-        first_obj(nullptr), threshhold(10 * 1024 * 1024), handles(nullptr) {}
+      : accumulator(Value::null()), stack(1024 * 1024, Value::null()),
+        frames(1024), bytes_allocated(0), first_obj(nullptr),
+        threshhold(10 * 1024 * 1024), handles(nullptr) {}
   ~VM();
 };
 

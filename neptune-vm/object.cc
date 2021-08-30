@@ -14,7 +14,7 @@ String *String::from_string_slice(StringSlice s) {
 }
 String::operator StringSlice() { return StringSlice{data, len}; }
 Symbol::operator StringSlice() { return StringSlice{data, len}; }
-template <typename O> bool Object::is() { return type == O::type; }
+template <typename O> bool Object::is() const { return type == O::type; }
 template <typename O> O *Object::as() {
   assert(is<O>());
   return reinterpret_cast<O *>(this);
@@ -31,7 +31,7 @@ size_t StringHasher::operator()(StringSlice s) const {
 #endif
 
   for (size_t i = 0; i < s.len; i++) {
-    hash ^= s.data[i];
+    hash ^= static_cast<size_t>(s.data[i]);
     hash *= prime;
   }
 

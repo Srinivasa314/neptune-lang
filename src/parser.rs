@@ -424,12 +424,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             } else {
                 self.expression_statement()
             }?;
-            if needs_sep {
-                if !(self.match_token(TokenType::StatementSeparator)
+            if needs_sep
+                && !(self.match_token(TokenType::StatementSeparator)
                     || self.match_token(TokenType::Eof))
-                {
-                    Err(self.error_at_current("Expect newline or semicolon".into()))?;
-                }
+            {
+                return Err(self.error_at_current("Expect newline or semicolon".into()));
             }
             Ok(e)
         })() {

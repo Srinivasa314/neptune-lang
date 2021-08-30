@@ -16,6 +16,8 @@ struct LineInfo {
   uint32_t line;
 };
 
+enum class VMResult : uint8_t;
+
 class FunctionInfo : public Object {
 public:
   std::vector<uint8_t> bytecode;
@@ -27,11 +29,11 @@ public:
 
 class FunctionInfoWriter {
   Handle<FunctionInfo> *hf;
-  const VM *vm;
+  VM *vm;
 
 public:
   explicit FunctionInfoWriter(Handle<FunctionInfo> *hf_, const VM *vm_)
-      : hf(hf_), vm(vm_) {}
+      : hf(hf_), vm(const_cast<VM *>(vm_)) {}
   template <typename T> void write(T t);
   uint16_t constant(Value v);
   size_t write_op(Op op, uint32_t line);
@@ -44,5 +46,6 @@ public:
   void shrink();
   void pop_last_op(size_t last_op_pos);
   void release(); // calls the destructor
+  VMResult run();
 };
 } // namespace neptune_vm

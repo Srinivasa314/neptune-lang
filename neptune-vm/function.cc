@@ -67,7 +67,7 @@ void FunctionInfoWriter::pop_last_op(size_t last_op_pos) {
   }
 }
 
-void FunctionInfoWriter::release() {
-  vm->release(hf);
-}
+void FunctionInfoWriter::release() { vm->release(hf); }
+
+VMResult FunctionInfoWriter::run() { return vm->run(hf->object); }
 } // namespace neptune_vm

@@ -5,6 +5,7 @@ template <typename O> class Handle {
   Handle *previous;
   Handle *next;
   friend class VM;
+
 public:
   O *object;
   Handle(Handle *previous_, O *object_, Handle *next_)

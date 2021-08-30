@@ -11,10 +11,10 @@ namespace neptune_vm {
   Null    0x0000 0000 0000 0001
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
-  Pointer 0x0000 XXXX XXXX XXXX [due to pointer alignment we can use the last 2bits]
+  Pointer 0x0000 XXXX XXXX XXXX [due to alignment we can use the last 2bits]
   Integer 0x0001 0000 XXXX XXXX
-          0x0002 0000 0000 0000
-  Double          to
+  Double  0x0002 0000 0000 0000
+                  to
           0xFFFA 0000 0000 0000
 
   Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
@@ -158,6 +158,10 @@ bool Value::operator==(Value rhs) const {
       }
     } else
       return l == rhs.as_object();
+  } else if (inner == rhs.inner) {
+    return true;
+  } else {
+    return false;
   }
 }
 

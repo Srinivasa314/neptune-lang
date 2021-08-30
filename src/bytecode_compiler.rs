@@ -2,7 +2,6 @@ use cxx::Exception;
 
 use crate::parser::Statement;
 use crate::parser::Substring;
-use crate::scanner::Token;
 use crate::vm::FunctionInfoWriter;
 use crate::vm::Op;
 use crate::vm::VM;
@@ -34,6 +33,7 @@ impl<'vm> Compiler<'vm> {
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         let mut b = BytecodeCompiler::new(&mut self);
         b.evaluate_statments(&ast);
+        b.write0(Op::Exit, 0);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -240,18 +240,17 @@ macro_rules! binary_op {
                     self.undo_save_to_register(ExprResult::Int(i));
                     Ok(ExprResult::Float(f64::from(i).$op_fn(f)))
                 }
+                (ExprResult::Register(r), right) => {
+                    self.store_in_accumulator(right, line)?;
+                    self.write1(Op::$register_inst, r as u32, line);
+                    Ok(ExprResult::Accumulator)
+                }
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
                     self.store_in_accumulator(left, line)?;
                     self.write1(Op::$int_inst, i as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
-                (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
-                    self.write1(Op::$register_inst, r as u32, line);
-                    Ok(ExprResult::Accumulator)
-                }
-
                 (_, right) => {
                     self.store_in_accumulator(right, line)?;
                     self.write1(Op::$register_inst, reg as u32, line);
@@ -281,9 +280,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
         match result {
-            ExprResult::Register(reg) => Ok(self.write_op_load_register(reg, line)),
+            ExprResult::Register(reg) => {
+                self.write_op_load_register(reg, line);
+                Ok(())
+            }
             ExprResult::Accumulator => Ok(()),
-            ExprResult::Int(i) => Ok(self.write1(Op::LoadInt, i as u32, line)),
+            ExprResult::Int(i) => {
+                self.write1(Op::LoadInt, i as u32, line);
+                Ok(())
+            }
             ExprResult::Float(f) => {
                 let c = self.bytecode.float_constant(f);
                 self.load_const(c, line)
@@ -343,80 +348,80 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn evaluate_statement(&mut self, statement: &Statement) {
-        match (|| -> CompileResult<()> {
+        if let Err(e) = (|| -> CompileResult<()> {
             match statement {
-                Statement::Expr(expr) => {
-                    match expr {
-                        Expr::Binary {
-                            left,
-                            op,
-                            right,
-                            line,
-                        } => {
-                            if *op == TokenType::Equal {
-                                self.equal(left, right, *line)?;
-                            } else if *op == TokenType::PlusEqual {
-                                self.equal(
-                                    left,
-                                    &Expr::Binary {
-                                        left: left.clone(),
-                                        op: TokenType::Plus,
-                                        right: right.clone(),
-                                        line: *line,
-                                    },
-                                    *line,
-                                )?;
-                            } else if *op == TokenType::MinusEqual {
-                                self.equal(
-                                    left,
-                                    &Expr::Binary {
-                                        left: left.clone(),
-                                        op: TokenType::Minus,
-                                        right: right.clone(),
-                                        line: *line,
-                                    },
-                                    *line,
-                                )?;
-                            } else if *op == TokenType::StarEqual {
-                                self.equal(
-                                    left,
-                                    &Expr::Binary {
-                                        left: left.clone(),
-                                        op: TokenType::Star,
-                                        right: right.clone(),
-                                        line: *line,
-                                    },
-                                    *line,
-                                )?;
-                            } else if *op == TokenType::SlashEqual {
-                                self.equal(
-                                    left,
-                                    &Expr::Binary {
-                                        left: left.clone(),
-                                        op: TokenType::Slash,
-                                        right: right.clone(),
-                                        line: *line,
-                                    },
-                                    *line,
-                                )?;
-                            } else if *op == TokenType::TildeEqual {
-                                self.equal(
-                                    left,
-                                    &Expr::Binary {
-                                        left: left.clone(),
-                                        op: TokenType::Tilde,
-                                        right: right.clone(),
-                                        line: *line,
-                                    },
-                                    *line,
-                                )?;
-                            }
+                Statement::Expr(expr) => match expr {
+                    Expr::Binary {
+                        left,
+                        op,
+                        right,
+                        line,
+                    } => {
+                        if *op == TokenType::Equal {
+                            self.equal(left, right, *line)?;
+                        } else if *op == TokenType::PlusEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Plus,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
+                        } else if *op == TokenType::MinusEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Minus,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
+                        } else if *op == TokenType::StarEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Star,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
+                        } else if *op == TokenType::SlashEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Slash,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
+                        } else if *op == TokenType::TildeEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Tilde,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
+                        } else {
+                            self.evaluate_expr(expr)?;
                         }
-                        _ => {}
                     }
-
-                    self.evaluate_expr(expr)?;
-                }
+                    _ => {
+                        self.evaluate_expr(expr)?;
+                    }
+                },
                 Statement::VarDeclaration { name, expr, line } => {
                     self.var_declaration(name, expr, *line)?;
                 }
@@ -430,8 +435,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             };
             Ok(())
         })() {
-            Err(e) => self.error(e),
-            _ => {}
+            self.error(e)
         }
     }
 
