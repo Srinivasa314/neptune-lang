@@ -31,7 +31,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     uint8_t reg = READ(type);                                                  \
     int res;                                                                   \
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
-      if (!SafeAdd(bp[reg].as_int(), accumulator.as_int(), res))               \
+      if (!intfn(bp[reg].as_int(), accumulator.as_int(), res))                 \
         PANIC("Cannot " #opname " " << bp[reg].as_int() << " and "             \
                                     << accumulator.as_int());                  \
       accumulator = static_cast<Value>(res);                                   \
@@ -102,7 +102,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #endif
 template <typename T> T read(uint8_t *&bytecode) {
   T ret = *(reinterpret_cast<T *>(bytecode));
-  bytecode++;
+  bytecode += sizeof(T);
   return ret;
 }
 
