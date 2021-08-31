@@ -440,10 +440,10 @@ VMResult VM::run(FunctionInfo *f) {
         : BINARY_OP_INT(int32_t, subtract, SafeSubtract, -);
 
     EXTRAWIDE_HANDLER(MultiplyInt)
-        : BINARY_OP_INT(int16_t, multiply, SafeMultiply, *);
+        : BINARY_OP_INT(int32_t, multiply, SafeMultiply, *);
 
     EXTRAWIDE_HANDLER(DivideInt)
-        : BINARY_OP_INT(int16_t, divide, SafeDivide, /);
+        : BINARY_OP_INT(int32_t, divide, SafeDivide, /);
 
     EXTRAWIDE_HANDLER(Jump)
         : EXTRAWIDE_HANDLER(JumpBack) : EXTRAWIDE_HANDLER(JumpIfFalse) : TODO();
