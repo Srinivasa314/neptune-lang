@@ -21,7 +21,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define BINARY_OP_REGISTER(type, opname, intfn, op)                            \
   do {                                                                         \
-    uint8_t reg = READ(type);                                                  \
+    type reg = READ(type);                                                     \
     int res;                                                                   \
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
       if (!intfn(bp[reg].as_int(), accumulator.as_int(), res))                 \
@@ -64,6 +64,21 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     }                                                                          \
     DISPATCH();                                                                \
   } while (0)
+
+#define CONCAT_REGISTER(type)                                                  \
+  do {                                                                         \
+    type reg = READ(type);                                                     \
+    if (accumulator.is_object() && accumulator.as_object()->is<String>() &&    \
+        bp[reg].is_object() && bp[reg].as_object()->is<String>()) {            \
+      accumulator =                                                            \
+          static_cast<Value>(manage(bp[reg].as_object()->as<String>()->concat( \
+              accumulator.as_object()->as<String>())));                        \
+    } else {                                                                   \
+      PANIC("Cannot concat types" << bp[reg].type_string() << " and "          \
+                                  << accumulator.type_string());               \
+    }                                                                          \
+    DISPATCH();                                                                \
+  } while (0);
 
 #ifdef COMPUTED_GOTO
 
@@ -190,7 +205,7 @@ VMResult VM::run(FunctionInfo *f) {
     HANDLER(DivideRegister)
         : BINARY_OP_REGISTER(uint8_t, divide, SafeDivide, /);
 
-    HANDLER(ConcatRegister) : TODO();
+    HANDLER(ConcatRegister) : CONCAT_REGISTER(uint8_t);
 
     HANDLER(AddInt) : BINARY_OP_INT(int8_t, add, SafeAdd, +);
 
@@ -224,7 +239,35 @@ VMResult VM::run(FunctionInfo *f) {
 
     HANDLER(Call2Argument) : TODO();
 
-    HANDLER(ToString) : TODO();
+    HANDLER(ToString) : {
+      if (accumulator.is_int()) {
+        char buffer[12];
+        size_t len = sprintf(buffer, "%d", accumulator.as_int());
+        accumulator = static_cast<Value>(
+            manage(String::from_string_slice(StringSlice{buffer, len})));
+      } else if (accumulator.is_float()) {
+        char buffer[24];
+        size_t len = sprintf(buffer, "%d", accumulator.as_int());
+        accumulator = static_cast<Value>(
+            manage(String::from_string_slice(StringSlice{buffer, len})));
+      } else if (accumulator.is_object()) {
+        if (accumulator.as_object()->is<String>()) {
+        } else if (accumulator.as_object()->is<Symbol>()) {
+          accumulator = static_cast<Value>(
+              manage(String::from_string_slice(static_cast<StringSlice>(
+                  *accumulator.as_object()->as<Symbol>()))));
+        }
+      } else if (accumulator.is_true()) {
+        accumulator = static_cast<Value>(manage(
+            String::from_string_slice(StringSlice{"true", strlen("true")})));
+      } else if (accumulator.is_false()) {
+        accumulator = static_cast<Value>(manage(
+            String::from_string_slice(StringSlice{"false", strlen("false")})));
+      } else if (accumulator.is_true()) {
+        accumulator = static_cast<Value>(manage(
+            String::from_string_slice(StringSlice{"null", strlen("null")})));
+      }
+    }
 
     HANDLER(Jump) : TODO();
 
@@ -348,7 +391,7 @@ VMResult VM::run(FunctionInfo *f) {
     WIDE_HANDLER(DivideRegister)
         : BINARY_OP_REGISTER(uint16_t, divide, SafeDivide, /);
 
-    WIDE_HANDLER(ConcatRegister) : TODO();
+    WIDE_HANDLER(ConcatRegister) : CONCAT_REGISTER(uint16_t);
 
     WIDE_HANDLER(AddInt) : BINARY_OP_INT(int16_t, add, SafeAdd, +);
 
@@ -373,13 +416,29 @@ VMResult VM::run(FunctionInfo *f) {
     WIDE_HANDLER(JumpBack) : TODO();
 
     WIDE_HANDLER(JumpIfFalse) : TODO();
-    EXTRAWIDE_HANDLER(LoadInt) : TODO();
-    EXTRAWIDE_HANDLER(LoadGlobal) : TODO();
-    EXTRAWIDE_HANDLER(StoreGlobal) : TODO();
-    EXTRAWIDE_HANDLER(AddInt)
-        : EXTRAWIDE_HANDLER(SubtractInt)
-        : EXTRAWIDE_HANDLER(MultiplyInt)
-        : EXTRAWIDE_HANDLER(DivideInt) : TODO();
+
+    EXTRAWIDE_HANDLER(LoadInt)
+        : accumulator = static_cast<Value>(READ(int32_t));
+    DISPATCH();
+
+    EXTRAWIDE_HANDLER(LoadGlobal) : accumulator = globals[READ(uint32_t)].value;
+    DISPATCH();
+
+    EXTRAWIDE_HANDLER(StoreGlobal)
+        : globals[READ(uint32_t)].value = accumulator;
+    DISPATCH();
+
+    EXTRAWIDE_HANDLER(AddInt) : BINARY_OP_INT(int32_t, add, SafeAdd, +);
+
+    EXTRAWIDE_HANDLER(SubtractInt)
+        : BINARY_OP_INT(int32_t, subtract, SafeSubtract, -);
+
+    EXTRAWIDE_HANDLER(MultiplyInt)
+        : BINARY_OP_INT(int16_t, multiply, SafeMultiply, *);
+
+    EXTRAWIDE_HANDLER(DivideInt)
+        : BINARY_OP_INT(int16_t, divide, SafeDivide, /);
+
     EXTRAWIDE_HANDLER(Jump)
         : EXTRAWIDE_HANDLER(JumpBack) : EXTRAWIDE_HANDLER(JumpIfFalse) : TODO();
     WIDE_HANDLER(ToString)

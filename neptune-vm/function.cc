@@ -89,7 +89,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
   while (ip != f.bytecode.data() + f.bytecode.size()) {
     switch (READ(Op)) {
     case Op::Wide: {
-      os << "Wide\n";
+      os << "Wide ";
       switch (READ(Op)) {
         CASE(LoadRegister) << REG(uint16_t);
         break;
@@ -134,7 +134,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
     }
 
     case Op::ExtraWide: {
-      os << "ExtraWide\n";
+      os << "ExtraWide ";
       switch (READ(Op)) {
         CASE(LoadInt) << READ(int32_t);
         break;

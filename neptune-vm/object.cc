@@ -20,6 +20,17 @@ template <typename O> O *Object::as() {
   return reinterpret_cast<O *>(this);
 }
 
+String *String::concat(String *s) {
+  String *p = static_cast<String *>(malloc(sizeof(String) + len + s->len));
+  if (p == nullptr) {
+    throw std::bad_alloc();
+  }
+  memcpy(p->data, data, len);
+  memcpy(p->data + len, s->data, s->len);
+  p->len = len + s->len;
+  return p;
+}
+
 size_t StringHasher::operator()(StringSlice s) const {
 // FNV-1a hash. http://www.isthe.com/chongo/tech/comp/fnv/
 #if SIZE_MAX == 4294967295

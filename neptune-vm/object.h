@@ -33,6 +33,7 @@ public:
   static constexpr Type type = Type::String;
   static String *from_string_slice(StringSlice s);
   explicit operator StringSlice();
+  String *concat(String *s);
 };
 
 class Symbol : public Object {

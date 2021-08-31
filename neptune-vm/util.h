@@ -29,6 +29,9 @@ std::string escaped_string(neptune_vm::StringSlice s) {
     case '\n':
       str += "\\n";
       break;
+    case '\r':
+      str += "\\r";
+      break;
     case '\t':
       str += "\\t";
       break;
