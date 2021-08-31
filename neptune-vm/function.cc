@@ -130,6 +130,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(DivideInt) << READ(int16_t);
         break;
+      default:
+        os << "An op that doesnt have a wide variant is here!";
       }
     }
 
@@ -150,6 +152,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(DivideInt) << READ(int32_t);
         break;
+      default:
+        os << "An op that doesnt have an extrawide variant is here!";
       }
     }
 
@@ -269,6 +273,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(StoreR15);
       break;
+    default:
+      os << "Invalid op here!";
     }
     os << '\n';
   }

@@ -69,10 +69,11 @@ std::ostream &operator<<(std::ostream &os, Object &o) {
   switch (o.type) {
   case Type::String:
     return os << escaped_string(static_cast<StringSlice>(*o.as<String>()));
-  case Type::Symbol:
+  case Type::Symbol: {
     os << '@';
     auto s = static_cast<StringSlice>(*o.as<Symbol>());
     return os.write(s.data, s.len);
+  }
   default:
     unreachable();
   }

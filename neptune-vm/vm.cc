@@ -247,7 +247,7 @@ VMResult VM::run(FunctionInfo *f) {
             manage(String::from_string_slice(StringSlice{buffer, len})));
       } else if (accumulator.is_float()) {
         char buffer[24];
-        size_t len = sprintf(buffer, "%d", accumulator.as_int());
+        size_t len = sprintf(buffer, "%.14g", accumulator.as_float());
         accumulator = static_cast<Value>(
             manage(String::from_string_slice(StringSlice{buffer, len})));
       } else if (accumulator.is_object()) {
@@ -263,9 +263,15 @@ VMResult VM::run(FunctionInfo *f) {
       } else if (accumulator.is_false()) {
         accumulator = static_cast<Value>(manage(
             String::from_string_slice(StringSlice{"false", strlen("false")})));
-      } else if (accumulator.is_true()) {
+      } else if (accumulator.is_null()) {
         accumulator = static_cast<Value>(manage(
             String::from_string_slice(StringSlice{"null", strlen("null")})));
+      } else {
+        std::ostringstream os;
+        os << accumulator;
+        auto s = os.str();
+        accumulator = static_cast<Value>(manage(
+            String::from_string_slice(StringSlice{s.data(), s.length()})));
       }
     }
 

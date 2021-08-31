@@ -1,6 +1,7 @@
 #include "neptune-vm.h"
 #include <cstring>
 #include <ostream>
+#include <iomanip>
 
 namespace neptune_vm {
 #ifdef NANBOX
@@ -198,7 +199,7 @@ std::ostream &operator<<(std::ostream &os, const Value v) {
   if (v.is_int())
     os << v.as_int();
   else if (v.is_float())
-    os << v.as_float();
+    os << std::setprecision(14) << v.as_float();
   else if (v.is_null())
     os << "null";
   else if (v.is_true())
