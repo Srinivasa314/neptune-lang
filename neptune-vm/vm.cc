@@ -25,14 +25,9 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     int res;                                                                   \
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
       if (!intfn(bp[reg].as_int(), accumulator.as_int(), res))                 \
-<<<<<<< HEAD
         PANIC("Cannot " #opname " "                                            \
               << bp[reg].as_int() << " and " << accumulator.as_int()           \
               << " as the result does not fit in an int");                     \
-=======
-        PANIC("Cannot " #opname " " << bp[reg].as_int() << " and "             \
-                                    << accumulator.as_int());                  \
->>>>>>> 1820a6ffca563ada4fedd422a842884d66dbd6ae
       accumulator = static_cast<Value>(res);                                   \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
       accumulator =                                                            \
@@ -105,14 +100,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
   goto loop
 
 #endif
-<<<<<<< HEAD
-=======
-template <typename T> T read(uint8_t *&bytecode) {
-  T ret = *(reinterpret_cast<T *>(bytecode));
-  bytecode += sizeof(T);
-  return ret;
-}
->>>>>>> 1820a6ffca563ada4fedd422a842884d66dbd6ae
 
 #define READ(type) read<type>(ip)
 
