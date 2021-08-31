@@ -1,7 +1,0 @@
-In file included from neptune-vm/neptune-vm.cc:1:
-In file included from neptune-vm/function.cc:1:
-In file included from neptune-vm/neptune-vm.h:8:
-neptune-vm/vm.h:26:10: warning: private field 'threshhold' is not used [-Wunused-private-field]
-  size_t threshhold;
-         ^
-1 warning generated.
