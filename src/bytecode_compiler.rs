@@ -310,6 +310,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.evaluate_statement(statement)
         }
         self.bytecode.shrink();
+        self.bytecode.set_max_registers(self.max_registers);
     }
     fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
         if self.resolve_local(name).is_some() || self.get_global(name).is_some() {

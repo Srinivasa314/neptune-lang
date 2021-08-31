@@ -67,6 +67,11 @@ public:
   Object *as_object() const;
   bool is_null() const;
   bool is_empty() const;
+  bool is_bool() const;
+  bool is_true() const;
+  bool is_false() const;
   bool operator==(Value rhs) const;
+  const char *type_string() const;
+  friend std::ostream &operator<<(std::ostream &os, const Value v);
 };
 } // namespace neptune_vm

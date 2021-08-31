@@ -4,5 +4,6 @@
 #include "object.h"
 #include "op.h"
 #include "stddef.h"
+#include "util.h"
 #include "value.h"
 #include "vm.h"

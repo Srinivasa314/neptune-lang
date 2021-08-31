@@ -102,7 +102,6 @@ mod ffi {
         Call0Argument,
         Call1Argument,
         Call2Argument,
-        Less,
         ToString,
         Jump,
         JumpBack,
@@ -124,7 +123,8 @@ mod ffi {
         type VM;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
-        fn run(self: &mut FunctionInfoWriter) -> VMResult;
+        // The bytecode should be valid
+        unsafe fn run(self: &mut FunctionInfoWriter) -> VMResult;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
@@ -139,9 +139,11 @@ mod ffi {
         ) -> Result<u16>;
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
+        fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
         fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>);
         fn new_function_info<'vm>(self: &'vm VM) -> FunctionInfoWriter<'vm>;
         fn new_vm() -> UniquePtr<VM>;
+        // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
     }
 }

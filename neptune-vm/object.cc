@@ -42,4 +42,28 @@ size_t StringHasher::operator()(Symbol *sym) const {
   return StringHasher{}(static_cast<StringSlice>(*sym));
 }
 
+const char *Object::type_string() const {
+  // todo change this when more types are added
+  switch (type) {
+  case Type::String:
+    return "string";
+  case Type::Symbol:
+    return "symbol";
+  default:
+    unreachable();
+  }
+}
+std::ostream &operator<<(std::ostream &os, Object &o) {
+  // todo change this when more types are added
+  switch (o.type) {
+  case Type::String:
+    return os << escaped_string(static_cast<StringSlice>(*o.as<String>()));
+  case Type::Symbol:
+    os << '@';
+    auto s = static_cast<StringSlice>(*o.as<Symbol>());
+    return os.write(s.data, s.len);
+  default:
+    unreachable();
+  }
+}
 } // namespace neptune_vm

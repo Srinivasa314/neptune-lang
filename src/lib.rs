@@ -31,7 +31,6 @@ impl Neptune {
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
         let ast = parser.parse();
-        dbg!(&ast);
         let compiler = Compiler::new(&self.inner);
         let mut fw = compiler.compile(ast.0);
         let mut errors = ast.1;
@@ -39,7 +38,7 @@ impl Neptune {
             errors.append(e);
         }
         if errors.is_empty() {
-            match fw.unwrap().run() {
+            match unsafe { fw.unwrap().run() } {
                 VMResult::Success => Ok(()),
                 VMResult::Error => todo!(),
                 _ => unreachable!(),

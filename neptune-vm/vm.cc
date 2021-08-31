@@ -3,6 +3,7 @@
 #include <SafeInt/SafeInt.hpp>
 #include <iostream>
 #include <sstream>
+
 #if defined(__GNUC__) || defined(__clang__)
 #define COMPUTED_GOTO
 #endif
@@ -14,38 +15,32 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define WIDE(x) (static_cast<uint32_t>(x) + WIDE_OFFSET)
 #define EXTRAWIDE(x) (static_cast<uint32_t>(x) + EXTRAWIDE_OFFSET)
 
-#ifdef __GNUC__ // gcc or clang
-[[noreturn]] static void unreachable() { __builtin_unreachable(); }
-#elif defined(_MSC_VER) // MSVC
-[[noreturn]] static void unreachable() { __assume(false); }
-#else
-[[noreturn]] static void unreachable() { abort(); }
-#endif
 #define TODO()                                                                 \
   std::cout << "TODO at: " << __FILE__ << " : " << __LINE__ << std::endl;      \
-  exit(0)
-#ifdef COMPUTED_GOTO
+  exit(1)
 
 #define BINARY_OP_REGISTER(type, opname, intfn, op)                            \
   do {                                                                         \
     uint8_t reg = READ(type);                                                  \
     int res;                                                                   \
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
-      if (!SafeAdd(bp[reg].as_int(), accumulator.as_int(), res))               \
-        PANIC("Cannot " #opname " " << bp[reg].as_int() << " and "             \
-                                    << accumulator.as_int());                  \
+      if (!intfn(bp[reg].as_int(), accumulator.as_int(), res))                 \
+        PANIC("Cannot " #opname " "                                            \
+              << bp[reg].as_int() << " and " << accumulator.as_int()           \
+              << " as the result does not fit in an int");                     \
       accumulator = static_cast<Value>(res);                                   \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
       accumulator =                                                            \
           static_cast<Value>(bp[reg].as_float() op accumulator.as_float());    \
     } else if (accumulator.is_int() && bp[reg].is_float()) {                   \
-      accumulator = static_cast<Value>(                                        \
-          static_cast<double>(bp[reg].as_float() op accumulator.as_int()));    \
+      accumulator =                                                            \
+          static_cast<Value>(bp[reg].as_float() op accumulator.as_int());      \
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
-      accumulator = static_cast<Value>(static_cast<double>(bp[reg].as_int())   \
-                                           op accumulator.as_float());         \
+      accumulator =                                                            \
+          static_cast<Value>(bp[reg].as_int() op accumulator.as_float());      \
     } else {                                                                   \
-      PANIC("Cannot " #opname);                                                \
+      PANIC("Cannot " #opname " types" << bp[reg].type_string() << " and "     \
+                                       << accumulator.type_string());          \
     }                                                                          \
     DISPATCH();                                                                \
   } while (0)
@@ -56,16 +51,21 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
       int result;                                                              \
       int i = READ(type);                                                      \
       if (!intfn(accumulator.as_int(), i, result)) {                           \
-        PANIC("Cannot " #opname " " << accumulator.as_int() << " and " << i);  \
+        PANIC("Cannot " #opname " "                                            \
+              << accumulator.as_int() << " and " << i                          \
+              << " as the result does not fit in an int");                     \
       }                                                                        \
       accumulator = static_cast<Value>(result);                                \
     } else if (accumulator.is_float()) {                                       \
       accumulator = static_cast<Value>(accumulator.as_float() op READ(type));  \
     } else {                                                                   \
-      PANIC("Cannot " #opname);                                                \
+      PANIC("Cannot " #opname " types " << accumulator.type_string()           \
+                                        << " and int");                        \
     }                                                                          \
     DISPATCH();                                                                \
   } while (0)
+
+#ifdef COMPUTED_GOTO
 
 #define HANDLER(x) __##x##_handler
 #define WIDE_HANDLER(x) __##x##_wide_handler
@@ -100,31 +100,25 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
   goto loop
 
 #endif
-template <typename T> T read(uint8_t *&bytecode) {
-  T ret = *(reinterpret_cast<T *>(bytecode));
-  bytecode++;
-  return ret;
-}
 
-#define READ(type) read<type>(bytecode)
+#define READ(type) read<type>(ip)
 
 namespace neptune_vm {
-void VM::store_panic(StringSlice str) {
-  String *s = manage(String::from_string_slice(str));
-  stack[0] = static_cast<Value>(s);
-}
 #define PANIC(fmt)                                                             \
   do {                                                                         \
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
-    store_panic(StringSlice{str.data(), str.size()});                          \
+    String *s = manage(                                                        \
+        String::from_string_slice(StringSlice{str.data(), str.size()}));       \
+    stack[0] = static_cast<Value>(s);                                          \
     return VMResult::Error;                                                    \
   } while (0)
 
 VMResult VM::run(FunctionInfo *f) {
   Value *bp = &stack[0];
-  auto bytecode = f->bytecode.data();
+  stack_top = bp + f->max_registers;
+  const uint8_t *ip = f->bytecode.data();
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -171,7 +165,15 @@ VMResult VM::run(FunctionInfo *f) {
       DISPATCH();
     }
 
-    HANDLER(LoadGlobal) : accumulator = globals[READ(uint8_t)].value;
+    HANDLER(LoadGlobal) : {
+      auto g = globals[READ(uint8_t)].value;
+      if (g.is_empty()) {
+        PANIC("Cannot access uninitialized variable "
+              << globals[READ(uint8_t)].name);
+      } else {
+        accumulator = g;
+      }
+    }
     DISPATCH();
 
     HANDLER(StoreGlobal) : globals[READ(uint8_t)].value = accumulator;
@@ -201,7 +203,8 @@ VMResult VM::run(FunctionInfo *f) {
     HANDLER(Negate) : if (accumulator.is_int()) {
       int result;
       if (!SafeNegation(accumulator.as_int(), result)) {
-        PANIC("Cannot negate " << accumulator.as_int());
+        PANIC("Cannot negate " << accumulator.as_int()
+                               << " as the result cannot be stored in an int");
       }
       accumulator = static_cast<Value>(result);
     }
@@ -209,7 +212,7 @@ VMResult VM::run(FunctionInfo *f) {
       accumulator = static_cast<Value>(-accumulator.as_float());
     }
     else {
-      PANIC("Cannot negate");
+      PANIC("Cannot negate type " << accumulator.type_string());
     }
     DISPATCH();
 
@@ -220,8 +223,6 @@ VMResult VM::run(FunctionInfo *f) {
     HANDLER(Call1Argument) : TODO();
 
     HANDLER(Call2Argument) : TODO();
-
-    HANDLER(Less) : TODO();
 
     HANDLER(ToString) : TODO();
 
@@ -311,21 +312,11 @@ VMResult VM::run(FunctionInfo *f) {
 
 #undef LOADR
 
-    WIDE_HANDLER(Wide) : unreachable();
-
-    WIDE_HANDLER(ExtraWide) : unreachable();
-
     WIDE_HANDLER(LoadRegister) : accumulator = bp[READ(uint16_t)];
     DISPATCH();
 
     WIDE_HANDLER(LoadInt) : accumulator = static_cast<Value>(READ(int16_t));
     DISPATCH();
-
-    WIDE_HANDLER(LoadNull) : unreachable();
-
-    WIDE_HANDLER(LoadTrue) : unreachable();
-
-    WIDE_HANDLER(LoadFalse) : unreachable();
 
     WIDE_HANDLER(LoadConstant) : accumulator = f->constants[READ(uint16_t)];
     DISPATCH();
@@ -343,7 +334,7 @@ VMResult VM::run(FunctionInfo *f) {
     WIDE_HANDLER(LoadGlobal) : accumulator = globals[READ(uint16_t)].value;
     DISPATCH();
 
-    WIDE_HANDLER(StoreGlobal) : globals[READ(uint8_t)].value = accumulator;
+    WIDE_HANDLER(StoreGlobal) : globals[READ(uint16_t)].value = accumulator;
     DISPATCH();
 
     WIDE_HANDLER(AddRegister) : BINARY_OP_REGISTER(uint16_t, add, SafeAdd, +);
@@ -369,8 +360,6 @@ VMResult VM::run(FunctionInfo *f) {
 
     WIDE_HANDLER(DivideInt) : BINARY_OP_INT(int16_t, divide, SafeDivide, /);
 
-    WIDE_HANDLER(Negate) : unreachable();
-
     WIDE_HANDLER(Call) : TODO();
 
     WIDE_HANDLER(Call0Argument) : TODO();
@@ -379,21 +368,30 @@ VMResult VM::run(FunctionInfo *f) {
 
     WIDE_HANDLER(Call2Argument) : TODO();
 
-    WIDE_HANDLER(Less) : TODO();
-
-    WIDE_HANDLER(ToString) : unreachable();
-
     WIDE_HANDLER(Jump) : TODO();
 
     WIDE_HANDLER(JumpBack) : TODO();
 
     WIDE_HANDLER(JumpIfFalse) : TODO();
-
-    WIDE_HANDLER(Return) : unreachable();
-
-    WIDE_HANDLER(Exit) : unreachable();
-
-    WIDE_HANDLER(StoreR0)
+    EXTRAWIDE_HANDLER(LoadInt) : TODO();
+    EXTRAWIDE_HANDLER(LoadGlobal) : TODO();
+    EXTRAWIDE_HANDLER(StoreGlobal) : TODO();
+    EXTRAWIDE_HANDLER(AddInt)
+        : EXTRAWIDE_HANDLER(SubtractInt)
+        : EXTRAWIDE_HANDLER(MultiplyInt)
+        : EXTRAWIDE_HANDLER(DivideInt) : TODO();
+    EXTRAWIDE_HANDLER(Jump)
+        : EXTRAWIDE_HANDLER(JumpBack) : EXTRAWIDE_HANDLER(JumpIfFalse) : TODO();
+    WIDE_HANDLER(ToString)
+        : WIDE_HANDLER(Return)
+        : WIDE_HANDLER(Exit)
+        : WIDE_HANDLER(Wide)
+        : WIDE_HANDLER(ExtraWide)
+        : WIDE_HANDLER(LoadNull)
+        : WIDE_HANDLER(LoadTrue)
+        : WIDE_HANDLER(LoadFalse)
+        : WIDE_HANDLER(Negate)
+        : WIDE_HANDLER(StoreR0)
         : WIDE_HANDLER(StoreR1)
         : WIDE_HANDLER(StoreR2)
         : WIDE_HANDLER(StoreR3)
@@ -407,9 +405,9 @@ VMResult VM::run(FunctionInfo *f) {
         : WIDE_HANDLER(StoreR11)
         : WIDE_HANDLER(StoreR12)
         : WIDE_HANDLER(StoreR13)
-        : WIDE_HANDLER(StoreR14) : WIDE_HANDLER(StoreR15) : unreachable();
-
-    WIDE_HANDLER(LoadR0)
+        : WIDE_HANDLER(StoreR14)
+        : WIDE_HANDLER(StoreR15)
+        : WIDE_HANDLER(LoadR0)
         : WIDE_HANDLER(LoadR1)
         : WIDE_HANDLER(LoadR2)
         : WIDE_HANDLER(LoadR3)
@@ -423,39 +421,28 @@ VMResult VM::run(FunctionInfo *f) {
         : WIDE_HANDLER(LoadR11)
         : WIDE_HANDLER(LoadR12)
         : WIDE_HANDLER(LoadR13)
-        : WIDE_HANDLER(LoadR14) : WIDE_HANDLER(LoadR15) : unreachable();
-        
-    EXTRAWIDE_HANDLER(Wide)
+        : WIDE_HANDLER(LoadR14)
+        : WIDE_HANDLER(LoadR15)
+        : EXTRAWIDE_HANDLER(Wide)
         : EXTRAWIDE_HANDLER(ExtraWide)
         : EXTRAWIDE_HANDLER(LoadRegister)
-        : EXTRAWIDE_HANDLER(LoadInt)
         : EXTRAWIDE_HANDLER(LoadNull)
         : EXTRAWIDE_HANDLER(LoadTrue)
         : EXTRAWIDE_HANDLER(LoadFalse)
         : EXTRAWIDE_HANDLER(LoadConstant)
         : EXTRAWIDE_HANDLER(StoreRegister)
         : EXTRAWIDE_HANDLER(Move)
-        : EXTRAWIDE_HANDLER(LoadGlobal)
-        : EXTRAWIDE_HANDLER(StoreGlobal)
         : EXTRAWIDE_HANDLER(AddRegister)
         : EXTRAWIDE_HANDLER(SubtractRegister)
         : EXTRAWIDE_HANDLER(MultiplyRegister)
         : EXTRAWIDE_HANDLER(DivideRegister)
         : EXTRAWIDE_HANDLER(ConcatRegister)
-        : EXTRAWIDE_HANDLER(AddInt)
-        : EXTRAWIDE_HANDLER(SubtractInt)
-        : EXTRAWIDE_HANDLER(MultiplyInt)
-        : EXTRAWIDE_HANDLER(DivideInt)
         : EXTRAWIDE_HANDLER(Negate)
         : EXTRAWIDE_HANDLER(Call)
         : EXTRAWIDE_HANDLER(Call0Argument)
         : EXTRAWIDE_HANDLER(Call1Argument)
         : EXTRAWIDE_HANDLER(Call2Argument)
-        : EXTRAWIDE_HANDLER(Less)
         : EXTRAWIDE_HANDLER(ToString)
-        : EXTRAWIDE_HANDLER(Jump)
-        : EXTRAWIDE_HANDLER(JumpBack)
-        : EXTRAWIDE_HANDLER(JumpIfFalse)
         : EXTRAWIDE_HANDLER(Return)
         : EXTRAWIDE_HANDLER(Exit)
         : EXTRAWIDE_HANDLER(StoreR0)
@@ -488,10 +475,10 @@ VMResult VM::run(FunctionInfo *f) {
         : EXTRAWIDE_HANDLER(LoadR11)
         : EXTRAWIDE_HANDLER(LoadR12)
         : EXTRAWIDE_HANDLER(LoadR13)
-        : EXTRAWIDE_HANDLER(LoadR14) : EXTRAWIDE_HANDLER(LoadR15) : TODO();
+        : EXTRAWIDE_HANDLER(LoadR14)
+        : EXTRAWIDE_HANDLER(LoadR15) : unreachable();
   }
 end:
-  printf("ACCUMULATOR: %d", accumulator.as_int());
   return VMResult::Success;
 }
 
@@ -499,7 +486,8 @@ void VM::add_global(StringSlice name) const {
   globals.push_back(Global{std::string(name.data, name.len), Value::empty()});
 }
 
-std::unique_ptr<VM> new_vm() { return std::make_unique<VM>(); }
+std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
+
 FunctionInfoWriter VM::new_function_info() const {
   auto this_ = const_cast<VM *>(this);
   return FunctionInfoWriter(this_->make_handle(new FunctionInfo), this);

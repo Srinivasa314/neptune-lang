@@ -26,9 +26,9 @@ class VM {
   size_t threshhold;
   tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
   Handle<Object> *handles;
+  Value *stack_top;
 
 public:
-  void store_panic(StringSlice str);
   VMResult run(FunctionInfo *f);
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info() const;

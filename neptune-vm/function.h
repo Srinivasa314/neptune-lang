@@ -23,8 +23,10 @@ public:
   std::vector<uint8_t> bytecode;
   std::vector<Value> constants;
   std::vector<LineInfo> lines;
+  uint16_t max_registers;
 
   friend class FunctionInfoWriter;
+  friend std::ostream &operator<<(std::ostream &os, const FunctionInfo &f);
 };
 
 class FunctionInfoWriter {
@@ -45,7 +47,8 @@ public:
   uint16_t symbol_constant(StringSlice s);
   void shrink();
   void pop_last_op(size_t last_op_pos);
-  void release(); // calls the destructor
+  void release();
+  void set_max_registers(uint16_t max_registers);
   VMResult run();
 };
 } // namespace neptune_vm

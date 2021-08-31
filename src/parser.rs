@@ -515,7 +515,6 @@ mod tests {
                 let tokens = s.scan_tokens();
                 let parser = Parser::new(tokens.into_iter());
                 let (statements, errors) = parser.parse();
-                dbg!(&errors, name);
                 assert!(errors.is_empty());
                 std::fs::write(
                     format!("tests/parser_tests/{}.json", name),
@@ -559,7 +558,6 @@ mod tests {
                 let parser = Parser::new(tokens.into_iter());
                 let (_, errors) = parser.parse();
                 assert!(!errors.is_empty());
-                dbg!((errors, error));
             }
         }
     }

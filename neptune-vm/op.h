@@ -59,7 +59,6 @@
   OP(Call0Argument)                                                            \
   OP(Call1Argument)                                                            \
   OP(Call2Argument)                                                            \
-  OP(Less)                                                                     \
   OP(ToString)                                                                 \
   OP(Jump)                                                                     \
   OP(JumpBack)                                                                 \

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ostream>
+
 namespace neptune_vm {
 struct StringSlice {
   const char *data;
@@ -19,6 +21,8 @@ class Object {
 public:
   template <typename O> bool is() const;
   template <typename O> O *as();
+  const char *type_string() const;
+  friend std::ostream &operator<<(std::ostream &os, Object &o);
 };
 
 class String : public Object {

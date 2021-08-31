@@ -1,6 +1,8 @@
 #include "neptune-vm.h"
 #include <algorithm>
+#include <iostream>
 #include <memory>
+#include <ostream>
 #include <stdexcept>
 
 namespace neptune_vm {
@@ -70,4 +72,209 @@ void FunctionInfoWriter::pop_last_op(size_t last_op_pos) {
 void FunctionInfoWriter::release() { vm->release(hf); }
 
 VMResult FunctionInfoWriter::run() { return vm->run(hf->object); }
+
+void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
+  hf->object->max_registers = max_registers;
+}
+
+#define CASE(x)                                                                \
+  case Op::x:                                                                  \
+    os << #x " "
+
+#define REG(type) "r" << READ(type)
+
+std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
+  // todo implement other ops
+  auto ip = f.bytecode.data();
+  while (ip != f.bytecode.data() + f.bytecode.size()) {
+    switch (READ(Op)) {
+    case Op::Wide: {
+      os << "Wide\n";
+      switch (READ(Op)) {
+        CASE(LoadRegister) << REG(uint16_t);
+        break;
+
+        CASE(LoadInt) << READ(int16_t);
+        break;
+
+        CASE(LoadConstant) << f.constants[READ(uint16_t)];
+        break;
+
+        CASE(StoreRegister) << REG(uint16_t);
+        break;
+
+        CASE(Move) << REG(uint16_t) << ' ' << REG(uint16_t);
+        break;
+
+        CASE(LoadGlobal) << READ(uint16_t);
+        break;
+        CASE(StoreGlobal) << READ(uint16_t);
+        break;
+
+        CASE(AddRegister) << REG(uint16_t);
+        break;
+        CASE(SubtractRegister) << REG(uint16_t);
+        break;
+        CASE(MultiplyRegister) << REG(uint16_t);
+        break;
+        CASE(DivideRegister) << REG(uint16_t);
+        break;
+        CASE(ConcatRegister) << REG(uint16_t);
+        break;
+
+        CASE(AddInt) << READ(int16_t);
+        break;
+        CASE(SubtractInt) << READ(int16_t);
+        break;
+        CASE(MultiplyInt) << READ(int16_t);
+        break;
+        CASE(DivideInt) << READ(int16_t);
+        break;
+      }
+    }
+
+    case Op::ExtraWide: {
+      os << "ExtraWide\n";
+      switch (READ(Op)) {
+        CASE(LoadInt) << READ(int32_t);
+        break;
+        CASE(LoadGlobal) << READ(uint32_t);
+        break;
+        CASE(StoreGlobal) << READ(uint32_t);
+        break;
+        CASE(AddInt) << READ(int32_t);
+        break;
+        CASE(SubtractInt) << READ(int32_t);
+        break;
+        CASE(MultiplyInt) << READ(int32_t);
+        break;
+        CASE(DivideInt) << READ(int32_t);
+        break;
+      }
+    }
+
+      CASE(LoadRegister) << REG(uint8_t);
+      break;
+      CASE(LoadInt) << READ(int8_t);
+      break;
+      CASE(LoadNull);
+      break;
+      CASE(LoadTrue);
+      break;
+      CASE(LoadFalse);
+      break;
+
+      CASE(LoadConstant) << f.constants[READ(uint8_t)];
+      break;
+      CASE(StoreRegister) << REG(uint8_t);
+      break;
+      CASE(Move) << REG(uint8_t) << ' ' << REG(uint8_t);
+      break;
+      CASE(LoadGlobal) << READ(uint8_t);
+      break;
+      CASE(StoreGlobal) << READ(uint8_t);
+      break;
+
+      CASE(AddRegister) << REG(uint8_t);
+      break;
+      CASE(SubtractRegister) << REG(uint8_t);
+      break;
+      CASE(MultiplyRegister) << REG(uint8_t);
+      break;
+      CASE(DivideRegister) << REG(uint8_t);
+      break;
+      CASE(ConcatRegister) << REG(uint8_t);
+      break;
+
+      CASE(AddInt) << READ(int8_t);
+      break;
+      CASE(SubtractInt) << READ(int8_t);
+      break;
+      CASE(MultiplyInt) << READ(int8_t);
+      break;
+      CASE(DivideInt) << READ(int8_t);
+      break;
+      CASE(Negate);
+      break;
+
+      CASE(ToString);
+      break;
+      CASE(Return);
+      break;
+      CASE(Exit);
+      break;
+
+      CASE(LoadR0);
+      break;
+      CASE(LoadR1);
+      break;
+      CASE(LoadR2);
+      break;
+      CASE(LoadR3);
+      break;
+      CASE(LoadR4);
+      break;
+      CASE(LoadR5);
+      break;
+      CASE(LoadR6);
+      break;
+      CASE(LoadR7);
+      break;
+      CASE(LoadR8);
+      break;
+      CASE(LoadR9);
+      break;
+      CASE(LoadR10);
+      break;
+      CASE(LoadR11);
+      break;
+      CASE(LoadR12);
+      break;
+      CASE(LoadR13);
+      break;
+      CASE(LoadR14);
+      break;
+      CASE(LoadR15);
+      break;
+
+      CASE(StoreR0);
+      break;
+      CASE(StoreR1);
+      break;
+      CASE(StoreR2);
+      break;
+      CASE(StoreR3);
+      break;
+      CASE(StoreR4);
+      break;
+      CASE(StoreR5);
+      break;
+      CASE(StoreR6);
+      break;
+      CASE(StoreR7);
+      break;
+      CASE(StoreR8);
+      break;
+      CASE(StoreR9);
+      break;
+      CASE(StoreR10);
+      break;
+      CASE(StoreR11);
+      break;
+      CASE(StoreR12);
+      break;
+      CASE(StoreR13);
+      break;
+      CASE(StoreR14);
+      break;
+      CASE(StoreR15);
+      break;
+    }
+    os << '\n';
+  }
+  return os;
+}
+
+#undef CASE
+#undef REG
 } // namespace neptune_vm
