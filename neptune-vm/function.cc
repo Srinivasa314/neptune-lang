@@ -133,7 +133,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       default:
         os << "An op that doesnt have a wide variant is here!";
       }
-    }
+    } break;
 
     case Op::ExtraWide: {
       os << "ExtraWide ";
@@ -155,7 +155,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       default:
         os << "An op that doesnt have an extrawide variant is here!";
       }
-    }
+    } break;
 
       CASE(LoadRegister) << REG(uint8_t);
       break;
