@@ -15,10 +15,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define WIDE(x) (static_cast<uint32_t>(x) + WIDE_OFFSET)
 #define EXTRAWIDE(x) (static_cast<uint32_t>(x) + EXTRAWIDE_OFFSET)
 
-#define TODO()                                                                 \
-  std::cout << "TODO at: " << __FILE__ << " : " << __LINE__ << std::endl;      \
-  exit(1)
-
 #define BINARY_OP_REGISTER(type, opname, intfn, op)                            \
   do {                                                                         \
     type reg = READ(type);                                                     \
@@ -124,16 +120,15 @@ namespace neptune_vm {
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
-    String *s = manage(                                                        \
-        String::from_string_slice(StringSlice{str.data(), str.size()}));       \
-    stack[0] = static_cast<Value>(s);                                          \
-    return VMResult::Error;                                                    \
+    return VMResult{VMStatus::Error, str};                                     \
   } while (0)
 
 VMResult VM::run(FunctionInfo *f) {
   Value *bp = &stack[0];
   stack_top = bp + f->max_registers;
   const uint8_t *ip = f->bytecode.data();
+  auto accumulator = Value::null();
+
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -147,6 +142,7 @@ VMResult VM::run(FunctionInfo *f) {
 #undef OP
   };
 #endif
+
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
 
@@ -544,7 +540,9 @@ VMResult VM::run(FunctionInfo *f) {
         : EXTRAWIDE_HANDLER(LoadR15) : unreachable();
   }
 end:
-  return VMResult::Success;
+  std::ostringstream os;
+  os << accumulator;
+  return VMResult{VMStatus::Success, os.str()};
 }
 
 void VM::add_global(StringSlice name) const {

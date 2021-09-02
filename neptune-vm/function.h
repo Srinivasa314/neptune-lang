@@ -10,13 +10,12 @@
 namespace neptune_vm {
 class Value;
 class VM;
+class VMResult;
 
 struct LineInfo {
   uint32_t offset;
   uint32_t line;
 };
-
-enum class VMResult : uint8_t;
 
 class FunctionInfo : public Object {
 public:
@@ -49,6 +48,6 @@ public:
   void pop_last_op(size_t last_op_pos);
   void release();
   void set_max_registers(uint16_t max_registers);
-  VMResult run();
+  std::unique_ptr<VMResult> run();
 };
 } // namespace neptune_vm

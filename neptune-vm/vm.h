@@ -13,10 +13,22 @@ struct Global {
   Value value;
 };
 
-enum class VMResult : uint8_t { Success, Error };
+enum class VMStatus : uint8_t { Success, Error };
+
+class VMResult {
+  VMStatus status;
+  std::string result;
+
+public:
+  VMResult(VMStatus status_, std::string result_)
+      : status(status_), result(result_) {}
+  VMStatus get_status() const { return status; }
+  StringSlice get_result() const {
+    return StringSlice{result.data(), result.size()};
+  }
+};
 
 class VM {
-  Value accumulator;
   std::vector<Value> stack;
   std::vector<Frame> frames;
   mutable std::vector<Global> globals;
@@ -38,9 +50,8 @@ public:
   Symbol *intern(StringSlice s);
   void release(Object *o);
   VM()
-      : accumulator(Value::null()), stack(1024 * 1024, Value::null()),
-        frames(1024), bytes_allocated(0), first_obj(nullptr),
-        threshhold(10 * 1024 * 1024), handles(nullptr) {}
+      : stack(1024 * 1024, Value::null()), frames(1024), bytes_allocated(0),
+        first_obj(nullptr), threshhold(10 * 1024 * 1024), handles(nullptr) {}
   ~VM();
 };
 

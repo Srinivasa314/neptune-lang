@@ -71,7 +71,9 @@ void FunctionInfoWriter::pop_last_op(size_t last_op_pos) {
 
 void FunctionInfoWriter::release() { vm->release(hf); }
 
-VMResult FunctionInfoWriter::run() { return vm->run(hf->object); }
+std::unique_ptr<VMResult> FunctionInfoWriter::run() {
+  return std::unique_ptr<VMResult>(new VMResult(vm->run(hf->object)));
+}
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
   hf->object->max_registers = max_registers;

@@ -2,7 +2,9 @@ use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
-use vm::{new_vm, VMResult, VM};
+use vm::{new_vm, VM};
+
+use crate::vm::VMStatus;
 
 mod bytecode_compiler;
 mod parser;
@@ -11,8 +13,14 @@ mod vm;
 
 #[derive(Debug)]
 pub struct CompileError {
-    message: String,
-    line: u32,
+    pub message: String,
+    pub line: u32,
+}
+
+#[derive(Debug)]
+pub enum InterpretError {
+    CompileError(Vec<CompileError>),
+    RuntimePanic(String),
 }
 
 pub type CompileResult<T> = Result<T, CompileError>;
@@ -26,7 +34,7 @@ impl Neptune {
         Self { inner: new_vm() }
     }
 
-    pub fn exec(&self, source: &str) -> Result<(), Vec<CompileError>> {
+    pub fn run(&self, source: &str) -> Result<String, InterpretError> {
         let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
@@ -38,14 +46,17 @@ impl Neptune {
             errors.append(e);
         }
         if errors.is_empty() {
-            match unsafe { fw.unwrap().run() } {
-                VMResult::Success => Ok(()),
-                VMResult::Error => todo!(),
+            let vm_result = unsafe { fw.unwrap().run() };
+            match vm_result.get_status() {
+                VMStatus::Success => Ok(vm_result.get_result().to_string()),
+                VMStatus::Error => Err(InterpretError::RuntimePanic(
+                    vm_result.get_result().to_string(),
+                )),
                 _ => unreachable!(),
             }
         } else {
             errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
-            Err(errors)
+            Err(InterpretError::CompileError(errors))
         }
     }
 }

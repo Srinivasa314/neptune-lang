@@ -1,11 +1,21 @@
 use cxx::{type_id, ExternType};
-use std::{ffi::c_void, marker::PhantomData};
+use std::{ffi::c_void, fmt::Display, marker::PhantomData};
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct StringSlice<'a> {
     data: *const u8,
     len: usize,
     _marker: PhantomData<&'a [u8]>,
+}
+
+impl<'a> StringSlice<'a> {
+    fn as_str(self) -> &'a str {
+        unsafe {
+            let s = std::slice::from_raw_parts(self.data, self.len);
+            std::str::from_utf8_unchecked(s)
+        }
+    }
 }
 
 impl<'a> From<&'a str> for StringSlice<'a> {
@@ -15,6 +25,12 @@ impl<'a> From<&'a str> for StringSlice<'a> {
             len: s.len(),
             _marker: PhantomData,
         }
+    }
+}
+
+impl<'a> Display for StringSlice<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -43,6 +59,7 @@ impl<'vm> Drop for FunctionInfoWriter<'vm> {
 
 #[cxx::bridge(namespace = neptune_vm)]
 mod ffi {
+    #[repr(u8)]
     enum Op {
         Wide,
         ExtraWide,
@@ -110,7 +127,8 @@ mod ffi {
         Exit,
     }
 
-    enum VMResult {
+    #[repr(u8)]
+    enum VMStatus {
         Success,
         Error,
     }
@@ -120,11 +138,12 @@ mod ffi {
         type StringSlice<'a> = super::StringSlice<'a>;
         type Op;
         type VMResult;
+        type VMStatus;
         type VM;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
-        unsafe fn run(self: &mut FunctionInfoWriter) -> VMResult;
+        unsafe fn run(self: &mut FunctionInfoWriter) -> UniquePtr<VMResult>;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
@@ -145,7 +164,9 @@ mod ffi {
         fn new_vm() -> UniquePtr<VM>;
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
+        fn get_result<'a>(self: &'a VMResult) -> StringSlice<'a>;
+        fn get_status(self: &VMResult) -> VMStatus;
     }
 }
 
-pub use ffi::{new_vm, Op, VMResult, VM};
+pub use ffi::{new_vm, Op, VMStatus, VM};
