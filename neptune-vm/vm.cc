@@ -75,6 +75,45 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     }                                                                          \
     DISPATCH();                                                                \
   } while (0);
+#define ARRAY_OPS(handler, type)                                               \
+  handler(NewArray)                                                            \
+      : accumulator = static_cast<Value>(manage(new Array(READ(type))));       \
+  DISPATCH();                                                                  \
+                                                                               \
+  handler(LoadSubscript) : {                                                   \
+    auto obj = bp[READ(type)];                                                 \
+    if (obj.is_object() && obj.as_object()->is<Array>()) {                     \
+      if (accumulator.is_int()) {                                              \
+        accumulator =                                                          \
+            obj.as_object()->as<Array>()->inner[accumulator.as_int()];         \
+      } else {                                                                 \
+        PANIC("Subscript not an int");                                         \
+      }                                                                        \
+    } else {                                                                   \
+      PANIC("Not an array");                                                   \
+    }                                                                          \
+    DISPATCH();                                                                \
+  }                                                                            \
+  handler(StoreSubscript) : {                                                  \
+    auto obj = bp[READ(type)];                                                 \
+    auto subscript = bp[READ(type)];                                           \
+    if (obj.is_object() && obj.as_object()->is<Array>()) {                     \
+      if (subscript.is_int()) {                                                \
+        obj.as_object()->as<Array>()->inner[subscript.as_int()] = accumulator; \
+      } else {                                                                 \
+        PANIC("Subscript not an int");                                         \
+      }                                                                        \
+    } else {                                                                   \
+      PANIC("Not an array");                                                   \
+    }                                                                          \
+    DISPATCH();                                                                \
+  }                                                                            \
+  handler(StoreIntIndexUnchecked) : {                                          \
+    auto &array = bp[READ(type)].as_object()->as<Array>()->inner;              \
+    auto index = READ(type);                                                   \
+    array[index] = accumulator;                                                \
+    DISPATCH();                                                                \
+  }
 
 #ifdef COMPUTED_GOTO
 
@@ -277,6 +316,8 @@ VMResult VM::run(FunctionInfo *f) {
 
     HANDLER(JumpIfFalse) : TODO();
 
+    ARRAY_OPS(HANDLER, uint8_t)
+
     HANDLER(Return) : TODO();
 
     HANDLER(Exit) : goto end;
@@ -419,6 +460,8 @@ VMResult VM::run(FunctionInfo *f) {
 
     WIDE_HANDLER(JumpIfFalse) : TODO();
 
+    ARRAY_OPS(WIDE_HANDLER, uint16_t)
+
     EXTRAWIDE_HANDLER(LoadInt)
         : accumulator = static_cast<Value>(READ(int32_t));
     DISPATCH();
@@ -440,6 +483,8 @@ VMResult VM::run(FunctionInfo *f) {
 
     EXTRAWIDE_HANDLER(DivideInt)
         : BINARY_OP_INT(int32_t, divide, SafeDivide, /);
+
+    ARRAY_OPS(EXTRAWIDE_HANDLER, uint32_t)
 
     EXTRAWIDE_HANDLER(Jump)
         : EXTRAWIDE_HANDLER(JumpBack) : EXTRAWIDE_HANDLER(JumpIfFalse) : TODO();

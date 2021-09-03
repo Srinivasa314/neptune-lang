@@ -49,5 +49,6 @@ public:
   void release();
   void set_max_registers(uint16_t max_registers);
   std::unique_ptr<VMResult> run();
+  std::unique_ptr<std::string> to_cxx_string() const;
 };
 } // namespace neptune_vm

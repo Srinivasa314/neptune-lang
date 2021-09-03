@@ -4,13 +4,14 @@
 #include <cstdint>
 #include <cstring>
 #include <ostream>
+#include <vector>
 
 namespace neptune_vm {
 struct StringSlice {
   const char *data;
   size_t len;
 };
-enum class Type : uint8_t { String, Symbol };
+enum class Type : uint8_t { String, Symbol, Array };
 
 class Object {
   Type type;
@@ -70,5 +71,12 @@ struct StringEquality {
 struct StringHasher {
   size_t operator()(StringSlice s) const;
   size_t operator()(Symbol *sym) const;
+};
+class Value;
+class Array : public Object {
+public:
+  Array(size_t size);
+  std::vector<Value> inner;
+  static constexpr Type type = Type::Array;
 };
 } // namespace neptune_vm

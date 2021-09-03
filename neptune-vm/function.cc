@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <sstream>
 #include <stdexcept>
 
 namespace neptune_vm {
@@ -79,13 +80,30 @@ void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
   hf->object->max_registers = max_registers;
 }
 
+std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
+  std::ostringstream os;
+  os << *this->hf->object;
+  return std::unique_ptr<std::string>(new std::string(os.str()));
+}
+
 #define CASE(x)                                                                \
   case Op::x:                                                                  \
     os << #x " "
 
 #define REG(type) "r" << READ(type)
 
+namespace numerical_chars {
+inline std::ostream &operator<<(std::ostream &os, int8_t i) {
+  return os << static_cast<int>(i);
+}
+
+inline std::ostream &operator<<(std::ostream &os, uint8_t i) {
+  return os << static_cast<unsigned int>(i);
+}
+} // namespace numerical_chars
+
 std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
+  using namespace numerical_chars;
   // todo implement other ops
   auto ip = f.bytecode.data();
   while (ip != f.bytecode.data() + f.bytecode.size()) {
@@ -204,6 +222,14 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
 
       CASE(ToString);
+      break;
+      CASE(NewArray) << READ(uint8_t);
+      break;
+      CASE(StoreSubscript) << REG(uint8_t) << ' ' << REG(uint8_t);
+      break;
+      CASE(StoreIntIndexUnchecked) << REG(uint8_t) << ' ' << READ(uint8_t);
+      break;
+      CASE(LoadSubscript) << REG(uint8_t);
       break;
       CASE(Return);
       break;

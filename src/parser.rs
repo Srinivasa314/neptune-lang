@@ -121,6 +121,15 @@ pub enum Expr {
         inner: Vec<Substring>,
         line: u32,
     },
+    Array {
+        inner: Vec<Expr>,
+        line: u32,
+    },
+    Subscript {
+        object: Box<Expr>,
+        subscript: Box<Expr>,
+        line: u32,
+    },
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
@@ -232,7 +241,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         match token_type {
             TokenType::LeftParen => Some(self.grouping()),
             TokenType::RightParen => None,
-            TokenType::LeftSquareBracket => Some(todo!()),
+            TokenType::LeftSquareBracket => Some(self.array()),
             TokenType::RightSquareBracket => None,
             TokenType::LeftBrace => None,
             TokenType::RightBrace => None,
@@ -294,7 +303,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         match token_type {
             TokenType::LeftParen => todo!(),
             TokenType::RightParen => unreachable!(),
-            TokenType::LeftSquareBracket => todo!(),
+            TokenType::LeftSquareBracket => self.subscript(left),
             TokenType::RightSquareBracket => unreachable!(),
             TokenType::LeftBrace => unreachable!(),
             TokenType::RightBrace => unreachable!(),
@@ -367,6 +376,32 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Expr::Unary {
             op,
             right: Box::new(self.parse_precedence(Precedence::Unary)?),
+            line: self.line(),
+        })
+    }
+    fn array(&mut self) -> CompileResult<Expr> {
+        let mut ret: Vec<Expr> = vec![];
+        let line = self.previous.line;
+        while self.previous.token_type != TokenType::RightSquareBracket {
+            if self.current.token_type == TokenType::RightSquareBracket {
+                self.advance();
+                break;
+            }
+            ret.push(self.expression()?);
+            self.advance();
+        }
+        Ok(Expr::Array { inner: ret, line })
+    }
+
+    fn subscript(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
+        let subscript = self.expression()?;
+        self.consume(
+            TokenType::RightSquareBracket,
+            "Expect ']' after expression".into(),
+        )?;
+        Ok(Expr::Subscript {
+            object: left,
+            subscript: Box::new(subscript),
             line: self.line(),
         })
     }

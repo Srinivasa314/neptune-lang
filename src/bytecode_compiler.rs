@@ -296,6 +296,20 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
+    fn store_in_register(&mut self, result: ExprResult, line: u32) -> CompileResult<u16> {
+        if let ExprResult::Register(r) = result {
+            Ok(r)
+        } else {
+            self.store_in_accumulator(result, line)?;
+            let reg = self.push_register().ok_or(CompileError {
+                message: "Cannot have more than 65535 locals+expressions".to_string(),
+                line,
+            })?;
+            self.write_op_store_register(reg, line);
+            Ok(reg)
+        }
+    }
+
     fn resolve_local(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local == name {
@@ -550,6 +564,42 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 Ok(ExprResult::Accumulator)
             }
+            Expr::Array { inner, line } => {
+                self.write1(Op::NewArray, inner.len() as u32, *line);
+                let array_reg = self.push_register().ok_or(CompileError {
+                    message: "Cannot have more than 65535 locals+expressions".to_string(),
+                    line: *line,
+                })?;
+                self.write_op_store_register(array_reg, *line);
+                for (index, expr) in inner.iter().enumerate() {
+                    let expr_res = self.evaluate_expr(expr)?;
+                    self.store_in_accumulator(expr_res, *line)?;
+                    self.write2(
+                        Op::StoreIntIndexUnchecked,
+                        array_reg,
+                        u16::try_from(index).map_err(|e| CompileError {
+                            message: "Array literal too large".to_string(),
+                            line: *line,
+                        })?,
+                        *line,
+                    );
+                }
+                self.write_op_load_register(array_reg, *line);
+                self.pop_register();
+                Ok(ExprResult::Accumulator)
+            }
+            Expr::Subscript {
+                object,
+                subscript,
+                line,
+            } => {
+                let res = self.evaluate_expr(object)?;
+                let reg = self.store_in_register(res, *line)?;
+                let subscript = self.evaluate_expr(subscript)?;
+                self.store_in_accumulator(subscript, *line)?;
+                self.write1(Op::LoadSubscript, reg as u32, *line);
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
@@ -613,6 +663,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<()> {
+        if let Expr::Subscript {
+            object,
+            subscript,
+            line,
+        } = left
+        {
+            let object = self.evaluate_expr(object)?;
+            let object = self.store_in_register(object, *line)?;
+            let subscript = self.evaluate_expr(subscript)?;
+            let subscript = self.store_in_register(subscript, *line)?;
+            let right = self.evaluate_expr(right)?;
+            self.store_in_accumulator(right, *line)?;
+            self.write2(Op::StoreSubscript, object, subscript, *line);
+            return Ok(());
+        }
         if let Expr::Variable { name, line } = left {
             if name.chars().next().unwrap().is_ascii_uppercase() {
                 return Err(CompileError {

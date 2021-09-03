@@ -1,5 +1,9 @@
 use cxx::{type_id, ExternType};
-use std::{ffi::c_void, fmt::Display, marker::PhantomData};
+use std::{
+    ffi::c_void,
+    fmt::{Debug, Display},
+    marker::PhantomData,
+};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -31,6 +35,12 @@ impl<'a> From<&'a str> for StringSlice<'a> {
 impl<'a> Display for StringSlice<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+impl Debug for FunctionInfoWriter<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_cxx_string())
     }
 }
 
@@ -123,6 +133,10 @@ mod ffi {
         Jump,
         JumpBack,
         JumpIfFalse,
+        NewArray,
+        StoreSubscript,
+        StoreIntIndexUnchecked,
+        LoadSubscript,
         Return,
         Exit,
     }
@@ -144,6 +158,7 @@ mod ffi {
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
         unsafe fn run(self: &mut FunctionInfoWriter) -> UniquePtr<VMResult>;
+        fn to_cxx_string(self: &FunctionInfoWriter) -> UniquePtr<CxxString>;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);

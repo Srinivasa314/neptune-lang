@@ -74,8 +74,13 @@ std::ostream &operator<<(std::ostream &os, Object &o) {
     auto s = static_cast<StringSlice>(*o.as<Symbol>());
     return os.write(s.data, s.len);
   }
+  case Type::Array: {
+    return os << "Array@" << (void *)&o;
+  }
   default:
     unreachable();
   }
 }
+Array::Array(size_t size) : inner(std::vector<Value>(size, Value::empty())) {}
+
 } // namespace neptune_vm

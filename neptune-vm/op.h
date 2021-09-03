@@ -63,6 +63,10 @@
   OP(Jump)                                                                     \
   OP(JumpBack)                                                                 \
   OP(JumpIfFalse)                                                              \
+  OP(NewArray)                                                                 \
+  OP(StoreSubscript)                                                               \
+  OP(StoreIntIndexUnchecked)                                                            \
+  OP(LoadSubscript)                                                                \
   OP(Return)                                                                   \
   OP(Exit)
 
