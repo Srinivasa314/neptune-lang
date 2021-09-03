@@ -60,6 +60,8 @@ const char *Object::type_string() const {
     return "string";
   case Type::Symbol:
     return "symbol";
+  case Type::Array:
+    return "array";
   default:
     unreachable();
   }
@@ -81,6 +83,6 @@ std::ostream &operator<<(std::ostream &os, Object &o) {
     unreachable();
   }
 }
-Array::Array(size_t size) : inner(std::vector<Value>(size, Value::empty())) {}
+Array::Array(size_t size) : inner(std::vector<Value>(size, Value::null())) {}
 
 } // namespace neptune_vm

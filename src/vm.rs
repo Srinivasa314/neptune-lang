@@ -135,7 +135,7 @@ mod ffi {
         JumpIfFalse,
         NewArray,
         StoreSubscript,
-        StoreIntIndexUnchecked,
+        StoreArrayUnchecked,
         LoadSubscript,
         Return,
         Exit,

@@ -431,7 +431,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 return;
             };
             match self.current.token_type {
-                // todo add more tokens
                 TokenType::Class
                 | TokenType::Fun
                 | TokenType::Let

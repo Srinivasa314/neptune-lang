@@ -1,5 +1,9 @@
 fn main() {
-    cxx_build::bridge("src/vm.rs")
+    let mut build = cxx_build::bridge("src/vm.rs");
+    if !cfg!(debug_assertions) {
+        build.flag("-DNDEBUG");
+    }
+    build
         .include("vendor/github.com/Tessil/robin-map/include")
         .include("vendor/github.com/dcleblanc")
         .file("neptune-vm/neptune-vm.cc")

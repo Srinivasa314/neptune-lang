@@ -15,106 +15,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define WIDE(x) (static_cast<uint32_t>(x) + WIDE_OFFSET)
 #define EXTRAWIDE(x) (static_cast<uint32_t>(x) + EXTRAWIDE_OFFSET)
 
-#define BINARY_OP_REGISTER(type, opname, intfn, op)                            \
-  do {                                                                         \
-    type reg = READ(type);                                                     \
-    int res;                                                                   \
-    if (accumulator.is_int() && bp[reg].is_int()) {                            \
-      if (!intfn(bp[reg].as_int(), accumulator.as_int(), res))                 \
-        PANIC("Cannot " #opname " "                                            \
-              << bp[reg].as_int() << " and " << accumulator.as_int()           \
-              << " as the result does not fit in an int");                     \
-      accumulator = static_cast<Value>(res);                                   \
-    } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
-      accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_float() op accumulator.as_float());    \
-    } else if (accumulator.is_int() && bp[reg].is_float()) {                   \
-      accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_float() op accumulator.as_int());      \
-    } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
-      accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_int() op accumulator.as_float());      \
-    } else {                                                                   \
-      PANIC("Cannot " #opname " types" << bp[reg].type_string() << " and "     \
-                                       << accumulator.type_string());          \
-    }                                                                          \
-    DISPATCH();                                                                \
-  } while (0)
-
-#define BINARY_OP_INT(type, opname, intfn, op)                                 \
-  do {                                                                         \
-    if (accumulator.is_int()) {                                                \
-      int result;                                                              \
-      int i = READ(type);                                                      \
-      if (!intfn(accumulator.as_int(), i, result)) {                           \
-        PANIC("Cannot " #opname " "                                            \
-              << accumulator.as_int() << " and " << i                          \
-              << " as the result does not fit in an int");                     \
-      }                                                                        \
-      accumulator = static_cast<Value>(result);                                \
-    } else if (accumulator.is_float()) {                                       \
-      accumulator = static_cast<Value>(accumulator.as_float() op READ(type));  \
-    } else {                                                                   \
-      PANIC("Cannot " #opname " types " << accumulator.type_string()           \
-                                        << " and int");                        \
-    }                                                                          \
-    DISPATCH();                                                                \
-  } while (0)
-
-#define CONCAT_REGISTER(type)                                                  \
-  do {                                                                         \
-    type reg = READ(type);                                                     \
-    if (accumulator.is_object() && accumulator.as_object()->is<String>() &&    \
-        bp[reg].is_object() && bp[reg].as_object()->is<String>()) {            \
-      accumulator =                                                            \
-          static_cast<Value>(manage(bp[reg].as_object()->as<String>()->concat( \
-              accumulator.as_object()->as<String>())));                        \
-    } else {                                                                   \
-      PANIC("Cannot concat types" << bp[reg].type_string() << " and "          \
-                                  << accumulator.type_string());               \
-    }                                                                          \
-    DISPATCH();                                                                \
-  } while (0);
-#define ARRAY_OPS(handler, type)                                               \
-  handler(NewArray)                                                            \
-      : accumulator = static_cast<Value>(manage(new Array(READ(type))));       \
-  DISPATCH();                                                                  \
-                                                                               \
-  handler(LoadSubscript) : {                                                   \
-    auto obj = bp[READ(type)];                                                 \
-    if (obj.is_object() && obj.as_object()->is<Array>()) {                     \
-      if (accumulator.is_int()) {                                              \
-        accumulator =                                                          \
-            obj.as_object()->as<Array>()->inner[accumulator.as_int()];         \
-      } else {                                                                 \
-        PANIC("Subscript not an int");                                         \
-      }                                                                        \
-    } else {                                                                   \
-      PANIC("Not an array");                                                   \
-    }                                                                          \
-    DISPATCH();                                                                \
-  }                                                                            \
-  handler(StoreSubscript) : {                                                  \
-    auto obj = bp[READ(type)];                                                 \
-    auto subscript = bp[READ(type)];                                           \
-    if (obj.is_object() && obj.as_object()->is<Array>()) {                     \
-      if (subscript.is_int()) {                                                \
-        obj.as_object()->as<Array>()->inner[subscript.as_int()] = accumulator; \
-      } else {                                                                 \
-        PANIC("Subscript not an int");                                         \
-      }                                                                        \
-    } else {                                                                   \
-      PANIC("Not an array");                                                   \
-    }                                                                          \
-    DISPATCH();                                                                \
-  }                                                                            \
-  handler(StoreIntIndexUnchecked) : {                                          \
-    auto &array = bp[READ(type)].as_object()->as<Array>()->inner;              \
-    auto index = READ(type);                                                   \
-    array[index] = accumulator;                                                \
-    DISPATCH();                                                                \
-  }
-
 #ifdef COMPUTED_GOTO
 
 #define HANDLER(x) __##x##_handler
@@ -152,8 +52,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #endif
 
 #define READ(type) read<type>(ip)
-
-namespace neptune_vm {
 #define PANIC(fmt)                                                             \
   do {                                                                         \
     std::ostringstream stream;                                                 \
@@ -162,12 +60,8 @@ namespace neptune_vm {
     return VMResult{VMStatus::Error, str};                                     \
   } while (0)
 
+namespace neptune_vm {
 VMResult VM::run(FunctionInfo *f) {
-  Value *bp = &stack[0];
-  stack_top = bp + f->max_registers;
-  const uint8_t *ip = f->bytecode.data();
-  auto accumulator = Value::null();
-
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -181,408 +75,62 @@ VMResult VM::run(FunctionInfo *f) {
 #undef OP
   };
 #endif
+  auto accumulator = Value::null();
+  Value *bp = &stack[0];
+  const uint8_t *ip = f->bytecode.data();
+  stack_top = bp + f->max_registers;
 
   INTERPRET_LOOP {
-    HANDLER(Wide) : DISPATCH_WIDE();
-
-    HANDLER(ExtraWide) : DISPATCH_EXTRAWIDE();
-
-    HANDLER(LoadRegister) : accumulator = bp[READ(uint8_t)];
-    DISPATCH();
-
-    HANDLER(LoadInt) : accumulator = static_cast<Value>(READ(int8_t));
-    DISPATCH();
-
-    HANDLER(LoadNull) : accumulator = Value::null();
-    DISPATCH();
-
-    HANDLER(LoadTrue) : accumulator = Value::new_true();
-    DISPATCH();
-
-    HANDLER(LoadFalse) : accumulator = Value::new_false();
-    DISPATCH();
-
-    HANDLER(LoadConstant) : accumulator = f->constants[READ(uint8_t)];
-    DISPATCH();
-
-    HANDLER(StoreRegister) : bp[READ(uint8_t)] = accumulator;
-    DISPATCH();
-
-    HANDLER(Move) : {
-      auto src = READ(uint8_t);
-      auto dest = READ(uint8_t);
-      bp[dest] = bp[src];
-      DISPATCH();
-    }
-
-    HANDLER(LoadGlobal) : {
-      auto g = globals[READ(uint8_t)].value;
-      if (g.is_empty()) {
-        PANIC("Cannot access uninitialized variable "
-              << globals[READ(uint8_t)].name);
-      } else {
-        accumulator = g;
-      }
-    }
-    DISPATCH();
-
-    HANDLER(StoreGlobal) : globals[READ(uint8_t)].value = accumulator;
-    DISPATCH();
-
-    HANDLER(AddRegister) : BINARY_OP_REGISTER(uint8_t, add, SafeAdd, +);
-
-    HANDLER(SubtractRegister)
-        : BINARY_OP_REGISTER(uint8_t, subtract, SafeSubtract, -);
-
-    HANDLER(MultiplyRegister)
-        : BINARY_OP_REGISTER(uint8_t, multiply, SafeMultiply, *);
-
-    HANDLER(DivideRegister)
-        : BINARY_OP_REGISTER(uint8_t, divide, SafeDivide, /);
-
-    HANDLER(ConcatRegister) : CONCAT_REGISTER(uint8_t);
-
-    HANDLER(AddInt) : BINARY_OP_INT(int8_t, add, SafeAdd, +);
-
-    HANDLER(SubtractInt) : BINARY_OP_INT(int8_t, subtract, SafeSubtract, -);
-
-    HANDLER(MultiplyInt) : BINARY_OP_INT(int8_t, multiply, SafeMultiply, *);
-
-    HANDLER(DivideInt) : BINARY_OP_INT(int8_t, divide, SafeDivide, /);
-
-    HANDLER(Negate) : if (accumulator.is_int()) {
-      int result;
-      if (!SafeNegation(accumulator.as_int(), result)) {
-        PANIC("Cannot negate " << accumulator.as_int()
-                               << " as the result cannot be stored in an int");
-      }
-      accumulator = static_cast<Value>(result);
-    }
-    else if (accumulator.is_float()) {
-      accumulator = static_cast<Value>(-accumulator.as_float());
-    }
-    else {
-      PANIC("Cannot negate type " << accumulator.type_string());
-    }
-    DISPATCH();
-
-    HANDLER(Call) : TODO();
-
-    HANDLER(Call0Argument) : TODO();
-
-    HANDLER(Call1Argument) : TODO();
-
-    HANDLER(Call2Argument) : TODO();
-
-    HANDLER(ToString) : {
-      if (accumulator.is_int()) {
-        char buffer[12];
-        size_t len = sprintf(buffer, "%d", accumulator.as_int());
-        accumulator = static_cast<Value>(
-            manage(String::from_string_slice(StringSlice{buffer, len})));
-      } else if (accumulator.is_float()) {
-        char buffer[24];
-        size_t len = sprintf(buffer, "%.14g", accumulator.as_float());
-        accumulator = static_cast<Value>(
-            manage(String::from_string_slice(StringSlice{buffer, len})));
-      } else if (accumulator.is_object()) {
-        if (accumulator.as_object()->is<String>()) {
-        } else if (accumulator.as_object()->is<Symbol>()) {
-          accumulator = static_cast<Value>(
-              manage(String::from_string_slice(static_cast<StringSlice>(
-                  *accumulator.as_object()->as<Symbol>()))));
-        }
-      } else if (accumulator.is_true()) {
-        accumulator = static_cast<Value>(manage(
-            String::from_string_slice(StringSlice{"true", strlen("true")})));
-      } else if (accumulator.is_false()) {
-        accumulator = static_cast<Value>(manage(
-            String::from_string_slice(StringSlice{"false", strlen("false")})));
-      } else if (accumulator.is_null()) {
-        accumulator = static_cast<Value>(manage(
-            String::from_string_slice(StringSlice{"null", strlen("null")})));
-      } else {
-        std::ostringstream os;
-        os << accumulator;
-        auto s = os.str();
-        accumulator = static_cast<Value>(manage(
-            String::from_string_slice(StringSlice{s.data(), s.length()})));
-      }
-    }
-
-    HANDLER(Jump) : TODO();
-
-    HANDLER(JumpBack) : TODO();
-
-    HANDLER(JumpIfFalse) : TODO();
-
-    ARRAY_OPS(HANDLER, uint8_t)
-
-    HANDLER(Return) : TODO();
-
-    HANDLER(Exit) : goto end;
-
-#define STORER(n)                                                              \
-  bp[n] = accumulator;                                                         \
-  DISPATCH()
-
-    HANDLER(StoreR0) : STORER(0);
-
-    HANDLER(StoreR1) : STORER(1);
-
-    HANDLER(StoreR2) : STORER(2);
-
-    HANDLER(StoreR3) : STORER(3);
-
-    HANDLER(StoreR4) : STORER(4);
-
-    HANDLER(StoreR5) : STORER(5);
-
-    HANDLER(StoreR6) : STORER(6);
-
-    HANDLER(StoreR7) : STORER(7);
-
-    HANDLER(StoreR8) : STORER(8);
-
-    HANDLER(StoreR9) : STORER(9);
-
-    HANDLER(StoreR10) : STORER(10);
-
-    HANDLER(StoreR11) : STORER(11);
-
-    HANDLER(StoreR12) : STORER(12);
-
-    HANDLER(StoreR13) : STORER(13);
-
-    HANDLER(StoreR14) : STORER(14);
-
-    HANDLER(StoreR15) : STORER(15);
-
-#undef STORER
-
-#define LOADR(n)                                                               \
-  accumulator = bp[n];                                                         \
-  DISPATCH()
-
-    HANDLER(LoadR0) : LOADR(0);
-
-    HANDLER(LoadR1) : LOADR(1);
-
-    HANDLER(LoadR2) : LOADR(2);
-
-    HANDLER(LoadR3) : LOADR(3);
-
-    HANDLER(LoadR4) : LOADR(4);
-
-    HANDLER(LoadR5) : LOADR(5);
-
-    HANDLER(LoadR6) : LOADR(6);
-
-    HANDLER(LoadR7) : LOADR(7);
-
-    HANDLER(LoadR8) : LOADR(8);
-
-    HANDLER(LoadR9) : LOADR(9);
-
-    HANDLER(LoadR10) : LOADR(10);
-
-    HANDLER(LoadR11) : LOADR(11);
-
-    HANDLER(LoadR12) : LOADR(12);
-
-    HANDLER(LoadR13) : LOADR(13);
-
-    HANDLER(LoadR14) : LOADR(14);
-
-    HANDLER(LoadR15) : LOADR(15);
-
-#undef LOADR
-
-    WIDE_HANDLER(LoadRegister) : accumulator = bp[READ(uint16_t)];
-    DISPATCH();
-
-    WIDE_HANDLER(LoadInt) : accumulator = static_cast<Value>(READ(int16_t));
-    DISPATCH();
-
-    WIDE_HANDLER(LoadConstant) : accumulator = f->constants[READ(uint16_t)];
-    DISPATCH();
-
-    WIDE_HANDLER(StoreRegister) : bp[READ(uint16_t)] = accumulator;
-    DISPATCH();
-
-    WIDE_HANDLER(Move) : {
-      auto src = READ(uint16_t);
-      auto dest = READ(uint16_t);
-      bp[dest] = bp[src];
-      DISPATCH();
-    }
-
-    WIDE_HANDLER(LoadGlobal) : accumulator = globals[READ(uint16_t)].value;
-    DISPATCH();
-
-    WIDE_HANDLER(StoreGlobal) : globals[READ(uint16_t)].value = accumulator;
-    DISPATCH();
-
-    WIDE_HANDLER(AddRegister) : BINARY_OP_REGISTER(uint16_t, add, SafeAdd, +);
-
-    WIDE_HANDLER(SubtractRegister)
-        : BINARY_OP_REGISTER(uint16_t, subtract, SafeSubtract, -);
-
-    WIDE_HANDLER(MultiplyRegister)
-        : BINARY_OP_REGISTER(uint16_t, multiply, SafeMultiply, *);
-
-    WIDE_HANDLER(DivideRegister)
-        : BINARY_OP_REGISTER(uint16_t, divide, SafeDivide, /);
-
-    WIDE_HANDLER(ConcatRegister) : CONCAT_REGISTER(uint16_t);
-
-    WIDE_HANDLER(AddInt) : BINARY_OP_INT(int16_t, add, SafeAdd, +);
-
-    WIDE_HANDLER(SubtractInt)
-        : BINARY_OP_INT(int16_t, subtract, SafeSubtract, -);
-
-    WIDE_HANDLER(MultiplyInt)
-        : BINARY_OP_INT(int16_t, multiply, SafeMultiply, *);
-
-    WIDE_HANDLER(DivideInt) : BINARY_OP_INT(int16_t, divide, SafeDivide, /);
-
-    WIDE_HANDLER(Call) : TODO();
-
-    WIDE_HANDLER(Call0Argument) : TODO();
-
-    WIDE_HANDLER(Call1Argument) : TODO();
-
-    WIDE_HANDLER(Call2Argument) : TODO();
-
-    WIDE_HANDLER(Jump) : TODO();
-
-    WIDE_HANDLER(JumpBack) : TODO();
-
-    WIDE_HANDLER(JumpIfFalse) : TODO();
-
-    ARRAY_OPS(WIDE_HANDLER, uint16_t)
-
-    EXTRAWIDE_HANDLER(LoadInt)
-        : accumulator = static_cast<Value>(READ(int32_t));
-    DISPATCH();
-
-    EXTRAWIDE_HANDLER(LoadGlobal) : accumulator = globals[READ(uint32_t)].value;
-    DISPATCH();
-
-    EXTRAWIDE_HANDLER(StoreGlobal)
-        : globals[READ(uint32_t)].value = accumulator;
-    DISPATCH();
-
-    EXTRAWIDE_HANDLER(AddInt) : BINARY_OP_INT(int32_t, add, SafeAdd, +);
-
-    EXTRAWIDE_HANDLER(SubtractInt)
-        : BINARY_OP_INT(int32_t, subtract, SafeSubtract, -);
-
-    EXTRAWIDE_HANDLER(MultiplyInt)
-        : BINARY_OP_INT(int32_t, multiply, SafeMultiply, *);
-
-    EXTRAWIDE_HANDLER(DivideInt)
-        : BINARY_OP_INT(int32_t, divide, SafeDivide, /);
-
-    ARRAY_OPS(EXTRAWIDE_HANDLER, uint32_t)
-
-    EXTRAWIDE_HANDLER(Jump)
-        : EXTRAWIDE_HANDLER(JumpBack) : EXTRAWIDE_HANDLER(JumpIfFalse) : TODO();
-    WIDE_HANDLER(ToString)
-        : WIDE_HANDLER(Return)
-        : WIDE_HANDLER(Exit)
-        : WIDE_HANDLER(Wide)
-        : WIDE_HANDLER(ExtraWide)
-        : WIDE_HANDLER(LoadNull)
-        : WIDE_HANDLER(LoadTrue)
-        : WIDE_HANDLER(LoadFalse)
-        : WIDE_HANDLER(Negate)
-        : WIDE_HANDLER(StoreR0)
-        : WIDE_HANDLER(StoreR1)
-        : WIDE_HANDLER(StoreR2)
-        : WIDE_HANDLER(StoreR3)
-        : WIDE_HANDLER(StoreR4)
-        : WIDE_HANDLER(StoreR5)
-        : WIDE_HANDLER(StoreR6)
-        : WIDE_HANDLER(StoreR7)
-        : WIDE_HANDLER(StoreR8)
-        : WIDE_HANDLER(StoreR9)
-        : WIDE_HANDLER(StoreR10)
-        : WIDE_HANDLER(StoreR11)
-        : WIDE_HANDLER(StoreR12)
-        : WIDE_HANDLER(StoreR13)
-        : WIDE_HANDLER(StoreR14)
-        : WIDE_HANDLER(StoreR15)
-        : WIDE_HANDLER(LoadR0)
-        : WIDE_HANDLER(LoadR1)
-        : WIDE_HANDLER(LoadR2)
-        : WIDE_HANDLER(LoadR3)
-        : WIDE_HANDLER(LoadR4)
-        : WIDE_HANDLER(LoadR5)
-        : WIDE_HANDLER(LoadR6)
-        : WIDE_HANDLER(LoadR7)
-        : WIDE_HANDLER(LoadR8)
-        : WIDE_HANDLER(LoadR9)
-        : WIDE_HANDLER(LoadR10)
-        : WIDE_HANDLER(LoadR11)
-        : WIDE_HANDLER(LoadR12)
-        : WIDE_HANDLER(LoadR13)
-        : WIDE_HANDLER(LoadR14)
-        : WIDE_HANDLER(LoadR15)
-        : EXTRAWIDE_HANDLER(Wide)
-        : EXTRAWIDE_HANDLER(ExtraWide)
-        : EXTRAWIDE_HANDLER(LoadRegister)
-        : EXTRAWIDE_HANDLER(LoadNull)
-        : EXTRAWIDE_HANDLER(LoadTrue)
-        : EXTRAWIDE_HANDLER(LoadFalse)
-        : EXTRAWIDE_HANDLER(LoadConstant)
-        : EXTRAWIDE_HANDLER(StoreRegister)
-        : EXTRAWIDE_HANDLER(Move)
-        : EXTRAWIDE_HANDLER(AddRegister)
-        : EXTRAWIDE_HANDLER(SubtractRegister)
-        : EXTRAWIDE_HANDLER(MultiplyRegister)
-        : EXTRAWIDE_HANDLER(DivideRegister)
-        : EXTRAWIDE_HANDLER(ConcatRegister)
-        : EXTRAWIDE_HANDLER(Negate)
-        : EXTRAWIDE_HANDLER(Call)
-        : EXTRAWIDE_HANDLER(Call0Argument)
-        : EXTRAWIDE_HANDLER(Call1Argument)
-        : EXTRAWIDE_HANDLER(Call2Argument)
-        : EXTRAWIDE_HANDLER(ToString)
-        : EXTRAWIDE_HANDLER(Return)
-        : EXTRAWIDE_HANDLER(Exit)
-        : EXTRAWIDE_HANDLER(StoreR0)
-        : EXTRAWIDE_HANDLER(StoreR1)
-        : EXTRAWIDE_HANDLER(StoreR2)
-        : EXTRAWIDE_HANDLER(StoreR3)
-        : EXTRAWIDE_HANDLER(StoreR4)
-        : EXTRAWIDE_HANDLER(StoreR5)
-        : EXTRAWIDE_HANDLER(StoreR6)
-        : EXTRAWIDE_HANDLER(StoreR7)
-        : EXTRAWIDE_HANDLER(StoreR8)
-        : EXTRAWIDE_HANDLER(StoreR9)
-        : EXTRAWIDE_HANDLER(StoreR10)
-        : EXTRAWIDE_HANDLER(StoreR11)
-        : EXTRAWIDE_HANDLER(StoreR12)
-        : EXTRAWIDE_HANDLER(StoreR13)
-        : EXTRAWIDE_HANDLER(StoreR14)
-        : EXTRAWIDE_HANDLER(StoreR15)
-        : EXTRAWIDE_HANDLER(LoadR0)
-        : EXTRAWIDE_HANDLER(LoadR1)
-        : EXTRAWIDE_HANDLER(LoadR2)
-        : EXTRAWIDE_HANDLER(LoadR3)
-        : EXTRAWIDE_HANDLER(LoadR4)
-        : EXTRAWIDE_HANDLER(LoadR5)
-        : EXTRAWIDE_HANDLER(LoadR6)
-        : EXTRAWIDE_HANDLER(LoadR7)
-        : EXTRAWIDE_HANDLER(LoadR8)
-        : EXTRAWIDE_HANDLER(LoadR9)
-        : EXTRAWIDE_HANDLER(LoadR10)
-        : EXTRAWIDE_HANDLER(LoadR11)
-        : EXTRAWIDE_HANDLER(LoadR12)
-        : EXTRAWIDE_HANDLER(LoadR13)
-        : EXTRAWIDE_HANDLER(LoadR14)
-        : EXTRAWIDE_HANDLER(LoadR15) : unreachable();
+#define handler(op, impl)                                                      \
+  HANDLER(op) : impl DISPATCH();                                               \
+  WIDE_HANDLER(op) : unreachable();                                            \
+  EXTRAWIDE_HANDLER(op) : unreachable()
+#include "handlers.h"
+#undef handler
+
+#define utype uint8_t
+#define itype int8_t
+#define handler(op, impl) HANDLER(op) : impl DISPATCH();
+#include "wide_handlers.h"
+#undef utype
+#undef itype
+#undef handler
+
+#define utype uint16_t
+#define itype int16_t
+#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH();
+#include "wide_handlers.h"
+#undef utype
+#undef itype
+#undef handler
+
+#define handler(op, impl) EXTRAWIDE_HANDLER(op) : unreachable()
+#include "wide_handlers.h"
+#undef handler
+
+#define utype uint8_t
+#define itype int8_t
+#define handler(op, impl) HANDLER(op) : impl DISPATCH();
+#include "extrawide_handlers.h"
+#undef utype
+#undef itype
+#undef handler
+
+#define utype uint16_t
+#define itype int16_t
+#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH();
+#include "extrawide_handlers.h"
+#undef utype
+#undef itype
+#undef handler
+
+#define utype uint32_t
+#define itype int32_t
+#define handler(op, impl) EXTRAWIDE_HANDLER(op) : impl DISPATCH();
+#include "extrawide_handlers.h"
+#undef utype
+#undef itype
+#undef handler
   }
 end:
   std::ostringstream os;
@@ -660,6 +208,8 @@ void VM::release(Object *o) {
   else if (o->is<Symbol>()) {
     symbols.erase(o->as<Symbol>());
     free(o);
+  } else if (o->is<Array>()) {
+    delete o->as<Array>();
   }
 }
 

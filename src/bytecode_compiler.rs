@@ -72,15 +72,18 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.regcounts.last_mut().unwrap()
     }
 
-    fn push_register(&mut self) -> Option<u16> {
+    fn push_register(&mut self, line: u32) -> CompileResult<u16> {
         if self.regcount() == u16::MAX {
-            None
+            Err(CompileError {
+                message: "Cannot have more than 65535 locals+expressions".into(),
+                line,
+            })
         } else {
             *self.regcount_mut() += 1;
             if self.regcount() > self.max_registers {
                 self.max_registers = self.regcount();
             }
-            Some(self.regcount() - 1)
+            Ok(self.regcount() - 1)
         }
     }
 
@@ -206,10 +209,7 @@ macro_rules! binary_op {
             let left = self.evaluate_expr(left)?;
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
-                reg = self.push_register().ok_or(CompileError {
-                    message: "Cannot have more than 65535 locals+expressions".into(),
-                    line,
-                })?;
+                reg = self.push_register(line)?;
                 self.store_in_accumulator(left, line)?;
                 self.write_op_store_register(reg, line);
             }
@@ -301,10 +301,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Ok(r)
         } else {
             self.store_in_accumulator(result, line)?;
-            let reg = self.push_register().ok_or(CompileError {
-                message: "Cannot have more than 65535 locals+expressions".to_string(),
-                line,
-            })?;
+            let reg = self.push_register(line)?;
             self.write_op_store_register(reg, line);
             Ok(reg)
         }
@@ -339,7 +336,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 message: "Cannot have more than 65535 locals".into(),
             })?;
             self.locals.push(name.to_string());
-            self.push_register();
+            self.push_register(line)?;
             match self.evaluate_expr(expr)? {
                 ExprResult::Register(reg2) => self.write2(Op::Move, reg, reg2, line),
                 ExprResult::Accumulator => self.write_op_store_register(reg, line),
@@ -537,10 +534,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     unreachable!()
                 }
                 if inner.len() > 1 {
-                    let reg = self.push_register().ok_or(CompileError {
-                        message: "Cannot have more than 65535 locals+expressions".into(),
-                        line: *line,
-                    })?;
+                    let reg = self.push_register(*line)?;
                     self.write_op_store_register(reg, *line);
                     for i in &inner[1..] {
                         match i {
@@ -565,22 +559,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::Array { inner, line } => {
-                self.write1(Op::NewArray, inner.len() as u32, *line);
-                let array_reg = self.push_register().ok_or(CompileError {
-                    message: "Cannot have more than 65535 locals+expressions".to_string(),
-                    line: *line,
-                })?;
-                self.write_op_store_register(array_reg, *line);
+                let array_reg = self.push_register(*line)?;
+                self.write2(
+                    Op::NewArray,
+                    u16::try_from(inner.len()).map_err(|_| CompileError {
+                        message: "Array literal too large".to_string(),
+                        line: *line,
+                    })?,
+                    array_reg,
+                    *line,
+                );
                 for (index, expr) in inner.iter().enumerate() {
                     let expr_res = self.evaluate_expr(expr)?;
                     self.store_in_accumulator(expr_res, *line)?;
                     self.write2(
-                        Op::StoreIntIndexUnchecked,
+                        Op::StoreArrayUnchecked,
                         array_reg,
-                        u16::try_from(index).map_err(|e| CompileError {
-                            message: "Array literal too large".to_string(),
-                            line: *line,
-                        })?,
+                        u16::try_from(index).unwrap(),
                         *line,
                     );
                 }
@@ -632,10 +627,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match left {
             ExprResult::Register(r) => reg = r,
             ExprResult::Accumulator => {
-                reg = self.push_register().ok_or(CompileError {
-                    message: "Cannot have more than 65535 locals+expressions".into(),
-                    line,
-                })?;
+                reg = self.push_register(line)?;
                 self.write_op_store_register(reg, line)
             }
             ExprResult::Int(_) | ExprResult::Float(_) => {

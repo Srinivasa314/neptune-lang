@@ -65,7 +65,7 @@
   OP(JumpIfFalse)                                                              \
   OP(NewArray)                                                                 \
   OP(StoreSubscript)                                                               \
-  OP(StoreIntIndexUnchecked)                                                            \
+  OP(StoreArrayUnchecked)                                                            \
   OP(LoadSubscript)                                                                \
   OP(Return)                                                                   \
   OP(Exit)

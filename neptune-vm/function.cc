@@ -172,6 +172,15 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(DivideInt) << READ(int32_t);
         break;
+        CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(StoreSubscript) << REG(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(StoreArrayUnchecked) << REG(uint16_t) << ' ' << READ(uint16_t);
+        break;
+        CASE(LoadSubscript) << REG(uint16_t);
+        break;
+
       default:
         os << "An op that doesnt have an extrawide variant is here!";
       }
@@ -223,11 +232,11 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
 
       CASE(ToString);
       break;
-      CASE(NewArray) << READ(uint8_t);
+      CASE(NewArray) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(StoreSubscript) << REG(uint8_t) << ' ' << REG(uint8_t);
       break;
-      CASE(StoreIntIndexUnchecked) << REG(uint8_t) << ' ' << READ(uint8_t);
+      CASE(StoreArrayUnchecked) << REG(uint8_t) << ' ' << READ(uint8_t);
       break;
       CASE(LoadSubscript) << REG(uint8_t);
       break;
