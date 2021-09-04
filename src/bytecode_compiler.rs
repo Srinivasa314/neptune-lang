@@ -297,6 +297,51 @@ macro_rules! binary_op {
     };
 }
 
+macro_rules! comparing_binary_op {
+    ($op:ident,$inst:ident,$op_symbol:tt) => {
+        fn $op(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+            let left = self.evaluate_expr(left)?;
+            let mut reg = 0;
+            if !matches!(left, ExprResult::Register(_)) {
+                reg = self.push_register(line)?;
+                self.store_in_accumulator(left, line)?;
+                self.write_op_store_register(reg, line);
+            }
+            let right = self.evaluate_expr(right)?;
+            if !matches!(left, ExprResult::Register(_)) {
+                self.pop_register();
+            }
+            match (left, right) {
+                (ExprResult::Int(i1), ExprResult::Int(i2)) => {
+                    self.undo_save_to_register(ExprResult::Int(i1));
+                    self.write0(if i1 $op_symbol i2{Op::LoadTrue} else {Op::LoadFalse},line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (ExprResult::Float(f), ExprResult::Int(i)) => {
+                    self.undo_save_to_register(ExprResult::Float(f));
+                    self.write0(if f $op_symbol (i as f64){Op::LoadTrue} else {Op::LoadFalse},line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (ExprResult::Int(i), ExprResult::Float(f)) => {
+                    self.undo_save_to_register(ExprResult::Int(i));
+                    self.write0(if (i as f64) $op_symbol f{Op::LoadTrue} else {Op::LoadFalse},line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (ExprResult::Register(r), right) => {
+                    self.store_in_accumulator(right, line)?;
+                    self.write1(Op::$inst, r as u32, line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (_, right) => {
+                    self.store_in_accumulator(right, line)?;
+                    self.write1(Op::$inst, reg as u32, line);
+                    Ok(ExprResult::Accumulator)
+                }
+            }
+        }
+    };
+}
+
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn undo_save_to_register(&mut self, result: ExprResult) {
         match result {
@@ -521,6 +566,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::Minus => self.subtract(left, right, *line),
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
+                TokenType::EqualEqual => self.equal_equal(left, right, *line),
+                TokenType::BangEqual => self.not_equal(left, right, *line),
+                TokenType::Greater => self.greater_than(left, right, *line),
+                TokenType::Less => self.lesser_than(left, right, *line),
+                TokenType::GreaterEqual => self.greater_than_or_equal(left, right, *line),
+                TokenType::LessEqual => self.lesser_than_or_equal(left, right, *line),
                 TokenType::Equal => Err(CompileError {
                     message: "= is not an expression".to_string(),
                     line: *line,
@@ -755,4 +806,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     binary_op!(subtract, SubtractRegister, SubtractInt, sub, checked_sub);
     binary_op!(multiply, MultiplyRegister, MultiplyInt, mul, checked_mul);
     binary_op!(divide, DivideRegister, DivideInt, div, checked_div);
+
+    comparing_binary_op!(equal_equal,Equal,==);
+    comparing_binary_op!(not_equal,NotEqual,!=);
+    comparing_binary_op!(greater_than,GreaterThan,>);
+    comparing_binary_op!(lesser_than,LesserThan,<);
+    comparing_binary_op!(greater_than_or_equal,GreaterThanOrEqual,>=);
+    comparing_binary_op!(lesser_than_or_equal,LesserThanOrEqual,<=);
 }

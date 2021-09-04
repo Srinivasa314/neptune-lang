@@ -55,6 +55,12 @@
   OP(MultiplyInt)                                                              \
   OP(DivideInt)                                                                \
   OP(Negate)                                                                   \
+  OP(Equal)                                                                    \
+  OP(NotEqual)                                                                 \
+  OP(GreaterThan)                                                              \
+  OP(LesserThan)                                                               \
+  OP(GreaterThanOrEqual)                                                       \
+  OP(LesserThanOrEqual)                                                        \
   OP(Call)                                                                     \
   OP(Call0Argument)                                                            \
   OP(Call1Argument)                                                            \

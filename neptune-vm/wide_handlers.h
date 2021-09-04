@@ -32,6 +32,24 @@ handler(Move, {
                                        << accumulator.type_string());          \
     }                                                                          \
   } while (0)
+
+#define COMPARE_OP_REGISTER(op)                                                \
+  do {                                                                         \
+    auto reg = READ(utype);                                                    \
+    if (accumulator.is_int() && bp[reg].is_int()) {                            \
+      accumulator = Value(bp[reg].as_int() op accumulator.as_int());           \
+    } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
+      accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
+    } else if (accumulator.is_int() && bp[reg].is_float()) {                   \
+      accumulator = Value(bp[reg].as_float() op accumulator.as_int());         \
+    } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
+      accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
+    } else {                                                                   \
+      PANIC("Cannot compare types" << bp[reg].type_string() << " and "         \
+                                   << accumulator.type_string());              \
+    }                                                                          \
+  } while (0)
+
 handler(AddRegister, BINARY_OP_REGISTER(add, SafeAdd, +););
 handler(SubtractRegister, BINARY_OP_REGISTER(subtract, SafeSubtract, -););
 handler(MultiplyRegister, BINARY_OP_REGISTER(multiply, SafeMultiply, *););
@@ -48,6 +66,12 @@ handler(ConcatRegister, {
                                 << accumulator.type_string());
   }
 });
+handler(Equal, accumulator = Value(bp[READ(utype)] == accumulator););
+handler(NotEqual, accumulator = Value(!(bp[READ(utype)] == accumulator)););
+handler(GreaterThan, COMPARE_OP_REGISTER(>););
+handler(LesserThan, COMPARE_OP_REGISTER(<););
+handler(GreaterThanOrEqual, COMPARE_OP_REGISTER(>=););
+handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 handler(Call, TODO(););
 handler(Call0Argument, TODO(););
 handler(Call1Argument, TODO(););

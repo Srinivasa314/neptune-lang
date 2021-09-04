@@ -150,6 +150,20 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(DivideInt) << READ(int16_t);
         break;
+
+        CASE(Equal) << REG(uint16_t);
+        break;
+        CASE(NotEqual) << REG(uint16_t);
+        break;
+        CASE(GreaterThan) << REG(uint16_t);
+        break;
+        CASE(LesserThan) << REG(uint16_t);
+        break;
+        CASE(GreaterThanOrEqual) << REG(uint16_t);
+        break;
+        CASE(LesserThanOrEqual) << REG(uint16_t);
+        break;
+
       default:
         os << "An op that doesnt have a wide variant is here!";
       }
@@ -228,6 +242,19 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(DivideInt) << READ(int8_t);
       break;
       CASE(Negate);
+      break;
+
+      CASE(Equal) << REG(uint8_t);
+      break;
+      CASE(NotEqual) << REG(uint8_t);
+      break;
+      CASE(GreaterThan) << REG(uint8_t);
+      break;
+      CASE(LesserThan) << REG(uint8_t);
+      break;
+      CASE(GreaterThanOrEqual) << REG(uint8_t);
+      break;
+      CASE(LesserThanOrEqual) << REG(uint8_t);
       break;
 
       CASE(ToString);
