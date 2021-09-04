@@ -12,8 +12,8 @@ String *String::from_string_slice(StringSlice s) {
   p->len = s.len;
   return p;
 }
-String::operator StringSlice() { return StringSlice{data, len}; }
-Symbol::operator StringSlice() { return StringSlice{data, len}; }
+String::operator StringSlice() const { return StringSlice{data, len}; }
+Symbol::operator StringSlice() const { return StringSlice{data, len}; }
 template <typename O> bool Object::is() const { return type == O::type; }
 template <typename O> O *Object::as() {
   assert(is<O>());
@@ -74,10 +74,10 @@ std::ostream &operator<<(std::ostream &os, Object &o) {
   case Type::Symbol: {
     os << '@';
     auto s = static_cast<StringSlice>(*o.as<Symbol>());
-    return os.write(s.data, s.len);
+    return os.write(s.data, static_cast<std::streamsize>(s.len));
   }
   case Type::Array: {
-    return os << "Array@" << (void *)&o;
+    return os << "Array@" << static_cast<void *>(&o);
   }
   default:
     unreachable();

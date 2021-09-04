@@ -72,6 +72,6 @@ public:
   bool is_false() const;
   bool operator==(Value rhs) const;
   const char *type_string() const;
-  friend std::ostream &operator<<(std::ostream &os, const Value v);
+  friend std::ostream &operator<<(std::ostream &os, const Value &v);
 };
 } // namespace neptune_vm

@@ -1,7 +1,7 @@
 #include "neptune-vm.h"
 #include <cstring>
-#include <ostream>
 #include <iomanip>
+#include <ostream>
 
 namespace neptune_vm {
 #ifdef NANBOX
@@ -195,7 +195,7 @@ const char *Value::type_string() const {
   else
     unreachable();
 }
-std::ostream &operator<<(std::ostream &os, const Value v) {
+std::ostream &operator<<(std::ostream &os, const Value &v) {
   if (v.is_int())
     os << v.as_int();
   else if (v.is_float())

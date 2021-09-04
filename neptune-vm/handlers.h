@@ -52,12 +52,14 @@ handler(
 handler(ToString, {
   if (accumulator.is_int()) {
     char buffer[12];
-    size_t len = sprintf(buffer, "%d", accumulator.as_int());
+    size_t len =
+        static_cast<size_t>(sprintf(buffer, "%d", accumulator.as_int()));
     accumulator = static_cast<Value>(
         manage(String::from_string_slice(StringSlice{buffer, len})));
   } else if (accumulator.is_float()) {
     char buffer[24];
-    size_t len = sprintf(buffer, "%.14g", accumulator.as_float());
+    size_t len =
+        static_cast<size_t>(sprintf(buffer, "%.14g", accumulator.as_float()));
     accumulator = static_cast<Value>(
         manage(String::from_string_slice(StringSlice{buffer, len})));
   } else if (accumulator.is_object()) {

@@ -33,7 +33,7 @@ class String : public Object {
 public:
   static constexpr Type type = Type::String;
   static String *from_string_slice(StringSlice s);
-  explicit operator StringSlice();
+  explicit operator StringSlice() const;
   String *concat(String *s);
 };
 
@@ -44,7 +44,7 @@ class Symbol : public Object {
 
 public:
   static constexpr Type type = Type::Symbol;
-  explicit operator StringSlice();
+  explicit operator StringSlice() const;
 };
 
 struct StringEquality {
@@ -75,7 +75,7 @@ struct StringHasher {
 class Value;
 class Array : public Object {
 public:
-  Array(size_t size);
+  explicit Array(size_t size);
   std::vector<Value> inner;
   static constexpr Type type = Type::Array;
 };

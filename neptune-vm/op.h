@@ -64,9 +64,9 @@
   OP(JumpBack)                                                                 \
   OP(JumpIfFalse)                                                              \
   OP(NewArray)                                                                 \
-  OP(StoreSubscript)                                                               \
-  OP(StoreArrayUnchecked)                                                            \
-  OP(LoadSubscript)                                                                \
+  OP(StoreSubscript)                                                           \
+  OP(StoreArrayUnchecked)                                                      \
+  OP(LoadSubscript)                                                            \
   OP(Return)                                                                   \
   OP(Exit)
 

@@ -155,7 +155,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             0..=15 => {
                 self.write0(
                     Op {
-                        repr: (Op::StoreR0.repr + reg as u8),
+                        repr: match reg {
+                            0 => Op::StoreR0.repr,
+                            1 => Op::StoreR1.repr,
+                            2 => Op::StoreR2.repr,
+                            3 => Op::StoreR3.repr,
+                            4 => Op::StoreR4.repr,
+                            5 => Op::StoreR5.repr,
+                            6 => Op::StoreR6.repr,
+                            7 => Op::StoreR7.repr,
+                            8 => Op::StoreR8.repr,
+                            9 => Op::StoreR9.repr,
+                            10 => Op::StoreR10.repr,
+                            11 => Op::StoreR11.repr,
+                            12 => Op::StoreR12.repr,
+                            13 => Op::StoreR13.repr,
+                            14 => Op::StoreR14.repr,
+                            15 => Op::StoreR15.repr,
+                            _ => unreachable!(),
+                        },
                     },
                     line,
                 );
@@ -171,7 +189,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             0..=15 => {
                 self.write0(
                     Op {
-                        repr: (Op::LoadR0.repr + reg as u8),
+                        repr: match reg {
+                            0 => Op::LoadR0.repr,
+                            1 => Op::LoadR1.repr,
+                            2 => Op::LoadR2.repr,
+                            3 => Op::LoadR3.repr,
+                            4 => Op::LoadR4.repr,
+                            5 => Op::LoadR5.repr,
+                            6 => Op::LoadR6.repr,
+                            7 => Op::LoadR7.repr,
+                            8 => Op::LoadR8.repr,
+                            9 => Op::LoadR9.repr,
+                            10 => Op::LoadR10.repr,
+                            11 => Op::LoadR11.repr,
+                            12 => Op::LoadR12.repr,
+                            13 => Op::LoadR13.repr,
+                            14 => Op::LoadR14.repr,
+                            15 => Op::LoadR15.repr,
+                            _ => unreachable!(),
+                        },
                     },
                     line,
                 );
@@ -593,6 +629,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let subscript = self.evaluate_expr(subscript)?;
                 self.store_in_accumulator(subscript, *line)?;
                 self.write1(Op::LoadSubscript, reg as u32, *line);
+                if !matches!(res, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
                 Ok(ExprResult::Accumulator)
             }
         }
@@ -662,12 +701,18 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         } = left
         {
             let object = self.evaluate_expr(object)?;
-            let object = self.store_in_register(object, *line)?;
+            let object_reg = self.store_in_register(object, *line)?;
             let subscript = self.evaluate_expr(subscript)?;
-            let subscript = self.store_in_register(subscript, *line)?;
+            let subscript_reg = self.store_in_register(subscript, *line)?;
             let right = self.evaluate_expr(right)?;
             self.store_in_accumulator(right, *line)?;
-            self.write2(Op::StoreSubscript, object, subscript, *line);
+            self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
+            if !matches!(subscript, ExprResult::Register(_)) {
+                self.pop_register();
+            }
+            if !matches!(object, ExprResult::Register(_)) {
+                self.pop_register();
+            }
             return Ok(());
         }
         if let Expr::Variable { name, line } = left {

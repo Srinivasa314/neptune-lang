@@ -57,7 +57,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
-    return VMResult{VMStatus::Error, str};                                     \
+    return VMResult{VMStatus::Error, std::move(str)};                          \
   } while (0)
 
 namespace neptune_vm {
@@ -90,7 +90,7 @@ VMResult VM::run(FunctionInfo *f) {
 
 #define utype uint8_t
 #define itype int8_t
-#define handler(op, impl) HANDLER(op) : impl DISPATCH();
+#define handler(op, impl) HANDLER(op) : impl DISPATCH()
 #include "wide_handlers.h"
 #undef utype
 #undef itype
@@ -98,7 +98,7 @@ VMResult VM::run(FunctionInfo *f) {
 
 #define utype uint16_t
 #define itype int16_t
-#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH();
+#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH()
 #include "wide_handlers.h"
 #undef utype
 #undef itype
@@ -110,7 +110,7 @@ VMResult VM::run(FunctionInfo *f) {
 
 #define utype uint8_t
 #define itype int8_t
-#define handler(op, impl) HANDLER(op) : impl DISPATCH();
+#define handler(op, impl) HANDLER(op) : impl DISPATCH()
 #include "extrawide_handlers.h"
 #undef utype
 #undef itype
@@ -118,7 +118,7 @@ VMResult VM::run(FunctionInfo *f) {
 
 #define utype uint16_t
 #define itype int16_t
-#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH();
+#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH()
 #include "extrawide_handlers.h"
 #undef utype
 #undef itype
@@ -126,7 +126,7 @@ VMResult VM::run(FunctionInfo *f) {
 
 #define utype uint32_t
 #define itype int32_t
-#define handler(op, impl) EXTRAWIDE_HANDLER(op) : impl DISPATCH();
+#define handler(op, impl) EXTRAWIDE_HANDLER(op) : impl DISPATCH()
 #include "extrawide_handlers.h"
 #undef utype
 #undef itype
@@ -135,7 +135,7 @@ VMResult VM::run(FunctionInfo *f) {
 end:
   std::ostringstream os;
   os << accumulator;
-  return VMResult{VMStatus::Success, os.str()};
+  return VMResult{VMStatus::Success, std::move(os.str())};
 }
 
 void VM::add_global(StringSlice name) const {

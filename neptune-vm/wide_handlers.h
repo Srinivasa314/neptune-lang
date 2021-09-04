@@ -66,10 +66,10 @@ handler(LoadSubscript, {
     if (accumulator.is_int()) {
       auto i = accumulator.as_int();
       auto a = obj.as_object()->as<Array>();
-      if (i < 0 || i >= a->inner.size())
+      if (i < 0 || static_cast<size_t>(i) >= a->inner.size())
         PANIC("Array index out of range");
       else
-        accumulator = a->inner[i];
+        accumulator = a->inner[static_cast<size_t>(i)];
     } else {
       PANIC("Array indices must be int not" << accumulator.type_string());
     }
@@ -92,10 +92,10 @@ handler(StoreSubscript, {
     if (subscript.is_int()) {
       auto i = subscript.as_int();
       auto &a = obj.as_object()->as<Array>()->inner;
-      if (i < 0 || i >= a.size())
+      if (i < 0 || static_cast<size_t>(i) >= a.size())
         PANIC("Array index out of range");
       else
-        a[i] = accumulator;
+        a[static_cast<size_t>(i)] = accumulator;
     } else {
       PANIC("Array indices must be int not" << subscript.type_string());
     }

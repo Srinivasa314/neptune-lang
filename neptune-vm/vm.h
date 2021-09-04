@@ -20,7 +20,7 @@ class VMResult {
   std::string result;
 
 public:
-  VMResult(VMStatus status_, std::string result_)
+  VMResult(VMStatus status_, const std::string &result_)
       : status(status_), result(result_) {}
   VMStatus get_status() const { return status; }
   StringSlice get_result() const {
