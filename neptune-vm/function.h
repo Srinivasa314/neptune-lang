@@ -1,6 +1,4 @@
 #pragma once
-#include "gc.h"
-#include "handle.h"
 #include "object.h"
 #include "op.h"
 #include <cstdint>
@@ -8,7 +6,7 @@
 #include <vector>
 
 namespace neptune_vm {
-class Value;
+template <typename O> class Handle;
 class VM;
 class VMResult;
 

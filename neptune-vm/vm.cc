@@ -193,6 +193,7 @@ Symbol *VM::intern(StringSlice s) {
     }
     memcpy(sym->data, s.data, s.len);
     sym->len = s.len;
+    sym->hash = StringHasher{}(static_cast<StringSlice>(*sym));
     manage(sym);
     symbols.insert(sym);
     return sym;
@@ -210,6 +211,8 @@ void VM::release(Object *o) {
     free(o);
   } else if (o->is<Array>()) {
     delete o->as<Array>();
+  } else if (o->is<Map>()) {
+    delete o->as<Map>();
   }
 }
 

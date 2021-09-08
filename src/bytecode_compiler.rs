@@ -10,7 +10,6 @@ use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::ops::{Add, Div, Mul, Sub};
 
 pub struct Compiler<'vm> {
     globals: HashMap<String, u32>,
@@ -27,12 +26,47 @@ impl<'vm> Compiler<'vm> {
         }
     }
 
-    pub fn compile(
+    pub fn exec(
         mut self,
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         let mut b = BytecodeCompiler::new(&mut self);
         b.evaluate_statments(&ast);
+        b.write0(Op::Exit, 0);
+        let bytecode = b.bytecode;
+        if self.errors.is_empty() {
+            Ok(bytecode)
+        } else {
+            Err(self.errors)
+        }
+    }
+
+    pub fn can_eval(ast: &[Statement]) -> Option<&Expr> {
+        match ast {
+            [Statement::Expr(e)] => match e {
+                Expr::Binary { op, .. } => match op {
+                    TokenType::Equal
+                    | TokenType::PlusEqual
+                    | TokenType::MinusEqual
+                    | TokenType::StarEqual
+                    | TokenType::SlashEqual
+                    | TokenType::TildeEqual => None,
+                    _ => Some(e),
+                },
+                _ => Some(e),
+            },
+            _ => None,
+        }
+    }
+
+    pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
+        let mut b = BytecodeCompiler::new(&mut self);
+        match b.evaluate_expr(ast) {
+            Ok(er) => b.store_in_accumulator(er, 0),
+            Err(e) => b.error(e),
+        }
+        b.bytecode.shrink();
+        b.bytecode.set_max_registers(b.max_registers);
         b.write0(Op::Exit, 0);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
@@ -236,7 +270,6 @@ enum ExprResult {
     Register(u16),
     Accumulator,
     Int(i32),
-    Float(f64),
 }
 
 macro_rules! binary_op {
@@ -246,7 +279,7 @@ macro_rules! binary_op {
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
                 reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line)?;
+                self.store_in_accumulator(left, line);
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -268,27 +301,19 @@ macro_rules! binary_op {
                         },
                     )?))
                 }
-                (ExprResult::Float(f), ExprResult::Int(i)) => {
-                    self.undo_save_to_register(ExprResult::Float(f));
-                    Ok(ExprResult::Float(f.$op_fn(f64::from(i))))
-                }
-                (ExprResult::Int(i), ExprResult::Float(f)) => {
-                    self.undo_save_to_register(ExprResult::Int(i));
-                    Ok(ExprResult::Float(f64::from(i).$op_fn(f)))
-                }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$register_inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
-                    self.store_in_accumulator(left, line)?;
-                    self.write1(Op::$int_inst, i as u32, line);
+                    self.store_in_accumulator(left, line);
+                    self.write1(Op::$int_inst, signed_to_unsigned(i), line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$register_inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -304,7 +329,7 @@ macro_rules! comparing_binary_op {
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
                 reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line)?;
+                self.store_in_accumulator(left, line);
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -317,23 +342,13 @@ macro_rules! comparing_binary_op {
                     self.write0(if i1 $op_symbol i2{Op::LoadTrue} else {Op::LoadFalse},line);
                     Ok(ExprResult::Accumulator)
                 }
-                (ExprResult::Float(f), ExprResult::Int(i)) => {
-                    self.undo_save_to_register(ExprResult::Float(f));
-                    self.write0(if f $op_symbol (i as f64){Op::LoadTrue} else {Op::LoadFalse},line);
-                    Ok(ExprResult::Accumulator)
-                }
-                (ExprResult::Int(i), ExprResult::Float(f)) => {
-                    self.undo_save_to_register(ExprResult::Int(i));
-                    self.write0(if (i as f64) $op_symbol f{Op::LoadTrue} else {Op::LoadFalse},line);
-                    Ok(ExprResult::Accumulator)
-                }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -352,27 +367,18 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ExprResult::Int(_) => {
                 self.pop_last_op();
             }
-            ExprResult::Float(_) => {
-                self.pop_last_op();
-            }
         }
         self.pop_last_op();
     }
 
-    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
+    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) {
         match result {
             ExprResult::Register(reg) => {
                 self.write_op_load_register(reg, line);
-                Ok(())
             }
-            ExprResult::Accumulator => Ok(()),
+            ExprResult::Accumulator => {}
             ExprResult::Int(i) => {
-                self.write1(Op::LoadInt, i as u32, line);
-                Ok(())
-            }
-            ExprResult::Float(f) => {
-                let c = self.bytecode.float_constant(f);
-                self.load_const(c, line)
+                self.write1(Op::LoadInt, signed_to_unsigned(i), line);
             }
         }
     }
@@ -381,7 +387,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         if let ExprResult::Register(r) = result {
             Ok(r)
         } else {
-            self.store_in_accumulator(result, line)?;
+            self.store_in_accumulator(result, line);
             let reg = self.push_register(line)?;
             self.write_op_store_register(reg, line);
             Ok(reg)
@@ -404,6 +410,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.bytecode.shrink();
         self.bytecode.set_max_registers(self.max_registers);
     }
+
     fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
         if self.resolve_local(name).is_some() || self.get_global(name).is_some() {
             return Err(CompileError {
@@ -422,19 +429,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 ExprResult::Register(reg2) => self.write2(Op::Move, reg, reg2, line),
                 ExprResult::Accumulator => self.write_op_store_register(reg, line),
                 ExprResult::Int(i) => {
-                    self.write1(Op::LoadInt, i as u32, line);
-                    self.write_op_store_register(reg, line)
-                }
-                ExprResult::Float(f) => {
-                    let c = self.bytecode.float_constant(f);
-                    self.load_const(c, line)?;
+                    self.write1(Op::LoadInt, signed_to_unsigned(i), line);
                     self.write_op_store_register(reg, line)
                 }
             }
         } else {
             let g = self.new_global(name);
             let res = self.evaluate_expr(expr)?;
-            self.store_in_accumulator(res, line)?;
+            self.store_in_accumulator(res, line);
             self.write1(Op::StoreGlobal, g, line);
         }
         Ok(())
@@ -521,7 +523,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Statement::Block(b) => {
                     let count = self.regcount();
                     self.regcounts.push(count);
-                    self.evaluate_statments(b);
+                    for stmt in b {
+                        self.evaluate_statement(stmt)
+                    }
                     self.regcounts.pop();
                     self.locals.truncate(self.regcount() as usize);
                 }
@@ -536,7 +540,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
-                TokenType::FloatLiteral(f) => Ok(ExprResult::Float(*f)),
+                TokenType::FloatLiteral(f) => Ok({
+                    let c = self.bytecode.float_constant(*f);
+                    self.load_const(c, *line)?;
+                    ExprResult::Accumulator
+                }),
                 TokenType::Null => {
                     self.write0(Op::LoadNull, *line);
                     Ok(ExprResult::Accumulator)
@@ -567,6 +575,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
                 TokenType::EqualEqual => self.equal_equal(left, right, *line),
+                TokenType::EqualEqualEqual => self.equal_equal_equal(left, right, *line),
+                TokenType::BangEqualEqual => self.not_equal_equal(left, right, *line),
                 TokenType::BangEqual => self.not_equal(left, right, *line),
                 TokenType::Greater => self.greater_than(left, right, *line),
                 TokenType::Less => self.lesser_than(left, right, *line),
@@ -635,7 +645,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             }
                             Substring::Expr(expr) => {
                                 let expr = self.evaluate_expr(expr)?;
-                                self.store_in_accumulator(expr, *line)?;
+                                self.store_in_accumulator(expr, *line);
                                 self.write0(Op::ToString, *line);
                             }
                         }
@@ -650,7 +660,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 self.write2(
                     Op::NewArray,
                     u16::try_from(inner.len()).map_err(|_| CompileError {
-                        message: "Array literal too large".to_string(),
+                        message: "Array literal can have upto 65535 elements".to_string(),
                         line: *line,
                     })?,
                     array_reg,
@@ -658,12 +668,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 );
                 for (index, expr) in inner.iter().enumerate() {
                     let expr_res = self.evaluate_expr(expr)?;
-                    self.store_in_accumulator(expr_res, *line)?;
+                    self.store_in_accumulator(expr_res, expr.line());
                     self.write2(
                         Op::StoreArrayUnchecked,
                         array_reg,
                         u16::try_from(index).unwrap(),
-                        *line,
+                        expr.line(),
                     );
                 }
                 self.write_op_load_register(array_reg, *line);
@@ -678,16 +688,50 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let res = self.evaluate_expr(object)?;
                 let reg = self.store_in_register(res, *line)?;
                 let subscript = self.evaluate_expr(subscript)?;
-                self.store_in_accumulator(subscript, *line)?;
+                self.store_in_accumulator(subscript, *line);
                 self.write1(Op::LoadSubscript, reg as u32, *line);
                 if !matches!(res, ExprResult::Register(_)) {
                     self.pop_register();
                 }
                 Ok(ExprResult::Accumulator)
             }
+            Expr::Map { inner, line } => {
+                let map_reg = self.push_register(*line)?;
+                self.write2(
+                    Op::NewMap,
+                    u16::try_from(inner.len()).map_err(|_| CompileError {
+                        message: "Map literal can have up to 65535 elements".to_string(),
+                        line: *line,
+                    })?,
+                    map_reg,
+                    *line,
+                );
+                for (key, val) in inner.iter() {
+                    let key_res = self.evaluate_expr(key)?;
+                    let key_reg = self.store_in_register(key_res, key.line())?;
+                    let val_res = self.evaluate_expr(val)?;
+                    self.store_in_accumulator(val_res, val.line());
+                    self.write2(Op::StoreSubscript, map_reg, key_reg, val.line());
+                    if !(matches!(key_res, ExprResult::Register(_))) {
+                        self.pop_register();
+                    }
+                }
+                self.write_op_load_register(map_reg, *line);
+                self.pop_register();
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+        if let Expr::Literal {
+            inner: TokenType::FloatLiteral(f),
+            line,
+        } = right
+        {
+            let c = self.bytecode.float_constant(-f);
+            self.load_const(c, *line)?;
+            return Ok(ExprResult::Accumulator);
+        }
         match self.evaluate_expr(right)? {
             ExprResult::Register(r) => {
                 self.write_op_load_register(r, line);
@@ -707,7 +751,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     line,
                 }
             })?)),
-            ExprResult::Float(f) => Ok(ExprResult::Float(-f)),
         }
     }
 
@@ -720,10 +763,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 reg = self.push_register(line)?;
                 self.write_op_store_register(reg, line)
             }
-            ExprResult::Int(_) | ExprResult::Float(_) => {
+            ExprResult::Int(_) => {
                 return Err(CompileError {
                     message:
-                        "Can only perform concat operation on string. Consider using interpolation"
+                        "Can only perform concat operation on strings. Consider using interpolation"
                             .into(),
                     line,
                 })
@@ -734,10 +777,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.pop_register();
         }
         match right {
-            ExprResult::Int(_) => todo!(),
-            ExprResult::Float(_) => todo!(),
+            ExprResult::Int(_) => {
+                return Err(CompileError {
+                    message:
+                        "Can only perform concat operation on strings. Consider using interpolation"
+                            .into(),
+                    line,
+                })
+            }
             right => {
-                self.store_in_accumulator(right, line)?;
+                self.store_in_accumulator(right, line);
                 self.write1(Op::ConcatRegister, reg as u32, line);
                 Ok(ExprResult::Accumulator)
             }
@@ -756,7 +805,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             let subscript = self.evaluate_expr(subscript)?;
             let subscript_reg = self.store_in_register(subscript, *line)?;
             let right = self.evaluate_expr(right)?;
-            self.store_in_accumulator(right, *line)?;
+            self.store_in_accumulator(right, *line);
             self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
             if !matches!(subscript, ExprResult::Register(_)) {
                 self.pop_register();
@@ -780,7 +829,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         Ok(())
                     }
                     res => {
-                        self.store_in_accumulator(res, *line)?;
+                        self.store_in_accumulator(res, *line);
                         self.write_op_store_register(dest, *line);
                         Ok(())
                     }
@@ -790,7 +839,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     .get_global(name)
                     .unwrap_or_else(|| self.new_global(name));
                 let res = self.evaluate_expr(right)?;
-                self.store_in_accumulator(res, *line)?;
+                self.store_in_accumulator(res, *line);
                 self.write1(Op::StoreGlobal, global, *line);
                 Ok(())
             }
@@ -808,9 +857,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     binary_op!(divide, DivideRegister, DivideInt, div, checked_div);
 
     comparing_binary_op!(equal_equal,Equal,==);
+    comparing_binary_op!(equal_equal_equal,StrictEqual,==);
     comparing_binary_op!(not_equal,NotEqual,!=);
+    comparing_binary_op!(not_equal_equal,StrictNotEqual,!=);
     comparing_binary_op!(greater_than,GreaterThan,>);
     comparing_binary_op!(lesser_than,LesserThan,<);
     comparing_binary_op!(greater_than_or_equal,GreaterThanOrEqual,>=);
     comparing_binary_op!(lesser_than_or_equal,LesserThanOrEqual,<=);
+}
+
+fn signed_to_unsigned(i: i32) -> u32 {
+    match i8::try_from(i) {
+        Ok(i) => i as u8 as u32,
+        Err(_) => match i16::try_from(i) {
+            Ok(i) => i as u16 as u32,
+            Err(_) => i as u32,
+        },
+    }
 }

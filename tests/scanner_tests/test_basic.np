@@ -8,3 +8,6 @@ else
 {
     print(false)
 }
+
+let msg = 'hello' ~ 'world'
+let b = 1 === 2

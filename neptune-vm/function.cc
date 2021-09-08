@@ -13,7 +13,6 @@ template <typename T> void FunctionInfoWriter::write(T t) {
                               reinterpret_cast<uint8_t *>(&t) + sizeof(t));
 }
 
-// todo put proper line info
 size_t FunctionInfoWriter::write_op(Op op, uint32_t line) {
   if (hf->object->lines.empty() || hf->object->lines.back().line != line)
     hf->object->lines.push_back(
@@ -31,8 +30,9 @@ uint16_t FunctionInfoWriter::constant(Value v) {
   if (hf->object->constants.size() == MAX_CONSTANTS) {
     throw std::overflow_error("Cannot store more than 65535 constants");
   } else {
-    auto pos = std::find(hf->object->constants.begin(),
-                         hf->object->constants.end(), v);
+    auto pos =
+        std::find_if(hf->object->constants.begin(), hf->object->constants.end(),
+                     [=](Value v2) { return ValueStrictEquality{}(v, v2); });
     if (pos != hf->object->constants.end()) {
       return static_cast<uint16_t>(pos - hf->object->constants.begin());
     } else {
@@ -155,6 +155,10 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(NotEqual) << REG(uint16_t);
         break;
+        CASE(StrictEqual) << REG(uint16_t);
+        break;
+        CASE(StrictNotEqual) << REG(uint16_t);
+        break;
         CASE(GreaterThan) << REG(uint16_t);
         break;
         CASE(LesserThan) << REG(uint16_t);
@@ -193,6 +197,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(StoreArrayUnchecked) << REG(uint16_t) << ' ' << READ(uint16_t);
         break;
         CASE(LoadSubscript) << REG(uint16_t);
+        break;
+        CASE(NewMap) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
 
       default:
@@ -248,6 +254,11 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(NotEqual) << REG(uint8_t);
       break;
+      CASE(StrictEqual) << REG(uint8_t);
+      break;
+      CASE(StrictNotEqual) << REG(uint8_t);
+      break;
+
       CASE(GreaterThan) << REG(uint8_t);
       break;
       CASE(LesserThan) << REG(uint8_t);
@@ -266,6 +277,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(StoreArrayUnchecked) << REG(uint8_t) << ' ' << READ(uint8_t);
       break;
       CASE(LoadSubscript) << REG(uint8_t);
+      break;
+      CASE(NewMap) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(Return);
       break;

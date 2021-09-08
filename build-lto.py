@@ -13,3 +13,4 @@ os.environ['CXX'] = clang
 os.environ['CXXFLAGS'] = '-flto=thin'
 os.environ['RUSTFLAGS'] = f'-Clinker-plugin-lto -Clinker={clang} -Clink-arg=-fuse-ld=lld'
 subprocess.run('cargo run --release', shell=True)
+

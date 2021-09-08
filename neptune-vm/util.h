@@ -1,12 +1,18 @@
 #pragma once
-#include "object.h"
+#include <string>
 
-[[noreturn]] void unreachable();
+#ifdef __GNUC__ // gcc or clang
+#define unreachable() __builtin_unreachable()
+#elif defined(_MSC_VER) // MSVC
+#define unreachable() __assume(false)
+#else
+#define unreachable() abort()
+#endif
 
 template <typename T> static T read(const uint8_t *&bytecode) {
   T ret;
   memcpy(&ret, bytecode, sizeof(T));
-  bytecode++;
+  bytecode+=sizeof(T);
   return ret;
 }
 
@@ -15,5 +21,3 @@ template <typename T> static T read(const uint8_t *&bytecode) {
   exit(1)
 
 #define READ(type) read<type>(ip)
-
-std::string escaped_string(neptune_vm::StringSlice s);

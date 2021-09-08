@@ -1,11 +1,11 @@
 handler(LoadInt, accumulator = static_cast<Value>(READ(itype)););
 
 handler(LoadGlobal, {
-  auto g = globals[READ(utype)].value;
-  if (g.is_empty()) {
-    PANIC("Cannot access uninitialized variable " << globals[READ(utype)].name);
+  auto &g = globals[READ(utype)];
+  if (g.value.is_empty()) {
+    PANIC("Cannot access uninitialized variable " << g.name);
   } else {
-    accumulator = g;
+    accumulator = g.value;
   }
 });
 handler(StoreGlobal, globals[READ(utype)].value = accumulator;);

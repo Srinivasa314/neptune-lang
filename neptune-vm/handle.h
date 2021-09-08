@@ -1,5 +1,5 @@
 #pragma once
-#include "object.h"
+
 namespace neptune_vm {
 template <typename O> class Handle {
   Handle *previous;

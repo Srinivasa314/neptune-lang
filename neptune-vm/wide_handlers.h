@@ -39,7 +39,7 @@ handler(Move, {
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
       accumulator = Value(bp[reg].as_int() op accumulator.as_int());           \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
-      accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
+      accumulator = Value(bp[reg].as_float() op accumulator.as_float());       \
     } else if (accumulator.is_int() && bp[reg].is_float()) {                   \
       accumulator = Value(bp[reg].as_float() op accumulator.as_int());         \
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
@@ -86,16 +86,27 @@ handler(NewArray, {
 
 handler(LoadSubscript, {
   auto obj = bp[READ(utype)];
-  if (obj.is_object() && obj.as_object()->is<Array>()) {
-    if (accumulator.is_int()) {
-      auto i = accumulator.as_int();
-      auto a = obj.as_object()->as<Array>();
-      if (i < 0 || static_cast<size_t>(i) >= a->inner.size())
-        PANIC("Array index out of range");
+  if (obj.is_object()) {
+    if (obj.as_object()->is<Array>()) {
+      if (accumulator.is_int()) {
+        auto i = accumulator.as_int();
+        auto a = obj.as_object()->as<Array>();
+        if (i < 0 || static_cast<size_t>(i) >= a->inner.size())
+          PANIC("Array index out of range");
+        else
+          accumulator = a->inner[static_cast<size_t>(i)];
+      } else {
+        PANIC("Array indices must be int not" << accumulator.type_string());
+      }
+    } else if (obj.as_object()->is<Map>()) {
+      auto &m = obj.as_object()->as<Map>()->inner;
+      auto it = m.find(accumulator);
+      if (it != m.end())
+        accumulator = it->second;
       else
-        accumulator = a->inner[static_cast<size_t>(i)];
+        PANIC("Key " << accumulator << " does not exist in map");
     } else {
-      PANIC("Array indices must be int not" << accumulator.type_string());
+      PANIC("Cannot index type" << obj.type_string());
     }
   } else {
     PANIC("Cannot index type" << obj.type_string());
@@ -111,20 +122,38 @@ handler(StoreArrayUnchecked, {
 handler(StoreSubscript, {
   auto obj = bp[READ(utype)];
   auto subscript = bp[READ(utype)];
-  if (obj.is_object() && obj.as_object()->is<Array>()) {
-
-    if (subscript.is_int()) {
-      auto i = subscript.as_int();
-      auto &a = obj.as_object()->as<Array>()->inner;
-      if (i < 0 || static_cast<size_t>(i) >= a.size())
-        PANIC("Array index out of range");
-      else
-        a[static_cast<size_t>(i)] = accumulator;
+  if (obj.is_object()) {
+    if (obj.as_object()->is<Array>()) {
+      if (subscript.is_int()) {
+        auto i = subscript.as_int();
+        auto &a = obj.as_object()->as<Array>()->inner;
+        if (i < 0 || static_cast<size_t>(i) >= a.size())
+          PANIC("Array index out of range");
+        else
+          a[static_cast<size_t>(i)] = accumulator;
+      } else {
+        PANIC("Array indices must be int not" << subscript.type_string());
+      }
+    } else if (obj.as_object()->is<Map>()) {
+      auto m = obj.as_object()->as<Map>();
+      m->inner[subscript] = accumulator;
     } else {
-      PANIC("Array indices must be int not" << subscript.type_string());
+      PANIC("Cannot index type" << obj.type_string());
     }
   } else {
     PANIC("Cannot index type" << obj.type_string());
   }
   DISPATCH();
 });
+
+handler(NewMap, {
+  auto len = READ(utype);
+  auto reg = READ(utype);
+  bp[reg] = static_cast<Value>(manage(new Map(len)));
+});
+
+handler(StrictEqual, accumulator = Value(ValueStrictEquality{}(bp[READ(utype)],
+                                                               accumulator)););
+handler(StrictNotEqual,
+        accumulator = Value(!ValueStrictEquality{}(bp[READ(utype)],
+                                                   accumulator)););

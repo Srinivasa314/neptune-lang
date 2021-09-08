@@ -11,6 +11,7 @@ pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
     current: Token<'src>,
     previous: Token<'src>,
     errors: Vec<CompileError>,
+    try_expr: bool, //Should it prefer parsing expressions rather than statements
 }
 
 #[derive(TryFromPrimitive, Clone, Copy)]
@@ -46,7 +47,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Slash => Precedence::Multiplicative,
         TokenType::Star => Precedence::Multiplicative,
         TokenType::Colon => Precedence::None,
-        TokenType::HashBrace => Precedence::None,
         TokenType::DotDot => Precedence::Range,
         TokenType::Bang => Precedence::None,
         TokenType::BangEqual => Precedence::Comparison,
@@ -89,6 +89,8 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::SlashEqual => Precedence::Assignment,
         TokenType::Tilde => Precedence::Additive,
         TokenType::TildeEqual => Precedence::Assignment,
+        TokenType::EqualEqualEqual => Precedence::Comparison,
+        TokenType::BangEqualEqual => Precedence::Comparison,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,38 +101,58 @@ pub enum Substring {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Expr {
     Binary {
+        line: u32,
         left: Box<Expr>,
         op: TokenType,
         right: Box<Expr>,
-        line: u32,
     },
     Unary {
+        line: u32,
         op: TokenType,
         right: Box<Expr>,
-        line: u32,
     },
     Literal {
-        inner: TokenType,
         line: u32,
+        inner: TokenType,
     },
     Variable {
-        name: String,
         line: u32,
+        name: String,
     },
     String {
-        inner: Vec<Substring>,
         line: u32,
+        inner: Vec<Substring>,
     },
     Array {
-        inner: Vec<Expr>,
         line: u32,
+        inner: Vec<Expr>,
     },
     Subscript {
+        line: u32,
         object: Box<Expr>,
         subscript: Box<Expr>,
+    },
+    Map {
         line: u32,
+        inner: Vec<(Expr, Expr)>,
     },
 }
+
+impl Expr {
+    pub fn line(&self) -> u32 {
+        match self {
+            Expr::Binary { line, .. } => *line,
+            Expr::Unary { line, .. } => *line,
+            Expr::Literal { line, .. } => *line,
+            Expr::Variable { line, .. } => *line,
+            Expr::String { line, .. } => *line,
+            Expr::Array { line, .. } => *line,
+            Expr::Subscript { line, .. } => *line,
+            Expr::Map { line, .. } => *line,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
@@ -139,12 +161,13 @@ pub enum Statement {
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
-    pub fn new(tokens: Tokens) -> Self {
+    pub fn new(tokens: Tokens, try_expr: bool) -> Self {
         Self {
             tokens,
             current: Token::uninit_token(),
             previous: Token::uninit_token(),
             errors: vec![],
+            try_expr,
         }
     }
 
@@ -222,6 +245,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         }
     }
 
+    fn ignore_newline(&mut self) {
+        if self.current.token_type == TokenType::StatementSeparator && self.current.inner == "\n" {
+            self.advance();
+        }
+    }
+
     fn parse_precedence(&mut self, prec: Precedence) -> CompileResult<Expr> {
         self.advance();
         if let Some(expr) = self.prefix(self.previous.token_type.clone()) {
@@ -243,7 +272,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::RightParen => None,
             TokenType::LeftSquareBracket => Some(self.array()),
             TokenType::RightSquareBracket => None,
-            TokenType::LeftBrace => None,
+            TokenType::LeftBrace => Some(self.map()),
             TokenType::RightBrace => None,
             TokenType::Comma => None,
             TokenType::Dot => None,
@@ -253,7 +282,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Slash => None,
             TokenType::Star => None,
             TokenType::Colon => None,
-            TokenType::HashBrace => Some(todo!()),
             TokenType::DotDot => None,
             TokenType::Bang => Some(todo!()),
             TokenType::BangEqual => None,
@@ -296,6 +324,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::SlashEqual => None,
             TokenType::Tilde => None,
             TokenType::TildeEqual => None,
+            TokenType::EqualEqualEqual => None,
+            TokenType::BangEqualEqual => None,
         }
     }
 
@@ -315,7 +345,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Slash => self.binary(left),
             TokenType::Star => self.binary(left),
             TokenType::Colon => unreachable!(),
-            TokenType::HashBrace => unreachable!(),
             TokenType::DotDot => todo!(),
             TokenType::Bang => unreachable!(),
             TokenType::BangEqual => self.binary(left),
@@ -358,6 +387,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::SlashEqual => self.binary(left),
             TokenType::Tilde => self.binary(left),
             TokenType::TildeEqual => self.binary(left),
+            TokenType::EqualEqualEqual => self.binary(left),
+            TokenType::BangEqualEqual => self.binary(left),
         }
     }
 
@@ -379,16 +410,20 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             line: self.line(),
         })
     }
+
     fn array(&mut self) -> CompileResult<Expr> {
         let mut ret: Vec<Expr> = vec![];
         let line = self.previous.line;
-        while self.previous.token_type != TokenType::RightSquareBracket {
+        loop {
             if self.current.token_type == TokenType::RightSquareBracket {
                 self.advance();
                 break;
             }
             ret.push(self.expression()?);
-            self.advance();
+            if self.match_token(TokenType::RightSquareBracket) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after array element".into())?;
         }
         Ok(Expr::Array { inner: ret, line })
     }
@@ -404,6 +439,31 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             subscript: Box::new(subscript),
             line: self.line(),
         })
+    }
+
+    fn map(&mut self) -> CompileResult<Expr> {
+        let mut ret = vec![];
+        let line = self.previous.line;
+        loop {
+            if self.current.token_type == TokenType::RightBrace {
+                self.advance();
+                break;
+            }
+            self.ignore_newline();
+            let e1 = self.expression()?;
+            self.ignore_newline();
+            self.consume(TokenType::Colon, "Expect colon after map key".into())?;
+            self.ignore_newline();
+            let e2 = self.expression()?;
+            self.ignore_newline();
+            ret.push((e1, e2));
+            if self.match_token(TokenType::RightBrace) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after map value".into())?;
+            self.ignore_newline();
+        }
+        Ok(Expr::Map { inner: ret, line })
     }
 
     fn binary(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
@@ -454,7 +514,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             let e = if self.match_token(TokenType::Let) {
                 self.var_declaration()
             } else if self.match_token(TokenType::LeftBrace) {
-                self.block()
+                if self.try_expr {
+                    self.map().map(|e| Statement::Expr(e))
+                } else {
+                    self.block()
+                }
             } else {
                 self.expression_statement()
             }?;
@@ -522,14 +586,24 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn block(&mut self) -> CompileResult<Statement> {
         let mut statements = vec![];
         loop {
-            if self.match_token(TokenType::RightBrace) {
+            if self.match_token(TokenType::Eof) {
+                return Err(CompileError {
+                    message: "Expect } after block".to_string(),
+                    line: self.current.line,
+                });
+            } else if self.match_token(TokenType::RightBrace) {
                 break;
-            } else if self.match_token(TokenType::StatementSeparator) {
-                if self.match_token(TokenType::RightBrace) {
-                    break;
-                }
             } else if let Some(stmt) = self.statement(false) {
                 statements.push(stmt);
+                if !matches!(
+                    self.current.token_type,
+                    TokenType::Eof | TokenType::RightBrace
+                ) {
+                    self.consume(
+                        TokenType::StatementSeparator,
+                        "Expect newline or semicolon after statement".into(),
+                    )?;
+                }
             }
         }
         Ok(Statement::Block(statements))
@@ -547,7 +621,7 @@ mod tests {
                 let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", name)).unwrap();
                 let s = Scanner::new(&s);
                 let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter());
+                let parser = Parser::new(tokens.into_iter(), false);
                 let (statements, errors) = parser.parse();
                 assert!(errors.is_empty());
                 std::fs::write(
@@ -572,7 +646,7 @@ mod tests {
                     std::fs::read_to_string(format!("tests/parser_tests/{}.json", test)).unwrap();
                 let s = Scanner::new(&s1);
                 let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter());
+                let parser = Parser::new(tokens.into_iter(), false);
                 let (statements, errors) = parser.parse();
                 assert!(errors.is_empty());
                 assert_eq!(serde_json::to_string(&statements).unwrap(), s2);
@@ -589,7 +663,7 @@ mod tests {
                     std::fs::read_to_string(format!("tests/parser_tests/{}.np", error)).unwrap();
                 let s = Scanner::new(&s);
                 let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter());
+                let parser = Parser::new(tokens.into_iter(), false);
                 let (_, errors) = parser.parse();
                 assert!(!errors.is_empty());
             }

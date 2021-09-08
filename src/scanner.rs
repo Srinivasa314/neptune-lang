@@ -29,7 +29,6 @@ pub enum TokenType {
     Slash,
     Star,
     Colon,
-    HashBrace,
     DotDot,
     Bang,
     BangEqual,
@@ -45,6 +44,8 @@ pub enum TokenType {
     SlashEqual,
     Tilde,
     TildeEqual,
+    EqualEqualEqual,
+    BangEqualEqual,
     // Literals.
     Identifier,
     String(String),
@@ -155,16 +156,6 @@ impl<'src> Scanner<'src> {
             b'\0' => self.error("Nul character in file".to_string()),
             b'@' => self.symbol(),
             b':' => self.add_token(TokenType::Colon),
-            b'#' => {
-                //Is it a hashmap expression?
-                if self.peek() == Some(b'{') {
-                    self.advance();
-                    self.add_token(TokenType::HashBrace);
-                    self.brackets.push(TokenType::HashBrace)
-                } else {
-                    self.error("Unexpected #".to_string())
-                }
-            }
             b'(' => {
                 self.add_token(TokenType::LeftParen);
                 self.brackets.push(TokenType::LeftParen);
@@ -200,8 +191,28 @@ impl<'src> Scanner<'src> {
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),
             b'*' => self.add_token_if_match(b'=', TokenType::StarEqual, TokenType::Star),
-            b'!' => self.add_token_if_match(b'=', TokenType::BangEqual, TokenType::Bang),
-            b'=' => self.add_token_if_match(b'=', TokenType::EqualEqual, TokenType::Equal),
+            b'!' => {
+                if self.match_char(b'=') {
+                    if self.match_char(b'=') {
+                        self.add_token(TokenType::BangEqualEqual)
+                    } else {
+                        self.add_token(TokenType::BangEqual)
+                    }
+                } else {
+                    self.add_token(TokenType::Bang);
+                }
+            }
+            b'=' => {
+                if self.match_char(b'=') {
+                    if self.match_char(b'=') {
+                        self.add_token(TokenType::EqualEqualEqual)
+                    } else {
+                        self.add_token(TokenType::EqualEqual)
+                    }
+                } else {
+                    self.add_token(TokenType::Equal);
+                }
+            }
             b'>' => self.add_token_if_match(b'=', TokenType::GreaterEqual, TokenType::Greater),
             b'<' => self.add_token_if_match(b'=', TokenType::LessEqual, TokenType::Less),
             b'/' => {
@@ -246,8 +257,7 @@ impl<'src> Scanner<'src> {
                 |IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
                 and it is not followed by whitespaces and a dot (to allow method chaining) and it is not inside brackets(except block) then insert semicolon.
 
-                Disadvantages:
-                    for statements like if and for { must be on the same line
+                Statements like if and for are handled
                 */
                 if self.brackets.is_empty()
                     || matches!(self.brackets.last(), Some(TokenType::LeftBrace))

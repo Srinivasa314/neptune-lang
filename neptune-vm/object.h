@@ -1,9 +1,9 @@
 #pragma once
-#include "neptune-vm.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <ostream>
+#include <tsl/robin_map.h>
 #include <vector>
 
 namespace neptune_vm {
@@ -11,7 +11,7 @@ struct StringSlice {
   const char *data;
   size_t len;
 };
-enum class Type : uint8_t { String, Symbol, Array };
+enum class Type : uint8_t { String, Symbol, Array, Map };
 
 class Object {
   Type type;
@@ -39,8 +39,10 @@ public:
 
 class Symbol : public Object {
   size_t len;
+  uint32_t hash;
   char data[];
   friend class VM;
+  friend struct StringHasher;
 
 public:
   static constexpr Type type = Type::Symbol;
@@ -55,10 +57,7 @@ struct StringEquality {
   bool operator()(StringSlice s, Symbol *const sym) const {
     return StringEquality{}(s, static_cast<StringSlice>(*sym));
   }
-  bool operator()(Symbol *sym1, Symbol *sym2) const {
-    return StringEquality{}(static_cast<StringSlice>(*sym1),
-                            static_cast<StringSlice>(*sym2));
-  }
+  bool operator()(Symbol *sym1, Symbol *sym2) const { return sym1 == sym2; }
   bool operator()(StringSlice s1, StringSlice s2) const {
     return s1.len == s2.len && memcmp(s1.data, s2.data, s1.len) == 0;
   }
@@ -69,14 +68,23 @@ struct StringEquality {
 };
 
 struct StringHasher {
-  size_t operator()(StringSlice s) const;
-  size_t operator()(Symbol *sym) const;
+  uint32_t operator()(StringSlice s) const;
+  uint32_t operator()(Symbol *sym) const;
 };
-class Value;
+
 class Array : public Object {
 public:
   explicit Array(size_t size);
   std::vector<Value> inner;
   static constexpr Type type = Type::Array;
+};
+
+class Map : public Object {
+public:
+  explicit Map(size_t size);
+  tsl::robin_map<Value, Value, ValueHasher, ValueStrictEquality,
+                 std::allocator<std::pair<Value, Value>>, true>
+      inner;
+  static constexpr Type type = Type::Map;
 };
 } // namespace neptune_vm

@@ -45,6 +45,9 @@
   OP(Move)                                                                     \
   OP(LoadGlobal)                                                               \
   OP(StoreGlobal)                                                              \
+  OP(LoadSubscript)                                                            \
+  OP(StoreArrayUnchecked)                                                      \
+  OP(StoreSubscript)                                                           \
   OP(AddRegister)                                                              \
   OP(SubtractRegister)                                                         \
   OP(MultiplyRegister)                                                         \
@@ -57,6 +60,8 @@
   OP(Negate)                                                                   \
   OP(Equal)                                                                    \
   OP(NotEqual)                                                                 \
+  OP(StrictEqual)                                                              \
+  OP(StrictNotEqual)                                                           \
   OP(GreaterThan)                                                              \
   OP(LesserThan)                                                               \
   OP(GreaterThanOrEqual)                                                       \
@@ -66,13 +71,11 @@
   OP(Call1Argument)                                                            \
   OP(Call2Argument)                                                            \
   OP(ToString)                                                                 \
+  OP(NewArray)                                                                 \
+  OP(NewMap)                                                                   \
   OP(Jump)                                                                     \
   OP(JumpBack)                                                                 \
   OP(JumpIfFalse)                                                              \
-  OP(NewArray)                                                                 \
-  OP(StoreSubscript)                                                           \
-  OP(StoreArrayUnchecked)                                                      \
-  OP(LoadSubscript)                                                            \
   OP(Return)                                                                   \
   OP(Exit)
 

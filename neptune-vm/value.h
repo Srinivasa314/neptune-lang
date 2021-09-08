@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+#include <ostream>
 
 #if (defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) ||         \
      defined(_M_ARM64))
@@ -6,6 +8,8 @@
 #endif
 
 namespace neptune_vm {
+class Object;
+
 class Value {
 #ifdef NANBOX
   uint64_t inner;
@@ -15,6 +19,7 @@ class Value {
   explicit Value(uint64_t u) { inner = u; }
 
 public:
+  explicit Value() { inner = VALUE_NULL; }
   static Value new_true() { return Value(VALUE_TRUE); }
 
   static Value new_false() { return Value(VALUE_FALSE); }
@@ -52,6 +57,8 @@ public:
 
   static Value empty() { return Value(Tag::Empty); }
 
+  explicit Value() { tag = Tag::Null; }
+
 #endif
 public:
   explicit Value(int32_t i);
@@ -73,5 +80,15 @@ public:
   bool operator==(Value rhs) const;
   const char *type_string() const;
   friend std::ostream &operator<<(std::ostream &os, const Value &v);
+  friend struct ValueHasher;
+  friend struct ValueStrictEquality;
+};
+
+struct ValueHasher {
+  uint32_t operator()(Value v) const;
+};
+
+struct ValueStrictEquality {
+  bool operator()(Value v1, Value v2) const;
 };
 } // namespace neptune_vm
