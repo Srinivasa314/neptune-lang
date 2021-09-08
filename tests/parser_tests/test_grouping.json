@@ -1,1 +1,12 @@
-[{"Expr":{"Literal":{"inner":{"IntLiteral":1},"line":1}}}]
+[
+  {
+    "Expr": {
+      "Literal": {
+        "line": 1,
+        "inner": {
+          "IntLiteral": 1
+        }
+      }
+    }
+  }
+]

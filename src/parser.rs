@@ -616,56 +616,52 @@ mod tests {
     use crate::scanner::Scanner;
     #[test]
     fn test() {
-        if std::env::var("GENERATE_TESTS").is_ok() {
-            fn gen_json(name: &str) {
-                let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", name)).unwrap();
-                let s = Scanner::new(&s);
-                let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter(), false);
-                let (statements, errors) = parser.parse();
-                assert!(errors.is_empty());
+        let tests: Vec<String> =
+            serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
+        for test in tests {
+            let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
+            let s = Scanner::new(&s);
+            let tokens = s.scan_tokens();
+            let mut parser = Parser::new(tokens.into_iter(), false);
+            if test == "test_map_eval" {
+                parser.try_expr = true;
+            }
+            let (stmts, errors) = parser.parse();
+            assert!(errors.is_empty());
+            if std::env::var("GENERATE_TESTS").is_ok() {
                 std::fs::write(
-                    format!("tests/parser_tests/{}.json", name),
-                    serde_json::to_string(&statements).unwrap(),
+                    format!("tests/parser_tests/{}.json", test),
+                    serde_json::to_string_pretty(&stmts).unwrap(),
                 )
                 .unwrap();
-            }
-            let tests: Vec<String> =
-                serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
-            for i in tests {
-                gen_json(&i);
-            }
-        } else {
-            let tests: Vec<String> =
-                serde_json::from_str(include_str!("../tests/parser_tests/tests.json")).unwrap();
-
-            for test in tests {
-                let s1 =
-                    std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
-                let s2 =
+            } else {
+                let expected =
                     std::fs::read_to_string(format!("tests/parser_tests/{}.json", test)).unwrap();
-                let s = Scanner::new(&s1);
-                let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter(), false);
-                let (statements, errors) = parser.parse();
-                assert!(errors.is_empty());
-                assert_eq!(serde_json::to_string(&statements).unwrap(), s2);
+                assert_eq!(expected, serde_json::to_string_pretty(&stmts).unwrap());
             }
         }
     }
+
     #[test]
     fn error() {
-        if !std::env::var("GENERATE_TESTS").is_ok() {
-            let errors: Vec<String> =
-                serde_json::from_str(include_str!("../tests/parser_tests/errors.json")).unwrap();
-            for error in errors {
-                let s =
-                    std::fs::read_to_string(format!("tests/parser_tests/{}.np", error)).unwrap();
-                let s = Scanner::new(&s);
-                let tokens = s.scan_tokens();
-                let parser = Parser::new(tokens.into_iter(), false);
-                let (_, errors) = parser.parse();
-                assert!(!errors.is_empty());
+        let tests: Vec<String> =
+            serde_json::from_str(include_str!("../tests/parser_tests/errors.json")).unwrap();
+        for test in tests {
+            let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
+            let s = Scanner::new(&s);
+            let tokens = s.scan_tokens();
+            let parser = Parser::new(tokens.into_iter(), false);
+            let (_, errors) = parser.parse();
+            if std::env::var("GENERATE_TESTS").is_ok() {
+                std::fs::write(
+                    format!("tests/parser_tests/{}.json", test),
+                    serde_json::to_string_pretty(&errors).unwrap(),
+                )
+                .unwrap();
+            } else {
+                let expected =
+                    std::fs::read_to_string(format!("tests/parser_tests/{}.json", test)).unwrap();
+                assert_eq!(expected, serde_json::to_string_pretty(&errors).unwrap());
             }
         }
     }

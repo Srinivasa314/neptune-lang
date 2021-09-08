@@ -2,6 +2,7 @@ use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
+use serde::{Deserialize, Serialize};
 use vm::{new_vm, VM};
 
 use crate::vm::VMStatus;
@@ -11,7 +12,7 @@ mod parser;
 mod scanner;
 mod vm;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompileError {
     pub message: String,
     pub line: u32,

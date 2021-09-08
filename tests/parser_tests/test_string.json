@@ -1,0 +1,78 @@
+[
+  {
+    "Expr": {
+      "String": {
+        "line": 1,
+        "inner": [
+          {
+            "String": "a"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Expr": {
+      "String": {
+        "line": 2,
+        "inner": [
+          {
+            "String": "Sum="
+          },
+          {
+            "Expr": {
+              "Binary": {
+                "line": 2,
+                "left": {
+                  "Literal": {
+                    "line": 2,
+                    "inner": {
+                      "IntLiteral": 1
+                    }
+                  }
+                },
+                "op": "Plus",
+                "right": {
+                  "Literal": {
+                    "line": 2,
+                    "inner": {
+                      "IntLiteral": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "String": ""
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Expr": {
+      "String": {
+        "line": 3,
+        "inner": [
+          {
+            "String": ""
+          },
+          {
+            "Expr": {
+              "Literal": {
+                "line": 3,
+                "inner": {
+                  "FloatLiteral": 0.9
+                }
+              }
+            }
+          },
+          {
+            "String": ""
+          }
+        ]
+      }
+    }
+  }
+]

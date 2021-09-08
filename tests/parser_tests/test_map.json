@@ -1,0 +1,119 @@
+[
+  {
+    "VarDeclaration": {
+      "name": "x",
+      "expr": {
+        "Map": {
+          "line": 1,
+          "inner": [
+            [
+              {
+                "Literal": {
+                  "line": 1,
+                  "inner": {
+                    "Symbol": "a"
+                  }
+                }
+              },
+              {
+                "Literal": {
+                  "line": 1,
+                  "inner": {
+                    "IntLiteral": 5
+                  }
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "line": 1
+    }
+  },
+  {
+    "VarDeclaration": {
+      "name": "y",
+      "expr": {
+        "Map": {
+          "line": 2,
+          "inner": []
+        }
+      },
+      "line": 2
+    }
+  },
+  {
+    "VarDeclaration": {
+      "name": "z",
+      "expr": {
+        "Map": {
+          "line": 3,
+          "inner": [
+            [
+              {
+                "Literal": {
+                  "line": 3,
+                  "inner": {
+                    "Symbol": "a"
+                  }
+                }
+              },
+              {
+                "Literal": {
+                  "line": 3,
+                  "inner": {
+                    "IntLiteral": 7
+                  }
+                }
+              }
+            ],
+            [
+              {
+                "Literal": {
+                  "line": 3,
+                  "inner": {
+                    "FloatLiteral": 0.4
+                  }
+                }
+              },
+              {
+                "Literal": {
+                  "line": 3,
+                  "inner": {
+                    "IntLiteral": 9
+                  }
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "line": 3
+    }
+  },
+  {
+    "VarDeclaration": {
+      "name": "i",
+      "expr": {
+        "Subscript": {
+          "line": 4,
+          "object": {
+            "Variable": {
+              "line": 4,
+              "name": "x"
+            }
+          },
+          "subscript": {
+            "Literal": {
+              "line": 4,
+              "inner": {
+                "Symbol": "a"
+              }
+            }
+          }
+        }
+      },
+      "line": 4
+    }
+  }
+]
