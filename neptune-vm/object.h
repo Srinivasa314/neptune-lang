@@ -11,7 +11,7 @@ struct StringSlice {
   const char *data;
   size_t len;
 };
-enum class Type : uint8_t { String, Symbol, Array, Map };
+enum class Type : uint8_t { String, Symbol, Array, Map, FunctionInfo };
 
 class Object {
   Type type;

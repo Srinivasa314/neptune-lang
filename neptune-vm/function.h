@@ -17,6 +17,7 @@ struct LineInfo {
 
 class FunctionInfo : public Object {
 public:
+  static constexpr Type type = Type::FunctionInfo;
   std::vector<uint8_t> bytecode;
   std::vector<Value> constants;
   std::vector<LineInfo> lines;

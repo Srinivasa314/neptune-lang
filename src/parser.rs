@@ -626,7 +626,10 @@ mod tests {
             let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
             let s = Scanner::new(&s);
             let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter(), false);
+            let mut parser = Parser::new(tokens.into_iter(), false);
+            if test == "test_map_eval" {
+                parser.try_expr = true;
+            }
             let (stmts, errors) = parser.parse();
             assert!(errors.is_empty());
             if std::env::var("GENERATE_TESTS").is_ok() {

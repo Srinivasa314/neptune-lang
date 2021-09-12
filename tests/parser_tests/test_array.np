@@ -1,0 +1,4 @@
+let x=[1,2,3]
+let y=[]
+let z=[1,2,]
+let i=x[0]
