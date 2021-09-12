@@ -4,6 +4,7 @@ fn main() {
         build.flag("-DNDEBUG");
     }
     build
+        .flag("-g")
         .include("vendor/github.com/Tessil/robin-map/include")
         .include("vendor/github.com/dcleblanc")
         .file("neptune-vm/neptune-vm.cc")

@@ -1,0 +1,12 @@
+let x=5
+let x='hello'
+let y='j'
+{
+    let y=null
+    let a=[]
+    let a=@good
+    let z='z'
+    {
+        let z='ze'
+    }
+}

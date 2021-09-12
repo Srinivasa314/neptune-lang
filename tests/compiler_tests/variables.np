@@ -1,0 +1,7 @@
+let global=1.2
+{
+    let a=1
+    let b=a
+    let c=[]
+    a=c
+}

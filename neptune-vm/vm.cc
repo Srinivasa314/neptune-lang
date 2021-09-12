@@ -79,8 +79,16 @@ VMResult VM::run(FunctionInfo *f) {
   Value *bp = &stack[0];
   const uint8_t *ip = f->bytecode.data();
   stack_top = bp + f->max_registers;
+  auto globals = this->globals.begin();
 
   INTERPRET_LOOP {
+    HANDLER(Wide) : DISPATCH_WIDE();
+    HANDLER(ExtraWide) : DISPATCH_EXTRAWIDE();
+    WIDE_HANDLER(Wide)
+        : WIDE_HANDLER(ExtraWide)
+        : EXTRAWIDE_HANDLER(Wide)
+        : EXTRAWIDE_HANDLER(ExtraWide) : unreachable();
+
 #define handler(op, impl)                                                      \
   HANDLER(op) : impl DISPATCH();                                               \
   WIDE_HANDLER(op) : unreachable();                                            \

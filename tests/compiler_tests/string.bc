@@ -1,0 +1,25 @@
+LoadConstant "abc"
+StoreR0 
+LoadInt 5
+ToString 
+StoreR1 
+LoadConstant "hello "
+StoreR3 
+LoadR0 
+ToString 
+ConcatRegister r3
+StoreR2 
+LoadR2 
+ToString 
+StoreR4 
+LoadConstant "!"
+ConcatRegister r4
+StoreR3 
+LoadR0 
+ToString 
+StoreR5 
+LoadR1 
+ToString 
+ConcatRegister r5
+StoreR4 
+Exit 

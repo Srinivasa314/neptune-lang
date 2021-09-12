@@ -1,0 +1,20 @@
+LoadConstant "hi"
+StoreGlobal 0
+LoadNull 
+StoreR0 
+LoadFalse 
+StoreR1 
+Move r1 r0
+LoadConstant @y
+StoreR1 
+Move r1 r0
+LoadGlobal 1
+StoreR0 
+LoadInt 7
+StoreR1 
+LoadInt 1
+AddRegister r1
+StoreR2 
+LoadFalse 
+StoreR0 
+Exit 

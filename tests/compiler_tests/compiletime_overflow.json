@@ -1,0 +1,14 @@
+[
+  {
+    "message": "Cannot add 1500000000 and 1600000000 as the result cannot be stored in an int",
+    "line": 1
+  },
+  {
+    "message": "Cannot divide 1 and 0 as the result cannot be stored in an int",
+    "line": 2
+  },
+  {
+    "message": "Cannot negate -2147483648 as the result cannot be stored in an int",
+    "line": 3
+  }
+]

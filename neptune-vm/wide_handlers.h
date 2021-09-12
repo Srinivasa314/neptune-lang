@@ -17,18 +17,18 @@ handler(Move, {
         PANIC("Cannot " #opname " "                                            \
               << bp[reg].as_int() << " and " << accumulator.as_int()           \
               << " as the result does not fit in an int");                     \
-      accumulator = static_cast<Value>(res);                                   \
+      accumulator = Value(res);                                   \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
       accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_float() op accumulator.as_float());    \
+          Value(bp[reg].as_float() op accumulator.as_float());    \
     } else if (accumulator.is_int() && bp[reg].is_float()) {                   \
       accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_float() op accumulator.as_int());      \
+          Value(bp[reg].as_float() op accumulator.as_int());      \
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
       accumulator =                                                            \
-          static_cast<Value>(bp[reg].as_int() op accumulator.as_float());      \
+          Value(bp[reg].as_int() op accumulator.as_float());      \
     } else {                                                                   \
-      PANIC("Cannot " #opname " types" << bp[reg].type_string() << " and "     \
+      PANIC("Cannot " #opname " types " << bp[reg].type_string() << " and "     \
                                        << accumulator.type_string());          \
     }                                                                          \
   } while (0)
@@ -45,7 +45,7 @@ handler(Move, {
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
       accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
     } else {                                                                   \
-      PANIC("Cannot compare types" << bp[reg].type_string() << " and "         \
+      PANIC("Cannot compare types " << bp[reg].type_string() << " and "         \
                                    << accumulator.type_string());              \
     }                                                                          \
   } while (0)
@@ -59,10 +59,10 @@ handler(ConcatRegister, {
   if (accumulator.is_object() && accumulator.as_object()->is<String>() &&
       bp[reg].is_object() && bp[reg].as_object()->is<String>()) {
     accumulator =
-        static_cast<Value>(manage(bp[reg].as_object()->as<String>()->concat(
+        Value(manage(bp[reg].as_object()->as<String>()->concat(
             accumulator.as_object()->as<String>())));
   } else {
-    PANIC("Cannot concat types" << bp[reg].type_string() << " and "
+    PANIC("Cannot concat types " << bp[reg].type_string() << " and "
                                 << accumulator.type_string());
   }
 });
@@ -81,7 +81,7 @@ handler(NewArray, {
   auto len = READ(utype);
   auto reg = READ(utype);
 
-  bp[reg] = static_cast<Value>(manage(new Array(len)));
+  bp[reg] = Value(manage(new Array(len)));
 });
 
 handler(LoadSubscript, {
@@ -96,20 +96,21 @@ handler(LoadSubscript, {
         else
           accumulator = a->inner[static_cast<size_t>(i)];
       } else {
-        PANIC("Array indices must be int not" << accumulator.type_string());
+        PANIC("Array indices must be int not " << accumulator.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto &m = obj.as_object()->as<Map>()->inner;
-      auto it = m.find(accumulator);
+      auto to_find = accumulator; // hack so that makes accumulator a register
+      auto it = m.find(to_find);
       if (it != m.end())
         accumulator = it->second;
       else
         PANIC("Key " << accumulator << " does not exist in map");
     } else {
-      PANIC("Cannot index type" << obj.type_string());
+      PANIC("Cannot index type " << obj.type_string());
     }
   } else {
-    PANIC("Cannot index type" << obj.type_string());
+    PANIC("Cannot index type " << obj.type_string());
   }
 });
 
@@ -138,18 +139,17 @@ handler(StoreSubscript, {
       auto m = obj.as_object()->as<Map>();
       m->inner[subscript] = accumulator;
     } else {
-      PANIC("Cannot index type" << obj.type_string());
+      PANIC("Cannot index type " << obj.type_string());
     }
   } else {
-    PANIC("Cannot index type" << obj.type_string());
+    PANIC("Cannot index type " << obj.type_string());
   }
-  DISPATCH();
 });
 
 handler(NewMap, {
   auto len = READ(utype);
   auto reg = READ(utype);
-  bp[reg] = static_cast<Value>(manage(new Map(len)));
+  bp[reg] = Value(manage(new Map(len)));
 });
 
 handler(StrictEqual, accumulator = Value(ValueStrictEquality{}(bp[READ(utype)],

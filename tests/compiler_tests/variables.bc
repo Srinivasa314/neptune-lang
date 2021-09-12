@@ -1,0 +1,9 @@
+LoadConstant 1.2
+StoreGlobal 0
+LoadInt 1
+StoreR0 
+Move r1 r0
+EmptyArray 
+StoreR2 
+Move r2 r0
+Exit 

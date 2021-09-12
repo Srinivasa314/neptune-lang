@@ -1,0 +1,11 @@
+LoadFalse 
+StoreR0 
+LoadTrue 
+Equal r0
+StoreR1 
+EmptyArray 
+StoreR3 
+EmptyArray 
+Equal r3
+StoreR2 
+Exit 

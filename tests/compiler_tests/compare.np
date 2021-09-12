@@ -1,0 +1,5 @@
+{
+    let a=1==2
+    let b=a==true
+    let c=[]==[]
+}

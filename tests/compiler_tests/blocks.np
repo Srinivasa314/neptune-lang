@@ -1,0 +1,20 @@
+let a='hi'
+{
+    let z=null
+    {
+        let x=false
+        z=x
+    }
+
+    {
+        let y=@y
+        z=y
+    }
+    z=y // It should think that y is a global 
+
+    {
+        let z=7 // shadow
+        let a=z+1 //shadow
+    }
+    z=false
+}

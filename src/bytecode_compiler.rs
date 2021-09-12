@@ -12,16 +12,16 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 pub struct Compiler<'vm> {
-    globals: HashMap<String, u32>,
+    globals: &'vm mut HashMap<String, u32>,
     errors: Vec<CompileError>,
     vm: &'vm VM,
 }
 
 impl<'vm> Compiler<'vm> {
-    pub fn new(vm: &'vm VM) -> Self {
+    pub fn new(vm: &'vm VM, globals: &'vm mut HashMap<String, u32>) -> Self {
         Self {
             vm,
-            globals: HashMap::default(),
+            globals,
             errors: vec![],
         }
     }
@@ -273,7 +273,7 @@ enum ExprResult {
 }
 
 macro_rules! binary_op {
-    ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident,$op_checked_fn:ident) => {
+    ($op:ident,$register_inst:ident,$int_inst:ident,$op_fn:ident,$op_checked_fn:ident,$op_name:tt) => {
         fn $op(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
             let left = self.evaluate_expr(left)?;
             let mut reg = 0;
@@ -293,9 +293,7 @@ macro_rules! binary_op {
                         CompileError {
                             message: format!(
                                 "Cannot {} {} and {} as the result cannot be stored in an int",
-                                stringify!($op_fn),
-                                i1,
-                                i2
+                                $op_name, i1, i2
                             ),
                             line,
                         },
@@ -412,13 +410,19 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
-        if self.resolve_local(name).is_some() || self.get_global(name).is_some() {
-            return Err(CompileError {
-                message: "Cannot redeclare variable".into(),
-                line,
-            });
-        }
         if self.regcounts.len() != 1 {
+            // Shadowing cannot be done within the same block
+            let last_block = self.regcounts[self.regcounts.len() - 2];
+            let this_block = self.regcount();
+            if self.locals[((last_block) as usize)..(this_block as usize)]
+                .iter()
+                .any(|local| local == name)
+            {
+                return Err(CompileError {
+                    message: format!("Cannot redeclare variable {}", name),
+                    line,
+                });
+            }
             let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
                 line,
                 message: "Cannot have more than 65535 locals".into(),
@@ -426,7 +430,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.locals.push(name.to_string());
             self.push_register(line)?;
             match self.evaluate_expr(expr)? {
-                ExprResult::Register(reg2) => self.write2(Op::Move, reg, reg2, line),
+                ExprResult::Register(reg2) => self.write2(Op::Move, reg2, reg, line),
                 ExprResult::Accumulator => self.write_op_store_register(reg, line),
                 ExprResult::Int(i) => {
                     self.write1(Op::LoadInt, signed_to_unsigned(i), line);
@@ -434,6 +438,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             }
         } else {
+            if self.get_global(name).is_some() {
+                return Err(CompileError {
+                    message: format!("Cannot redeclare variable {}", name),
+                    line,
+                });
+            }
             let g = self.new_global(name);
             let res = self.evaluate_expr(expr)?;
             self.store_in_accumulator(res, line);
@@ -624,11 +634,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             },
             Expr::String { inner, line } => {
-                if let Substring::String(s) = &inner[0] {
-                    let str = self.bytecode.string_constant(s.as_str().into());
-                    self.load_const(str, *line)?;
-                } else {
-                    unreachable!()
+                match &inner[0] {
+                    Substring::String(s) => {
+                        let str = self.bytecode.string_constant(s.as_str().into());
+                        self.load_const(str, *line)?;
+                    }
+                    Substring::Expr(e) => {
+                        let expr_res = self.evaluate_expr(e)?;
+                        self.store_in_accumulator(expr_res, *line);
+                        self.write0(Op::ToString, *line);
+                    }
                 }
                 if inner.len() > 1 {
                     let reg = self.push_register(*line)?;
@@ -656,6 +671,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::Array { inner, line } => {
+                if inner.is_empty() {
+                    self.write0(Op::EmptyArray, *line);
+                    return Ok(ExprResult::Accumulator);
+                }
                 let array_reg = self.push_register(*line)?;
                 self.write2(
                     Op::NewArray,
@@ -696,6 +715,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::Map { inner, line } => {
+                if inner.is_empty() {
+                    self.write0(Op::EmptyMap, *line);
+                    return Ok(ExprResult::Accumulator);
+                }
                 let map_reg = self.push_register(*line)?;
                 self.write2(
                     Op::NewMap,
@@ -851,10 +874,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    binary_op!(add, AddRegister, AddInt, add, checked_add);
-    binary_op!(subtract, SubtractRegister, SubtractInt, sub, checked_sub);
-    binary_op!(multiply, MultiplyRegister, MultiplyInt, mul, checked_mul);
-    binary_op!(divide, DivideRegister, DivideInt, div, checked_div);
+    binary_op!(add, AddRegister, AddInt, add, checked_add,"add");
+    binary_op!(subtract, SubtractRegister, SubtractInt, sub, checked_sub,"subtract");
+    binary_op!(multiply, MultiplyRegister, MultiplyInt, mul, checked_mul,"multiply");
+    binary_op!(divide, DivideRegister, DivideInt, div, checked_div,"divide");
 
     comparing_binary_op!(equal_equal,Equal,==);
     comparing_binary_op!(equal_equal_equal,StrictEqual,==);
@@ -873,5 +896,69 @@ fn signed_to_unsigned(i: i32) -> u32 {
             Ok(i) => i as u16 as u32,
             Err(_) => i as u32,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{parser::Parser, scanner::Scanner, vm::new_vm};
+
+    use super::*;
+    #[test]
+    fn test() {
+        let tests: Vec<String> =
+            serde_json::from_str(include_str!("../tests/compiler_tests/tests.json")).unwrap();
+        for test in tests {
+            let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
+            let s = Scanner::new(&s);
+            let tokens = s.scan_tokens();
+            let parser = Parser::new(tokens.into_iter(), false);
+            let (stmts, errors) = parser.parse();
+            assert!(errors.is_empty(), "{:?}", errors);
+            let vm = new_vm();
+            let mut globals = HashMap::default();
+            let compiler = Compiler::new(&vm, &mut globals);
+            let fw = compiler.exec(stmts).unwrap();
+            if std::env::var("GENERATE_TESTS").is_ok() {
+                std::fs::write(
+                    format!("tests/compiler_tests/{}.bc", test),
+                    fw.to_cxx_string().as_bytes(),
+                )
+                .unwrap();
+            } else {
+                let expected =
+                    std::fs::read_to_string(format!("tests/compiler_tests/{}.bc", test)).unwrap();
+                assert_eq!(expected, fw.to_cxx_string().to_str().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn error() {
+        let tests: Vec<String> =
+            serde_json::from_str(include_str!("../tests/compiler_tests/errors.json")).unwrap();
+        for test in tests {
+            let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
+            let s = Scanner::new(&s);
+            let tokens = s.scan_tokens();
+            let parser = Parser::new(tokens.into_iter(), false);
+            let (stmts, errors) = parser.parse();
+            assert!(errors.is_empty());
+            let vm = new_vm();
+            let mut globals = HashMap::default();
+            let compiler = Compiler::new(&vm, &mut globals);
+            let errors = compiler.exec(stmts).unwrap_err();
+            if std::env::var("GENERATE_TESTS").is_ok() {
+                std::fs::write(
+                    format!("tests/compiler_tests/{}.json", test),
+                    serde_json::to_string_pretty(&errors).unwrap(),
+                )
+                .unwrap();
+            } else {
+                let expected =
+                    std::fs::read_to_string(format!("tests/compiler_tests/{}.json", test)).unwrap();
+                assert_eq!(expected, serde_json::to_string_pretty(&errors).unwrap());
+            }
+        }
     }
 }

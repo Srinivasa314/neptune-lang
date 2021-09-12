@@ -1,0 +1,9 @@
+LoadConstant 1.2
+StoreGlobal 0
+LoadConstant "hello"
+StoreGlobal 1
+LoadConstant @a
+StoreGlobal 2
+LoadConstant "hello"
+StoreGlobal 3
+Exit 

@@ -1,4 +1,5 @@
 #pragma once
+#include "util.h"
 #include <cstdint>
 #include <ostream>
 
@@ -16,17 +17,17 @@ class Value {
   static constexpr uint64_t VALUE_NULL = 1;
   static constexpr uint64_t VALUE_TRUE = 2;
   static constexpr uint64_t VALUE_FALSE = 3;
-  explicit Value(uint64_t u) { inner = u; }
+  ALWAYS_INLINE explicit Value(uint64_t u) { inner = u; }
 
 public:
-  explicit Value() { inner = VALUE_NULL; }
-  static Value new_true() { return Value(VALUE_TRUE); }
+  ALWAYS_INLINE explicit Value() { inner = 0; }
+  ALWAYS_INLINE static Value new_true() { return Value(VALUE_TRUE); }
 
-  static Value new_false() { return Value(VALUE_FALSE); }
+  ALWAYS_INLINE static Value new_false() { return Value(VALUE_FALSE); }
 
-  static Value null() { return Value(VALUE_NULL); }
+  ALWAYS_INLINE static Value null() { return Value(VALUE_NULL); }
 
-  static Value empty() { return Value(static_cast<uint64_t>(0)); }
+  ALWAYS_INLINE static Value empty() { return Value(static_cast<uint64_t>(0)); }
 
 #else
   enum class Tag : uint8_t {
@@ -46,40 +47,40 @@ public:
     Object *as_object;
   } value;
 
-  explicit Value(Tag t) { tag = t; }
+  ALWAYS_INLINE explicit Value(Tag t) { tag = t; }
 
 public:
-  static Value new_true() { return Value(Tag::True); }
+  ALWAYS_INLINE static Value new_true() { return Value(Tag::True); }
 
-  static Value new_false() { return Value(Tag::False); }
+  ALWAYS_INLINE static Value new_false() { return Value(Tag::False); }
 
-  static Value null() { return Value(Tag::Null); }
+  ALWAYS_INLINE static Value null() { return Value(Tag::Null); }
 
-  static Value empty() { return Value(Tag::Empty); }
+  ALWAYS_INLINE static Value empty() { return Value(Tag::Empty); }
 
-  explicit Value() { tag = Tag::Null; }
+  ALWAYS_INLINE explicit Value() { tag = Tag::Empty; }
 
 #endif
 public:
-  explicit Value(int32_t i);
-  explicit Value(double d);
-  explicit Value(Object *o);
-  explicit Value(bool b);
-  bool is_int() const;
-  int32_t as_int() const;
-  bool is_float() const;
-  double as_float() const;
-  bool is_null_or_false() const;
-  bool is_object() const;
-  Object *as_object() const;
-  bool is_null() const;
-  bool is_empty() const;
-  bool is_bool() const;
-  bool is_true() const;
-  bool is_false() const;
-  bool operator==(Value rhs) const;
-  const char *type_string() const;
-  friend std::ostream &operator<<(std::ostream &os, const Value &v);
+  ALWAYS_INLINE explicit Value(int32_t i);
+  ALWAYS_INLINE explicit Value(double d);
+  ALWAYS_INLINE explicit Value(Object *o);
+  ALWAYS_INLINE explicit Value(bool b);
+  ALWAYS_INLINE bool is_int() const;
+  ALWAYS_INLINE int32_t as_int() const;
+  ALWAYS_INLINE bool is_float() const;
+  ALWAYS_INLINE double as_float() const;
+  ALWAYS_INLINE bool is_null_or_false() const;
+  ALWAYS_INLINE bool is_object() const;
+  ALWAYS_INLINE Object *as_object() const;
+  ALWAYS_INLINE bool is_null() const;
+  ALWAYS_INLINE bool is_empty() const;
+  ALWAYS_INLINE bool is_bool() const;
+  ALWAYS_INLINE bool is_true() const;
+  ALWAYS_INLINE bool is_false() const;
+  ALWAYS_INLINE bool operator==(Value rhs) const;
+  ALWAYS_INLINE const char *type_string() const;
+  friend std::ostream &operator<<(std::ostream &os, const Value v);
   friend struct ValueHasher;
   friend struct ValueStrictEquality;
 };

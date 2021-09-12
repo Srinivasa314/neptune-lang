@@ -73,6 +73,8 @@
   OP(ToString)                                                                 \
   OP(NewArray)                                                                 \
   OP(NewMap)                                                                   \
+  OP(EmptyArray)                                                               \
+  OP(EmptyMap)                                                                 \
   OP(Jump)                                                                     \
   OP(JumpBack)                                                                 \
   OP(JumpIfFalse)                                                              \

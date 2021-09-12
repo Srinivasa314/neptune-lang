@@ -1,0 +1,79 @@
+LoadNull 
+StoreGlobal 0
+LoadGlobal 0
+StoreR0 
+LoadR0 
+StoreGlobal 0
+LoadGlobal 0
+StoreR1 
+LoadR1 
+StoreGlobal 0
+LoadGlobal 0
+StoreR2 
+LoadR2 
+StoreGlobal 0
+LoadGlobal 0
+StoreR3 
+LoadR3 
+StoreGlobal 0
+LoadGlobal 0
+StoreR4 
+LoadR4 
+StoreGlobal 0
+LoadGlobal 0
+StoreR5 
+LoadR5 
+StoreGlobal 0
+LoadGlobal 0
+StoreR6 
+LoadR6 
+StoreGlobal 0
+LoadGlobal 0
+StoreR7 
+LoadR7 
+StoreGlobal 0
+LoadGlobal 0
+StoreR8 
+LoadR8 
+StoreGlobal 0
+LoadGlobal 0
+StoreR9 
+LoadR9 
+StoreGlobal 0
+LoadGlobal 0
+StoreR10 
+LoadR10 
+StoreGlobal 0
+LoadGlobal 0
+StoreR11 
+LoadR11 
+StoreGlobal 0
+LoadGlobal 0
+StoreR12 
+LoadR12 
+StoreGlobal 0
+LoadGlobal 0
+StoreR13 
+LoadR13 
+StoreGlobal 0
+LoadGlobal 0
+StoreR14 
+LoadR14 
+StoreGlobal 0
+LoadGlobal 0
+StoreR15 
+LoadR15 
+StoreGlobal 0
+LoadGlobal 0
+StoreRegister r16
+LoadRegister r16
+StoreGlobal 0
+LoadGlobal 0
+StoreRegister r17
+LoadRegister r17
+StoreGlobal 0
+LoadGlobal 0
+StoreRegister r18
+LoadRegister r18
+StoreGlobal 0
+Exit 

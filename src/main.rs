@@ -1,6 +1,6 @@
 use neptune_lang::Neptune;
 
 fn main() {
-    let n = Neptune::new();
-    println!("{:?}", n.eval(r#"a+2000000000"#));
+    let mut n = Neptune::new();
+    println!("{:?}", n.eval("(0.0/0.0)"));
 }

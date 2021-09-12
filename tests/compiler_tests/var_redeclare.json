@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Cannot redeclare variable x",
+    "line": 2
+  },
+  {
+    "message": "Cannot redeclare variable a",
+    "line": 7
+  }
+]

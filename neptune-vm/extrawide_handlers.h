@@ -1,4 +1,4 @@
-handler(LoadInt, accumulator = static_cast<Value>(READ(itype)););
+handler(LoadInt, accumulator = Value(READ(itype)););
 
 handler(LoadGlobal, {
   auto &g = globals[READ(utype)];
@@ -20,20 +20,28 @@ handler(StoreGlobal, globals[READ(utype)].value = accumulator;);
               << accumulator.as_int() << " and " << i                          \
               << " as the result does not fit in an int");                     \
       }                                                                        \
-      accumulator = static_cast<Value>(result);                                \
+      accumulator = Value(result);                                \
     } else if (accumulator.is_float()) {                                       \
-      accumulator = static_cast<Value>(accumulator.as_float() op READ(itype)); \
+      accumulator = Value(accumulator.as_float() op READ(itype)); \
     } else {                                                                   \
       PANIC("Cannot " #opname " types " << accumulator.type_string()           \
                                         << " and int");                        \
     }                                                                          \
   } while (0)
 
-handler(AddInt, BINARY_OP_REGISTER(add, SafeAdd, +););
-handler(SubtractInt, BINARY_OP_REGISTER(subtract, SafeSubtract, -););
-handler(MultiplyInt, BINARY_OP_REGISTER(multiply, SafeMultiply, *););
-handler(DivideInt, BINARY_OP_REGISTER(divide, SafeDivide, /););
+handler(AddInt, BINARY_OP_INT(add, SafeAdd, +););
+handler(SubtractInt, BINARY_OP_INT(subtract, SafeSubtract, -););
+handler(MultiplyInt, BINARY_OP_INT(multiply, SafeMultiply, *););
+handler(DivideInt, BINARY_OP_INT(divide, SafeDivide, /););
 
 handler(Jump, TODO(););
-handler(JumpBack, TODO(););
-handler(JumpIfFalse, TODO(););
+handler(JumpBack, {
+  auto offset = READ(utype);
+  ip -= offset;
+});
+handler(JumpIfFalse, {
+  auto offset = READ(utype);
+  if (accumulator.is_null_or_false()) {
+    ip += offset;
+  }
+});

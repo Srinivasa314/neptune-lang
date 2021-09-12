@@ -63,7 +63,7 @@ const char *Object::type_string() const {
 }
 
 static std::string escaped_string(neptune_vm::StringSlice s) {
-  std::string str = "\"";
+  std::string str = "'";
   for (auto c = s.data; c != s.data + s.len; c++) {
     switch (*c) {
     case '\n':
@@ -78,8 +78,8 @@ static std::string escaped_string(neptune_vm::StringSlice s) {
     case '\\':
       str += "\\\\";
       break;
-    case '"':
-      str += "\\\"";
+    case '\'':
+      str += "\\'";
       break;
     case '\0':
       str += "\\0";
@@ -88,7 +88,7 @@ static std::string escaped_string(neptune_vm::StringSlice s) {
       str += *c;
     }
   }
-  str += '\"';
+  str += '\'';
   return str;
 }
 

@@ -1,0 +1,14 @@
+[
+  {
+    "message": "= is not an expression",
+    "line": 1
+  },
+  {
+    "message": "= is not an expression",
+    "line": 2
+  },
+  {
+    "message": "+= is not an expression",
+    "line": 3
+  }
+]

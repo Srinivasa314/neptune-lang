@@ -1,0 +1,30 @@
+LoadNull 
+StoreGlobal 0
+LoadInt 3
+StoreR0 
+LoadInt 3
+AddRegister r0
+StoreR1 
+LoadGlobal 0
+AddInt 1
+StoreR2 
+LoadGlobal 0
+StoreR4 
+LoadR2 
+AddRegister r4
+StoreR3 
+LoadInt 42
+AddRegister r0
+StoreR0 
+LoadR3 
+AddRegister r0
+StoreR0 
+LoadConstant "v"
+ConcatRegister r0
+StoreR0 
+LoadConstant "abc"
+StoreR5 
+LoadConstant "xyz"
+ConcatRegister r5
+StoreR4 
+Exit 

@@ -74,6 +74,7 @@ struct StringHasher {
 
 class Array : public Object {
 public:
+  Array() = default;
   explicit Array(size_t size);
   std::vector<Value> inner;
   static constexpr Type type = Type::Array;
@@ -81,6 +82,7 @@ public:
 
 class Map : public Object {
 public:
+  Map() = default;
   explicit Map(size_t size);
   tsl::robin_map<Value, Value, ValueHasher, ValueStrictEquality,
                  std::allocator<std::pair<Value, Value>>, true>

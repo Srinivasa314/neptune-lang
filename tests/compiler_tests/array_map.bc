@@ -1,0 +1,60 @@
+EmptyArray 
+StoreR0 
+NewArray 1 r2
+LoadInt 5
+StoreArrayUnchecked r2 0
+LoadR2 
+StoreR1 
+NewArray 3 r3
+LoadR0 
+StoreArrayUnchecked r3 0
+LoadConstant "hello"
+StoreArrayUnchecked r3 1
+LoadR1 
+StoreArrayUnchecked r3 2
+LoadR3 
+StoreR2 
+LoadInt 1
+StoreR3 
+LoadR3 
+StoreSubscript r2 r3
+NewArray 1 r5
+LoadInt 1
+StoreArrayUnchecked r5 0
+LoadR5 
+StoreR5 
+LoadInt 0
+LoadSubscript r5
+StoreR4 
+LoadInt 2
+LoadSubscript r2
+StoreR5 
+EmptyMap 
+StoreR6 
+NewMap 1 r8
+LoadInt 1
+StoreR9 
+LoadInt 2
+StoreSubscript r8 r9
+LoadR8 
+StoreR7 
+NewMap 1 r9
+LoadNull 
+StoreSubscript r9 r6
+LoadR9 
+StoreR8 
+NewMap 2 r10
+LoadConstant "bob"
+StoreR11 
+LoadInt 43
+StoreSubscript r10 r11
+LoadConstant "jack"
+StoreR11 
+LoadInt 23
+StoreSubscript r10 r11
+LoadR10 
+StoreR9 
+LoadR6 
+LoadSubscript r8
+StoreSubscript r9 r7
+Exit 

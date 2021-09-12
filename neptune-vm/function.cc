@@ -93,11 +93,11 @@ std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
 #define REG(type) "r" << READ(type)
 
 namespace numerical_chars {
-inline std::ostream &operator<<(std::ostream &os, int8_t i) {
+std::ostream &operator<<(std::ostream &os, int8_t i) {
   return os << static_cast<int>(i);
 }
 
-inline std::ostream &operator<<(std::ostream &os, uint8_t i) {
+std::ostream &operator<<(std::ostream &os, uint8_t i) {
   return os << static_cast<unsigned int>(i);
 }
 } // namespace numerical_chars
@@ -167,6 +167,16 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(LesserThanOrEqual) << REG(uint16_t);
         break;
+        CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(StoreSubscript) << REG(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(StoreArrayUnchecked) << REG(uint16_t) << ' ' << READ(uint16_t);
+        break;
+        CASE(LoadSubscript) << REG(uint16_t);
+        break;
+        CASE(NewMap) << READ(uint16_t) << ' ' << REG(uint16_t);
+        break;
 
       default:
         os << "An op that doesnt have a wide variant is here!";
@@ -189,16 +199,6 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(MultiplyInt) << READ(int32_t);
         break;
         CASE(DivideInt) << READ(int32_t);
-        break;
-        CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
-        break;
-        CASE(StoreSubscript) << REG(uint16_t) << ' ' << REG(uint16_t);
-        break;
-        CASE(StoreArrayUnchecked) << REG(uint16_t) << ' ' << READ(uint16_t);
-        break;
-        CASE(LoadSubscript) << REG(uint16_t);
-        break;
-        CASE(NewMap) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
 
       default:
@@ -279,6 +279,10 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(LoadSubscript) << REG(uint8_t);
       break;
       CASE(NewMap) << READ(uint8_t) << ' ' << REG(uint8_t);
+      break;
+      CASE(EmptyArray);
+      break;
+      CASE(EmptyMap);
       break;
       CASE(Return);
       break;
