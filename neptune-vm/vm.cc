@@ -146,7 +146,9 @@ std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 
 FunctionInfoWriter VM::new_function_info() const {
   auto this_ = const_cast<VM *>(this);
-  return FunctionInfoWriter(this_->make_handle(new FunctionInfo), this);
+  auto function_info = new FunctionInfo;
+  this_->manage(function_info);
+  return FunctionInfoWriter(this_->make_handle(function_info), this);
 }
 
 template <typename O> O *VM::manage(O *t) {
@@ -213,6 +215,8 @@ void VM::release(Object *o) {
     delete o->as<Array>();
   } else if (o->is<Map>()) {
     delete o->as<Map>();
+  } else if (o->is<FunctionInfo>()) {
+    delete o->as<FunctionInfo>();
   }
 }
 
@@ -226,7 +230,7 @@ VM::~VM() {
   while (first_obj != nullptr) {
     auto old = first_obj;
     first_obj = first_obj->next;
-    delete old;
+    release(old);
   }
 }
 } // namespace neptune_vm
