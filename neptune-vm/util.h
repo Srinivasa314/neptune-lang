@@ -11,8 +11,13 @@
 #define unreachable() abort()
 #endif
 
-//  Thisis so that gcc inlines Value methods.
+#ifdef __GNUC__
 #define ALWAYS_INLINE inline __attribute__((__always_inline__))
+#elif defined(_MSC_VER)
+#define ALWAYS_INLINE __forceinline
+#else
+#define ALWAYS_INLINE inline
+#endif
 
 template <typename T> static ALWAYS_INLINE T read_unaligned(const void *ptr) {
   T ret;
@@ -46,8 +51,8 @@ static T checked_read(const uint8_t *&ip, const uint8_t *end) {
   exit(1)
 
 #ifdef __GNUC__
-#define likely(x)       __builtin_expect((x),1)
-#define unlikely(x)     __builtin_expect((x),0)
+#define likely(x) __builtin_expect((x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
 #else
 #define likely(x) x
 #define unlikely(x) x
