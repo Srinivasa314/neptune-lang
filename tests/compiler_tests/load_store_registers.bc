@@ -1,79 +1,79 @@
-LoadNull 
-StoreGlobal 0
-LoadGlobal 0
-StoreR0 
-LoadR0 
-StoreGlobal 0
-LoadGlobal 0
-StoreR1 
-LoadR1 
-StoreGlobal 0
-LoadGlobal 0
-StoreR2 
-LoadR2 
-StoreGlobal 0
-LoadGlobal 0
-StoreR3 
-LoadR3 
-StoreGlobal 0
-LoadGlobal 0
-StoreR4 
-LoadR4 
-StoreGlobal 0
-LoadGlobal 0
-StoreR5 
-LoadR5 
-StoreGlobal 0
-LoadGlobal 0
-StoreR6 
-LoadR6 
-StoreGlobal 0
-LoadGlobal 0
-StoreR7 
-LoadR7 
-StoreGlobal 0
-LoadGlobal 0
-StoreR8 
-LoadR8 
-StoreGlobal 0
-LoadGlobal 0
-StoreR9 
-LoadR9 
-StoreGlobal 0
-LoadGlobal 0
-StoreR10 
-LoadR10 
-StoreGlobal 0
-LoadGlobal 0
-StoreR11 
-LoadR11 
-StoreGlobal 0
-LoadGlobal 0
-StoreR12 
-LoadR12 
-StoreGlobal 0
-LoadGlobal 0
-StoreR13 
-LoadR13 
-StoreGlobal 0
-LoadGlobal 0
-StoreR14 
-LoadR14 
-StoreGlobal 0
-LoadGlobal 0
-StoreR15 
-LoadR15 
-StoreGlobal 0
-LoadGlobal 0
-StoreRegister r16
-LoadRegister r16
-StoreGlobal 0
-LoadGlobal 0
-StoreRegister r17
-LoadRegister r17
-StoreGlobal 0
-LoadGlobal 0
-StoreRegister r18
-LoadRegister r18
-StoreGlobal 0
-Exit 
+0 LoadNull 
+1 StoreGlobal 0
+3 LoadGlobal 0
+5 StoreR0 
+6 LoadR0 
+7 StoreGlobal 0
+9 LoadGlobal 0
+11 StoreR1 
+12 LoadR1 
+13 StoreGlobal 0
+15 LoadGlobal 0
+17 StoreR2 
+18 LoadR2 
+19 StoreGlobal 0
+21 LoadGlobal 0
+23 StoreR3 
+24 LoadR3 
+25 StoreGlobal 0
+27 LoadGlobal 0
+29 StoreR4 
+30 LoadR4 
+31 StoreGlobal 0
+33 LoadGlobal 0
+35 StoreR5 
+36 LoadR5 
+37 StoreGlobal 0
+39 LoadGlobal 0
+41 StoreR6 
+42 LoadR6 
+43 StoreGlobal 0
+45 LoadGlobal 0
+47 StoreR7 
+48 LoadR7 
+49 StoreGlobal 0
+51 LoadGlobal 0
+53 StoreR8 
+54 LoadR8 
+55 StoreGlobal 0
+57 LoadGlobal 0
+59 StoreR9 
+60 LoadR9 
+61 StoreGlobal 0
+63 LoadGlobal 0
+65 StoreR10 
+66 LoadR10 
+67 StoreGlobal 0
+69 LoadGlobal 0
+71 StoreR11 
+72 LoadR11 
+73 StoreGlobal 0
+75 LoadGlobal 0
+77 StoreR12 
+78 LoadR12 
+79 StoreGlobal 0
+81 LoadGlobal 0
+83 StoreR13 
+84 LoadR13 
+85 StoreGlobal 0
+87 LoadGlobal 0
+89 StoreR14 
+90 LoadR14 
+91 StoreGlobal 0
+93 LoadGlobal 0
+95 StoreR15 
+96 LoadR15 
+97 StoreGlobal 0
+99 LoadGlobal 0
+101 StoreRegister r16
+103 LoadRegister r16
+105 StoreGlobal 0
+107 LoadGlobal 0
+109 StoreRegister r17
+111 LoadRegister r17
+113 StoreGlobal 0
+115 LoadGlobal 0
+117 StoreRegister r18
+119 LoadRegister r18
+121 StoreGlobal 0
+123 Exit 

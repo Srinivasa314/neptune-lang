@@ -1,60 +1,60 @@
-EmptyArray 
-StoreR0 
-NewArray 1 r2
-LoadInt 5
-StoreArrayUnchecked r2 0
-LoadR2 
-StoreR1 
-NewArray 3 r3
-LoadR0 
-StoreArrayUnchecked r3 0
-LoadConstant "hello"
-StoreArrayUnchecked r3 1
-LoadR1 
-StoreArrayUnchecked r3 2
-LoadR3 
-StoreR2 
-LoadInt 1
-StoreR3 
-LoadR3 
-StoreSubscript r2 r3
-NewArray 1 r5
-LoadInt 1
-StoreArrayUnchecked r5 0
-LoadR5 
-StoreR5 
-LoadInt 0
-LoadSubscript r5
-StoreR4 
-LoadInt 2
-LoadSubscript r2
-StoreR5 
-EmptyMap 
-StoreR6 
-NewMap 1 r8
-LoadInt 1
-StoreR9 
-LoadInt 2
-StoreSubscript r8 r9
-LoadR8 
-StoreR7 
-NewMap 1 r9
-LoadNull 
-StoreSubscript r9 r6
-LoadR9 
-StoreR8 
-NewMap 2 r10
-LoadConstant "bob"
-StoreR11 
-LoadInt 43
-StoreSubscript r10 r11
-LoadConstant "jack"
-StoreR11 
-LoadInt 23
-StoreSubscript r10 r11
-LoadR10 
-StoreR9 
-LoadR6 
-LoadSubscript r8
-StoreSubscript r9 r7
-Exit 
+0 EmptyArray 
+1 StoreR0 
+2 NewArray 1 r2
+5 LoadSmallInt 5
+7 StoreArrayUnchecked r2 0
+10 LoadR2 
+11 StoreR1 
+12 NewArray 3 r3
+15 LoadR0 
+16 StoreArrayUnchecked r3 0
+19 LoadConstant 'hello'
+21 StoreArrayUnchecked r3 1
+24 LoadR1 
+25 StoreArrayUnchecked r3 2
+28 LoadR3 
+29 StoreR2 
+30 LoadSmallInt 1
+32 StoreR3 
+33 LoadR3 
+34 StoreSubscript r2 r3
+37 NewArray 1 r5
+40 LoadSmallInt 1
+42 StoreArrayUnchecked r5 0
+45 LoadR5 
+46 StoreR5 
+47 LoadSmallInt 0
+49 LoadSubscript r5
+51 StoreR4 
+52 LoadSmallInt 2
+54 LoadSubscript r2
+56 StoreR5 
+57 EmptyMap 
+58 StoreR6 
+59 NewMap 1 r8
+62 LoadSmallInt 1
+64 StoreR9 
+65 LoadSmallInt 2
+67 StoreSubscript r8 r9
+70 LoadR8 
+71 StoreR7 
+72 NewMap 1 r9
+75 LoadNull 
+76 StoreSubscript r9 r6
+79 LoadR9 
+80 StoreR8 
+81 NewMap 2 r10
+84 LoadConstant 'bob'
+86 StoreR11 
+87 LoadSmallInt 43
+89 StoreSubscript r10 r11
+92 LoadConstant 'jack'
+94 StoreR11 
+95 LoadSmallInt 23
+97 StoreSubscript r10 r11
+100 LoadR10 
+101 StoreR9 
+102 LoadR6 
+103 LoadSubscript r8
+105 StoreSubscript r9 r7
+108 Exit 

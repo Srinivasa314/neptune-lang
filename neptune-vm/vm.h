@@ -8,11 +8,6 @@ struct Frame {
   Value *bp; // base pointer which points to the base of the stack
 };
 
-struct Global {
-  std::string name;
-  Value value;
-};
-
 enum class VMStatus : uint8_t { Success, Error };
 
 class VMResult {
@@ -31,7 +26,8 @@ public:
 class VM {
   std::vector<Value> stack;
   std::vector<Frame> frames;
-  mutable std::vector<Global> globals;
+  mutable std::vector<Value> globals;
+  mutable std::vector<std::string> global_names;
   size_t bytes_allocated;
   // Linked list of all objects
   Object *first_obj;
@@ -41,6 +37,7 @@ class VM {
   Value *stack_top;
 
 public:
+  Value to_string(Value val);
   VMResult run(FunctionInfo *f);
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info() const;

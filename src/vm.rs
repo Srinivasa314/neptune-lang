@@ -90,7 +90,7 @@ mod ffi {
         LoadR13,
         LoadR14,
         LoadR15,
-        LoadInt,
+        LoadSmallInt,
         LoadNull,
         LoadTrue,
         LoadFalse,
@@ -146,8 +146,10 @@ mod ffi {
         EmptyArray,
         EmptyMap,
         Jump,
+        JumpIfFalseOrNull,
         JumpBack,
-        JumpIfFalse,
+        JumpConstant,
+        JumpIfFalseOrNullConstant,
         Return,
         Exit,
     }
@@ -182,6 +184,7 @@ mod ffi {
             self: &mut FunctionInfoWriter<'vm>,
             s: StringSlice<'s>,
         ) -> Result<u16>;
+        fn int_constant(self: &mut FunctionInfoWriter, i: i32) -> Result<u16>;
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
@@ -192,6 +195,8 @@ mod ffi {
         unsafe fn release(self: &mut FunctionInfoWriter);
         fn get_result<'a>(self: &'a VMResult) -> StringSlice<'a>;
         fn get_status(self: &VMResult) -> VMStatus;
+        fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
+        fn size(self: &FunctionInfoWriter) -> usize;
     }
 }
 
@@ -225,7 +230,6 @@ mod tests {
         assert_eq!(n.eval("'hi\n'").unwrap().unwrap(), "'hi\\n'");
         assert_eq!(n.eval("'\"'").unwrap().unwrap(), "'\"'");
         assert_eq!(n.eval("'\\''").unwrap().unwrap(), "'\\''");
-        assert_eq!(n.eval("1.0").unwrap().unwrap(), "1.0");
         assert_eq!(n.eval("@abc").unwrap().unwrap(), "@abc");
         assert_eq!(n.eval("let global=1"), Ok(None));
         assert_eq!(

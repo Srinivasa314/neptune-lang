@@ -1,14 +1,14 @@
-LoadInt -1
-StoreGlobal 0
-LoadConstant -1.2
-StoreGlobal 1
-LoadGlobal 1
-Negate 
-StoreGlobal 2
-LoadGlobal 0
-StoreR0 
-LoadGlobal 1
-AddRegister r0
-Negate 
-StoreGlobal 3
-Exit 
+0 LoadSmallInt -1
+2 StoreGlobal 0
+4 LoadConstant -1.2
+6 StoreGlobal 1
+8 LoadGlobal 1
+10 Negate 
+11 StoreGlobal 2
+13 LoadGlobal 0
+15 StoreR0 
+16 LoadGlobal 1
+18 AddRegister r0
+20 Negate 
+21 StoreGlobal 3
+23 Exit 

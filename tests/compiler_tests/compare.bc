@@ -1,11 +1,11 @@
-LoadFalse 
-StoreR0 
-LoadTrue 
-Equal r0
-StoreR1 
-EmptyArray 
-StoreR3 
-EmptyArray 
-Equal r3
-StoreR2 
-Exit 
+0 LoadFalse 
+1 StoreR0 
+2 LoadTrue 
+3 Equal r0
+5 StoreR1 
+6 EmptyArray 
+7 StoreR3 
+8 EmptyArray 
+9 Equal r3
+11 StoreR2 
+12 Exit 

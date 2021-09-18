@@ -20,7 +20,7 @@
   OP(LoadR13)                                                                  \
   OP(LoadR14)                                                                  \
   OP(LoadR15)                                                                  \
-  OP(LoadInt)                                                                  \
+  OP(LoadSmallInt)                                                                  \
   OP(LoadNull)                                                                 \
   OP(LoadTrue)                                                                 \
   OP(LoadFalse)                                                                \
@@ -76,8 +76,10 @@
   OP(EmptyArray)                                                               \
   OP(EmptyMap)                                                                 \
   OP(Jump)                                                                     \
+  OP(JumpIfFalseOrNull)                                                              \
   OP(JumpBack)                                                                 \
-  OP(JumpIfFalse)                                                              \
+  OP(JumpConstant)                                                             \
+  OP(JumpIfFalseOrNullConstant)                                                      \
   OP(Return)                                                                   \
   OP(Exit)
 

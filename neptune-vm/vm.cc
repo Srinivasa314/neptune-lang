@@ -75,11 +75,12 @@ VMResult VM::run(FunctionInfo *f) {
 #undef OP
   };
 #endif
-  auto accumulator = Value::null();
+  Value accumulator = Value::null();
   Value *bp = &stack[0];
   const uint8_t *ip = f->bytecode.data();
   stack_top = bp + f->max_registers;
   auto globals = this->globals.begin();
+  auto constants = f->constants.data();
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -145,9 +146,11 @@ end:
   os << accumulator;
   return VMResult{VMStatus::Success, std::move(os.str())};
 }
+#undef READ
 
 void VM::add_global(StringSlice name) const {
-  globals.push_back(Global{std::string(name.data, name.len), Value::empty()});
+  globals.push_back(Value::empty());
+  global_names.push_back(std::string(name.data, name.len));
 }
 
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
@@ -239,6 +242,54 @@ VM::~VM() {
     auto old = first_obj;
     first_obj = first_obj->next;
     release(old);
+  }
+}
+
+Value VM::to_string(Value val) {
+  if (val.is_int()) {
+    char buffer[12];
+    size_t len = static_cast<size_t>(sprintf(buffer, "%d", val.as_int()));
+    return Value(manage(String::from_string_slice(StringSlice{buffer, len})));
+  } else if (val.is_float()) {
+    auto f = val.as_float();
+    if (std::isnan(f)) {
+      const char *result = std::signbit(f) ? "-nan" : "nan";
+      return Value(manage(
+          String::from_string_slice(StringSlice{result, strlen(result)})));
+    } else {
+      char buffer[24];
+      size_t len = static_cast<size_t>(sprintf(buffer, "%.14g", f));
+      if (strspn(buffer, "0123456789-") == len) {
+        buffer[len] = '.';
+        buffer[len + 1] = '0';
+        len += 2;
+      }
+      return Value(manage(String::from_string_slice(StringSlice{buffer, len})));
+    }
+  } else if (val.is_object()) {
+    if (val.as_object()->is<String>()) {
+      return val;
+    } else if (val.as_object()->is<Symbol>()) {
+      return Value(manage(String::from_string_slice(
+          static_cast<StringSlice>(*val.as_object()->as<Symbol>()))));
+    } else {
+      std::ostringstream os;
+      os << val;
+      auto s = os.str();
+      return Value(
+          manage(String::from_string_slice(StringSlice{s.data(), s.length()})));
+    }
+  } else if (val.is_true()) {
+    return Value(
+        manage(String::from_string_slice(StringSlice{"true", strlen("true")})));
+  } else if (val.is_false()) {
+    return Value(manage(
+        String::from_string_slice(StringSlice{"false", strlen("false")})));
+  } else if (val.is_null()) {
+    return Value(
+        manage(String::from_string_slice(StringSlice{"null", strlen("null")})));
+  } else {
+    unreachable();
   }
 }
 } // namespace neptune_vm

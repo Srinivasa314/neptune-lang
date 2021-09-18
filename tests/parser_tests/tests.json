@@ -6,5 +6,6 @@
     "test_array",
     "test_map",
     "test_string",
-    "test_map_eval"
+    "test_map_eval",
+    "test_if"
 ]

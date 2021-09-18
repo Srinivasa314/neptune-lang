@@ -47,6 +47,9 @@ public:
   void pop_last_op(size_t last_op_pos);
   void release();
   void set_max_registers(uint16_t max_registers);
+  void patch_jump(size_t op_position, uint32_t jump_offset);
+  size_t size() const;
+  uint16_t int_constant(int32_t i);
   std::unique_ptr<VMResult> run();
   std::unique_ptr<std::string> to_cxx_string() const;
 };

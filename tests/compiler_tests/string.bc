@@ -1,25 +1,25 @@
-LoadConstant "abc"
-StoreR0 
-LoadInt 5
-ToString 
-StoreR1 
-LoadConstant "hello "
-StoreR3 
-LoadR0 
-ToString 
-ConcatRegister r3
-StoreR2 
-LoadR2 
-ToString 
-StoreR4 
-LoadConstant "!"
-ConcatRegister r4
-StoreR3 
-LoadR0 
-ToString 
-StoreR5 
-LoadR1 
-ToString 
-ConcatRegister r5
-StoreR4 
-Exit 
+0 LoadConstant 'abc'
+2 StoreR0 
+3 LoadSmallInt 5
+5 ToString 
+6 StoreR1 
+7 LoadConstant 'hello '
+9 StoreR3 
+10 LoadR0 
+11 ToString 
+12 ConcatRegister r3
+14 StoreR2 
+15 LoadR2 
+16 ToString 
+17 StoreR4 
+18 LoadConstant '!'
+20 ConcatRegister r4
+22 StoreR3 
+23 LoadR0 
+24 ToString 
+25 StoreR5 
+26 LoadR1 
+27 ToString 
+28 ConcatRegister r5
+30 StoreR4 
+31 Exit 

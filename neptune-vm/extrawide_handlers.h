@@ -1,28 +1,27 @@
-handler(LoadInt, accumulator = Value(READ(itype)););
-
 handler(LoadGlobal, {
-  auto &g = globals[READ(utype)];
-  if (g.value.is_empty()) {
-    PANIC("Cannot access uninitialized variable " << g.name);
+  auto g = READ(utype);
+  if (unlikely(globals[g].is_empty())) {
+    PANIC("Cannot access uninitialized variable " << global_names[g]);
+
   } else {
-    accumulator = g.value;
+    accumulator = globals[g];
   }
 });
-handler(StoreGlobal, globals[READ(utype)].value = accumulator;);
+handler(StoreGlobal, globals[READ(utype)] = accumulator;);
 
 #define BINARY_OP_INT(opname, intfn, op)                                       \
   do {                                                                         \
     if (accumulator.is_int()) {                                                \
       int result;                                                              \
       int i = READ(itype);                                                     \
-      if (!intfn(accumulator.as_int(), i, result)) {                           \
+      if (unlikely(!intfn(accumulator.as_int(), i, result))) {                 \
         PANIC("Cannot " #opname " "                                            \
               << accumulator.as_int() << " and " << i                          \
               << " as the result does not fit in an int");                     \
       }                                                                        \
-      accumulator = Value(result);                                \
+      accumulator = Value(result);                                             \
     } else if (accumulator.is_float()) {                                       \
-      accumulator = Value(accumulator.as_float() op READ(itype)); \
+      accumulator = Value(accumulator.as_float() op READ(itype));              \
     } else {                                                                   \
       PANIC("Cannot " #opname " types " << accumulator.type_string()           \
                                         << " and int");                        \
@@ -34,14 +33,7 @@ handler(SubtractInt, BINARY_OP_INT(subtract, SafeSubtract, -););
 handler(MultiplyInt, BINARY_OP_INT(multiply, SafeMultiply, *););
 handler(DivideInt, BINARY_OP_INT(divide, SafeDivide, /););
 
-handler(Jump, TODO(););
 handler(JumpBack, {
   auto offset = READ(utype);
-  ip -= offset;
-});
-handler(JumpIfFalse, {
-  auto offset = READ(utype);
-  if (accumulator.is_null_or_false()) {
-    ip += offset;
-  }
+  ip -= (offset + 1 + sizeof(utype));
 });

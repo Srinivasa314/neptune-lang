@@ -15,6 +15,7 @@ handler(LoadR12, accumulator = bp[12];);
 handler(LoadR13, accumulator = bp[13];);
 handler(LoadR14, accumulator = bp[14];);
 handler(LoadR15, accumulator = bp[15];);
+handler(LoadSmallInt, accumulator = Value(READ(int8_t)););
 handler(LoadNull, accumulator = Value::null(););
 handler(LoadTrue, accumulator = Value::new_true(););
 handler(LoadFalse, accumulator = Value::new_false(););
@@ -38,7 +39,7 @@ handler(
     Negate,
     if (accumulator.is_int()) {
       int result;
-      if (!SafeNegation(accumulator.as_int(), result)) {
+      if (unlikely(!SafeNegation(accumulator.as_int(), result))) {
         PANIC("Cannot negate " << accumulator.as_int()
                                << " as the result cannot be stored in an int");
       }
@@ -47,53 +48,7 @@ handler(
       accumulator = Value(-accumulator.as_float());
     } else { PANIC("Cannot negate type " << accumulator.type_string()); });
 
-handler(ToString, {
-  if (accumulator.is_int()) {
-    char buffer[12];
-    size_t len =
-        static_cast<size_t>(sprintf(buffer, "%d", accumulator.as_int()));
-    accumulator =
-        Value(manage(String::from_string_slice(StringSlice{buffer, len})));
-  } else if (accumulator.is_float()) {
-    auto f = accumulator.as_float();
-    if (std::isnan(f)) {
-      const char *result = std::signbit(f) ? "-nan" : "nan";
-      accumulator = Value(manage(
-          String::from_string_slice(StringSlice{result, strlen(result)})));
-    } else {
-      char buffer[24];
-      size_t len = static_cast<size_t>(sprintf(buffer, "%.14g", f));
-      if (strspn(buffer, "0123456789-") == len) {
-        buffer[len] = '.';
-        buffer[len + 1] = '0';
-        len += 2;
-      }
-      accumulator =
-          Value(manage(String::from_string_slice(StringSlice{buffer, len})));
-    }
-  } else if (accumulator.is_object()) {
-    if (accumulator.as_object()->is<String>()) {
-    } else if (accumulator.as_object()->is<Symbol>()) {
-      accumulator = Value(manage(String::from_string_slice(
-          static_cast<StringSlice>(*accumulator.as_object()->as<Symbol>()))));
-    }
-  } else if (accumulator.is_true()) {
-    accumulator = Value(
-        manage(String::from_string_slice(StringSlice{"true", strlen("true")})));
-  } else if (accumulator.is_false()) {
-    accumulator = Value(manage(
-        String::from_string_slice(StringSlice{"false", strlen("false")})));
-  } else if (accumulator.is_null()) {
-    accumulator = Value(
-        manage(String::from_string_slice(StringSlice{"null", strlen("null")})));
-  } else {
-    std::ostringstream os;
-    os << accumulator;
-    auto s = os.str();
-    accumulator = Value(
-        manage(String::from_string_slice(StringSlice{s.data(), s.length()})));
-  }
-});
+handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
 handler(Return, TODO(););

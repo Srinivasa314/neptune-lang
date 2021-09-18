@@ -1,9 +1,9 @@
-LoadConstant 1.2
-StoreGlobal 0
-LoadConstant "hello"
-StoreGlobal 1
-LoadConstant @a
-StoreGlobal 2
-LoadConstant "hello"
-StoreGlobal 3
-Exit 
+0 LoadConstant 1.2
+2 StoreGlobal 0
+4 LoadConstant 'hello'
+6 StoreGlobal 1
+8 LoadConstant @a
+10 StoreGlobal 2
+12 LoadConstant 'hello'
+14 StoreGlobal 3
+16 Exit 

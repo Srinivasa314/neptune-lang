@@ -156,8 +156,16 @@ impl Expr {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
-    VarDeclaration { name: String, expr: Expr, line: u32 },
+    VarDeclaration {
+        name: String,
+        expr: Expr,
+        line: u32,
+    },
     Block(Vec<Statement>),
+    If {
+        condition: Expr,
+        block: Vec<Statement>,
+    },
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -517,8 +525,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 if self.try_expr {
                     self.map().map(|e| Statement::Expr(e))
                 } else {
-                    self.block()
+                    self.block().map(|s| Statement::Block(s))
                 }
+            } else if self.match_token(TokenType::If) {
+                self.if_statement()
             } else {
                 self.expression_statement()
             }?;
@@ -587,7 +597,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         })
     }
 
-    fn block(&mut self) -> CompileResult<Statement> {
+    fn block(&mut self) -> CompileResult<Vec<Statement>> {
         let mut statements = vec![];
         loop {
             if self.match_token(TokenType::Eof) {
@@ -610,7 +620,18 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 }
             }
         }
-        Ok(Statement::Block(statements))
+        Ok(statements)
+    }
+
+    fn if_statement(&mut self) -> CompileResult<Statement> {
+        let condition = self.expression()?;
+        self.ignore_newline();
+        self.consume(
+            TokenType::LeftBrace,
+            "Expect { after condition in if statement".into(),
+        )?;
+        let block = self.block()?;
+        Ok(Statement::If { condition, block })
     }
 }
 

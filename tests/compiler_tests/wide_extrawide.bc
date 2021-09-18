@@ -1,533 +1,533 @@
-Wide LoadInt 700
-StoreGlobal 0
-ExtraWide LoadInt 1000000000
-StoreGlobal 1
-LoadGlobal 0
-ExtraWide AddInt 70000
-StoreGlobal 0
-LoadGlobal 1
-Wide AddInt 300
-StoreGlobal 1
-Wide LoadInt -900
-StoreGlobal 2
-ExtraWide LoadInt -80000
-StoreGlobal 3
-LoadInt 0
-StoreGlobal 4
-LoadInt 0
-StoreGlobal 5
-LoadInt 0
-StoreGlobal 6
-LoadInt 0
-StoreGlobal 7
-LoadInt 0
-StoreGlobal 8
-LoadInt 0
-StoreGlobal 9
-LoadInt 0
-StoreGlobal 10
-LoadInt 0
-StoreGlobal 11
-LoadInt 0
-StoreGlobal 12
-LoadInt 0
-StoreGlobal 13
-LoadInt 0
-StoreGlobal 14
-LoadInt 0
-StoreGlobal 15
-LoadInt 0
-StoreGlobal 16
-LoadInt 0
-StoreGlobal 17
-LoadInt 0
-StoreGlobal 18
-LoadInt 0
-StoreGlobal 19
-LoadInt 0
-StoreGlobal 20
-LoadInt 0
-StoreGlobal 21
-LoadInt 0
-StoreGlobal 22
-LoadInt 0
-StoreGlobal 23
-LoadInt 0
-StoreGlobal 24
-LoadInt 0
-StoreGlobal 25
-LoadInt 0
-StoreGlobal 26
-LoadInt 0
-StoreGlobal 27
-LoadInt 0
-StoreGlobal 28
-LoadInt 0
-StoreGlobal 29
-LoadInt 0
-StoreGlobal 30
-LoadInt 0
-StoreGlobal 31
-LoadInt 0
-StoreGlobal 32
-LoadInt 0
-StoreGlobal 33
-LoadInt 0
-StoreGlobal 34
-LoadInt 0
-StoreGlobal 35
-LoadInt 0
-StoreGlobal 36
-LoadInt 0
-StoreGlobal 37
-LoadInt 0
-StoreGlobal 38
-LoadInt 0
-StoreGlobal 39
-LoadInt 0
-StoreGlobal 40
-LoadInt 0
-StoreGlobal 41
-LoadInt 0
-StoreGlobal 42
-LoadInt 0
-StoreGlobal 43
-LoadInt 0
-StoreGlobal 44
-LoadInt 0
-StoreGlobal 45
-LoadInt 0
-StoreGlobal 46
-LoadInt 0
-StoreGlobal 47
-LoadInt 0
-StoreGlobal 48
-LoadInt 0
-StoreGlobal 49
-LoadInt 0
-StoreGlobal 50
-LoadInt 0
-StoreGlobal 51
-LoadInt 0
-StoreGlobal 52
-LoadInt 0
-StoreGlobal 53
-LoadInt 0
-StoreGlobal 54
-LoadInt 0
-StoreGlobal 55
-LoadInt 0
-StoreGlobal 56
-LoadInt 0
-StoreGlobal 57
-LoadInt 0
-StoreGlobal 58
-LoadInt 0
-StoreGlobal 59
-LoadInt 0
-StoreGlobal 60
-LoadInt 0
-StoreGlobal 61
-LoadInt 0
-StoreGlobal 62
-LoadInt 0
-StoreGlobal 63
-LoadInt 0
-StoreGlobal 64
-LoadInt 0
-StoreGlobal 65
-LoadInt 0
-StoreGlobal 66
-LoadInt 0
-StoreGlobal 67
-LoadInt 0
-StoreGlobal 68
-LoadInt 0
-StoreGlobal 69
-LoadInt 0
-StoreGlobal 70
-LoadInt 0
-StoreGlobal 71
-LoadInt 0
-StoreGlobal 72
-LoadInt 0
-StoreGlobal 73
-LoadInt 0
-StoreGlobal 74
-LoadInt 0
-StoreGlobal 75
-LoadInt 0
-StoreGlobal 76
-LoadInt 0
-StoreGlobal 77
-LoadInt 0
-StoreGlobal 78
-LoadInt 0
-StoreGlobal 79
-LoadInt 0
-StoreGlobal 80
-LoadInt 0
-StoreGlobal 81
-LoadInt 0
-StoreGlobal 82
-LoadInt 0
-StoreGlobal 83
-LoadInt 0
-StoreGlobal 84
-LoadInt 0
-StoreGlobal 85
-LoadInt 0
-StoreGlobal 86
-LoadInt 0
-StoreGlobal 87
-LoadInt 0
-StoreGlobal 88
-LoadInt 0
-StoreGlobal 89
-LoadInt 0
-StoreGlobal 90
-LoadInt 0
-StoreGlobal 91
-LoadInt 0
-StoreGlobal 92
-LoadInt 0
-StoreGlobal 93
-LoadInt 0
-StoreGlobal 94
-LoadInt 0
-StoreGlobal 95
-LoadInt 0
-StoreGlobal 96
-LoadInt 0
-StoreGlobal 97
-LoadInt 0
-StoreGlobal 98
-LoadInt 0
-StoreGlobal 99
-LoadInt 0
-StoreGlobal 100
-LoadInt 0
-StoreGlobal 101
-LoadInt 0
-StoreGlobal 102
-LoadInt 0
-StoreGlobal 103
-LoadInt 0
-StoreGlobal 104
-LoadInt 0
-StoreGlobal 105
-LoadInt 0
-StoreGlobal 106
-LoadInt 0
-StoreGlobal 107
-LoadInt 0
-StoreGlobal 108
-LoadInt 0
-StoreGlobal 109
-LoadInt 0
-StoreGlobal 110
-LoadInt 0
-StoreGlobal 111
-LoadInt 0
-StoreGlobal 112
-LoadInt 0
-StoreGlobal 113
-LoadInt 0
-StoreGlobal 114
-LoadInt 0
-StoreGlobal 115
-LoadInt 0
-StoreGlobal 116
-LoadInt 0
-StoreGlobal 117
-LoadInt 0
-StoreGlobal 118
-LoadInt 0
-StoreGlobal 119
-LoadInt 0
-StoreGlobal 120
-LoadInt 0
-StoreGlobal 121
-LoadInt 0
-StoreGlobal 122
-LoadInt 0
-StoreGlobal 123
-LoadInt 0
-StoreGlobal 124
-LoadInt 0
-StoreGlobal 125
-LoadInt 0
-StoreGlobal 126
-LoadInt 0
-StoreGlobal 127
-LoadInt 0
-StoreGlobal 128
-LoadInt 0
-StoreGlobal 129
-LoadInt 0
-StoreGlobal 130
-LoadInt 0
-StoreGlobal 131
-LoadInt 0
-StoreGlobal 132
-LoadInt 0
-StoreGlobal 133
-LoadInt 0
-StoreGlobal 134
-LoadInt 0
-StoreGlobal 135
-LoadInt 0
-StoreGlobal 136
-LoadInt 0
-StoreGlobal 137
-LoadInt 0
-StoreGlobal 138
-LoadInt 0
-StoreGlobal 139
-LoadInt 0
-StoreGlobal 140
-LoadInt 0
-StoreGlobal 141
-LoadInt 0
-StoreGlobal 142
-LoadInt 0
-StoreGlobal 143
-LoadInt 0
-StoreGlobal 144
-LoadInt 0
-StoreGlobal 145
-LoadInt 0
-StoreGlobal 146
-LoadInt 0
-StoreGlobal 147
-LoadInt 0
-StoreGlobal 148
-LoadInt 0
-StoreGlobal 149
-LoadInt 0
-StoreGlobal 150
-LoadInt 0
-StoreGlobal 151
-LoadInt 0
-StoreGlobal 152
-LoadInt 0
-StoreGlobal 153
-LoadInt 0
-StoreGlobal 154
-LoadInt 0
-StoreGlobal 155
-LoadInt 0
-StoreGlobal 156
-LoadInt 0
-StoreGlobal 157
-LoadInt 0
-StoreGlobal 158
-LoadInt 0
-StoreGlobal 159
-LoadInt 0
-StoreGlobal 160
-LoadInt 0
-StoreGlobal 161
-LoadInt 0
-StoreGlobal 162
-LoadInt 0
-StoreGlobal 163
-LoadInt 0
-StoreGlobal 164
-LoadInt 0
-StoreGlobal 165
-LoadInt 0
-StoreGlobal 166
-LoadInt 0
-StoreGlobal 167
-LoadInt 0
-StoreGlobal 168
-LoadInt 0
-StoreGlobal 169
-LoadInt 0
-StoreGlobal 170
-LoadInt 0
-StoreGlobal 171
-LoadInt 0
-StoreGlobal 172
-LoadInt 0
-StoreGlobal 173
-LoadInt 0
-StoreGlobal 174
-LoadInt 0
-StoreGlobal 175
-LoadInt 0
-StoreGlobal 176
-LoadInt 0
-StoreGlobal 177
-LoadInt 0
-StoreGlobal 178
-LoadInt 0
-StoreGlobal 179
-LoadInt 0
-StoreGlobal 180
-LoadInt 0
-StoreGlobal 181
-LoadInt 0
-StoreGlobal 182
-LoadInt 0
-StoreGlobal 183
-LoadInt 0
-StoreGlobal 184
-LoadInt 0
-StoreGlobal 185
-LoadInt 0
-StoreGlobal 186
-LoadInt 0
-StoreGlobal 187
-LoadInt 0
-StoreGlobal 188
-LoadInt 0
-StoreGlobal 189
-LoadInt 0
-StoreGlobal 190
-LoadInt 0
-StoreGlobal 191
-LoadInt 0
-StoreGlobal 192
-LoadInt 0
-StoreGlobal 193
-LoadInt 0
-StoreGlobal 194
-LoadInt 0
-StoreGlobal 195
-LoadInt 0
-StoreGlobal 196
-LoadInt 0
-StoreGlobal 197
-LoadInt 0
-StoreGlobal 198
-LoadInt 0
-StoreGlobal 199
-LoadInt 0
-StoreGlobal 200
-LoadInt 0
-StoreGlobal 201
-LoadInt 0
-StoreGlobal 202
-LoadInt 0
-StoreGlobal 203
-LoadInt 0
-StoreGlobal 204
-LoadInt 0
-StoreGlobal 205
-LoadInt 0
-StoreGlobal 206
-LoadInt 0
-StoreGlobal 207
-LoadInt 0
-StoreGlobal 208
-LoadInt 0
-StoreGlobal 209
-LoadInt 0
-StoreGlobal 210
-LoadInt 0
-StoreGlobal 211
-LoadInt 0
-StoreGlobal 212
-LoadInt 0
-StoreGlobal 213
-LoadInt 0
-StoreGlobal 214
-LoadInt 0
-StoreGlobal 215
-LoadInt 0
-StoreGlobal 216
-LoadInt 0
-StoreGlobal 217
-LoadInt 0
-StoreGlobal 218
-LoadInt 0
-StoreGlobal 219
-LoadInt 0
-StoreGlobal 220
-LoadInt 0
-StoreGlobal 221
-LoadInt 0
-StoreGlobal 222
-LoadInt 0
-StoreGlobal 223
-LoadInt 0
-StoreGlobal 224
-LoadInt 0
-StoreGlobal 225
-LoadInt 0
-StoreGlobal 226
-LoadInt 0
-StoreGlobal 227
-LoadInt 0
-StoreGlobal 228
-LoadInt 0
-StoreGlobal 229
-LoadInt 0
-StoreGlobal 230
-LoadInt 0
-StoreGlobal 231
-LoadInt 0
-StoreGlobal 232
-LoadInt 0
-StoreGlobal 233
-LoadInt 0
-StoreGlobal 234
-LoadInt 0
-StoreGlobal 235
-LoadInt 0
-StoreGlobal 236
-LoadInt 0
-StoreGlobal 237
-LoadInt 0
-StoreGlobal 238
-LoadInt 0
-StoreGlobal 239
-LoadInt 0
-StoreGlobal 240
-LoadInt 0
-StoreGlobal 241
-LoadInt 0
-StoreGlobal 242
-LoadInt 0
-StoreGlobal 243
-LoadInt 0
-StoreGlobal 244
-LoadInt 0
-StoreGlobal 245
-LoadInt 0
-StoreGlobal 246
-LoadInt 0
-StoreGlobal 247
-LoadInt 0
-StoreGlobal 248
-LoadInt 0
-StoreGlobal 249
-LoadInt 0
-StoreGlobal 250
-LoadInt 0
-StoreGlobal 251
-LoadInt 0
-StoreGlobal 252
-LoadInt 0
-StoreGlobal 253
-LoadInt 0
-StoreGlobal 254
-LoadInt 0
-StoreGlobal 255
-LoadInt 0
-Wide StoreGlobal 256
-LoadInt 0
-Wide StoreGlobal 257
-LoadInt 0
-Wide StoreGlobal 258
-LoadInt 0
-Wide StoreGlobal 259
-LoadInt 0
-Wide StoreGlobal 260
-LoadInt 0
-Wide StoreGlobal 261
-LoadInt 0
-Wide StoreGlobal 262
-Exit 
+0 LoadConstant 700
+2 StoreGlobal 0
+4 LoadConstant 1000000000
+6 StoreGlobal 1
+8 LoadGlobal 0
+10 ExtraWide AddInt 70000
+16 StoreGlobal 0
+18 LoadGlobal 1
+20 Wide AddInt 300
+24 StoreGlobal 1
+26 LoadConstant -900
+28 StoreGlobal 2
+30 LoadConstant -80000
+32 StoreGlobal 3
+34 LoadSmallInt 0
+36 StoreGlobal 4
+38 LoadSmallInt 0
+40 StoreGlobal 5
+42 LoadSmallInt 0
+44 StoreGlobal 6
+46 LoadSmallInt 0
+48 StoreGlobal 7
+50 LoadSmallInt 0
+52 StoreGlobal 8
+54 LoadSmallInt 0
+56 StoreGlobal 9
+58 LoadSmallInt 0
+60 StoreGlobal 10
+62 LoadSmallInt 0
+64 StoreGlobal 11
+66 LoadSmallInt 0
+68 StoreGlobal 12
+70 LoadSmallInt 0
+72 StoreGlobal 13
+74 LoadSmallInt 0
+76 StoreGlobal 14
+78 LoadSmallInt 0
+80 StoreGlobal 15
+82 LoadSmallInt 0
+84 StoreGlobal 16
+86 LoadSmallInt 0
+88 StoreGlobal 17
+90 LoadSmallInt 0
+92 StoreGlobal 18
+94 LoadSmallInt 0
+96 StoreGlobal 19
+98 LoadSmallInt 0
+100 StoreGlobal 20
+102 LoadSmallInt 0
+104 StoreGlobal 21
+106 LoadSmallInt 0
+108 StoreGlobal 22
+110 LoadSmallInt 0
+112 StoreGlobal 23
+114 LoadSmallInt 0
+116 StoreGlobal 24
+118 LoadSmallInt 0
+120 StoreGlobal 25
+122 LoadSmallInt 0
+124 StoreGlobal 26
+126 LoadSmallInt 0
+128 StoreGlobal 27
+130 LoadSmallInt 0
+132 StoreGlobal 28
+134 LoadSmallInt 0
+136 StoreGlobal 29
+138 LoadSmallInt 0
+140 StoreGlobal 30
+142 LoadSmallInt 0
+144 StoreGlobal 31
+146 LoadSmallInt 0
+148 StoreGlobal 32
+150 LoadSmallInt 0
+152 StoreGlobal 33
+154 LoadSmallInt 0
+156 StoreGlobal 34
+158 LoadSmallInt 0
+160 StoreGlobal 35
+162 LoadSmallInt 0
+164 StoreGlobal 36
+166 LoadSmallInt 0
+168 StoreGlobal 37
+170 LoadSmallInt 0
+172 StoreGlobal 38
+174 LoadSmallInt 0
+176 StoreGlobal 39
+178 LoadSmallInt 0
+180 StoreGlobal 40
+182 LoadSmallInt 0
+184 StoreGlobal 41
+186 LoadSmallInt 0
+188 StoreGlobal 42
+190 LoadSmallInt 0
+192 StoreGlobal 43
+194 LoadSmallInt 0
+196 StoreGlobal 44
+198 LoadSmallInt 0
+200 StoreGlobal 45
+202 LoadSmallInt 0
+204 StoreGlobal 46
+206 LoadSmallInt 0
+208 StoreGlobal 47
+210 LoadSmallInt 0
+212 StoreGlobal 48
+214 LoadSmallInt 0
+216 StoreGlobal 49
+218 LoadSmallInt 0
+220 StoreGlobal 50
+222 LoadSmallInt 0
+224 StoreGlobal 51
+226 LoadSmallInt 0
+228 StoreGlobal 52
+230 LoadSmallInt 0
+232 StoreGlobal 53
+234 LoadSmallInt 0
+236 StoreGlobal 54
+238 LoadSmallInt 0
+240 StoreGlobal 55
+242 LoadSmallInt 0
+244 StoreGlobal 56
+246 LoadSmallInt 0
+248 StoreGlobal 57
+250 LoadSmallInt 0
+252 StoreGlobal 58
+254 LoadSmallInt 0
+256 StoreGlobal 59
+258 LoadSmallInt 0
+260 StoreGlobal 60
+262 LoadSmallInt 0
+264 StoreGlobal 61
+266 LoadSmallInt 0
+268 StoreGlobal 62
+270 LoadSmallInt 0
+272 StoreGlobal 63
+274 LoadSmallInt 0
+276 StoreGlobal 64
+278 LoadSmallInt 0
+280 StoreGlobal 65
+282 LoadSmallInt 0
+284 StoreGlobal 66
+286 LoadSmallInt 0
+288 StoreGlobal 67
+290 LoadSmallInt 0
+292 StoreGlobal 68
+294 LoadSmallInt 0
+296 StoreGlobal 69
+298 LoadSmallInt 0
+300 StoreGlobal 70
+302 LoadSmallInt 0
+304 StoreGlobal 71
+306 LoadSmallInt 0
+308 StoreGlobal 72
+310 LoadSmallInt 0
+312 StoreGlobal 73
+314 LoadSmallInt 0
+316 StoreGlobal 74
+318 LoadSmallInt 0
+320 StoreGlobal 75
+322 LoadSmallInt 0
+324 StoreGlobal 76
+326 LoadSmallInt 0
+328 StoreGlobal 77
+330 LoadSmallInt 0
+332 StoreGlobal 78
+334 LoadSmallInt 0
+336 StoreGlobal 79
+338 LoadSmallInt 0
+340 StoreGlobal 80
+342 LoadSmallInt 0
+344 StoreGlobal 81
+346 LoadSmallInt 0
+348 StoreGlobal 82
+350 LoadSmallInt 0
+352 StoreGlobal 83
+354 LoadSmallInt 0
+356 StoreGlobal 84
+358 LoadSmallInt 0
+360 StoreGlobal 85
+362 LoadSmallInt 0
+364 StoreGlobal 86
+366 LoadSmallInt 0
+368 StoreGlobal 87
+370 LoadSmallInt 0
+372 StoreGlobal 88
+374 LoadSmallInt 0
+376 StoreGlobal 89
+378 LoadSmallInt 0
+380 StoreGlobal 90
+382 LoadSmallInt 0
+384 StoreGlobal 91
+386 LoadSmallInt 0
+388 StoreGlobal 92
+390 LoadSmallInt 0
+392 StoreGlobal 93
+394 LoadSmallInt 0
+396 StoreGlobal 94
+398 LoadSmallInt 0
+400 StoreGlobal 95
+402 LoadSmallInt 0
+404 StoreGlobal 96
+406 LoadSmallInt 0
+408 StoreGlobal 97
+410 LoadSmallInt 0
+412 StoreGlobal 98
+414 LoadSmallInt 0
+416 StoreGlobal 99
+418 LoadSmallInt 0
+420 StoreGlobal 100
+422 LoadSmallInt 0
+424 StoreGlobal 101
+426 LoadSmallInt 0
+428 StoreGlobal 102
+430 LoadSmallInt 0
+432 StoreGlobal 103
+434 LoadSmallInt 0
+436 StoreGlobal 104
+438 LoadSmallInt 0
+440 StoreGlobal 105
+442 LoadSmallInt 0
+444 StoreGlobal 106
+446 LoadSmallInt 0
+448 StoreGlobal 107
+450 LoadSmallInt 0
+452 StoreGlobal 108
+454 LoadSmallInt 0
+456 StoreGlobal 109
+458 LoadSmallInt 0
+460 StoreGlobal 110
+462 LoadSmallInt 0
+464 StoreGlobal 111
+466 LoadSmallInt 0
+468 StoreGlobal 112
+470 LoadSmallInt 0
+472 StoreGlobal 113
+474 LoadSmallInt 0
+476 StoreGlobal 114
+478 LoadSmallInt 0
+480 StoreGlobal 115
+482 LoadSmallInt 0
+484 StoreGlobal 116
+486 LoadSmallInt 0
+488 StoreGlobal 117
+490 LoadSmallInt 0
+492 StoreGlobal 118
+494 LoadSmallInt 0
+496 StoreGlobal 119
+498 LoadSmallInt 0
+500 StoreGlobal 120
+502 LoadSmallInt 0
+504 StoreGlobal 121
+506 LoadSmallInt 0
+508 StoreGlobal 122
+510 LoadSmallInt 0
+512 StoreGlobal 123
+514 LoadSmallInt 0
+516 StoreGlobal 124
+518 LoadSmallInt 0
+520 StoreGlobal 125
+522 LoadSmallInt 0
+524 StoreGlobal 126
+526 LoadSmallInt 0
+528 StoreGlobal 127
+530 LoadSmallInt 0
+532 StoreGlobal 128
+534 LoadSmallInt 0
+536 StoreGlobal 129
+538 LoadSmallInt 0
+540 StoreGlobal 130
+542 LoadSmallInt 0
+544 StoreGlobal 131
+546 LoadSmallInt 0
+548 StoreGlobal 132
+550 LoadSmallInt 0
+552 StoreGlobal 133
+554 LoadSmallInt 0
+556 StoreGlobal 134
+558 LoadSmallInt 0
+560 StoreGlobal 135
+562 LoadSmallInt 0
+564 StoreGlobal 136
+566 LoadSmallInt 0
+568 StoreGlobal 137
+570 LoadSmallInt 0
+572 StoreGlobal 138
+574 LoadSmallInt 0
+576 StoreGlobal 139
+578 LoadSmallInt 0
+580 StoreGlobal 140
+582 LoadSmallInt 0
+584 StoreGlobal 141
+586 LoadSmallInt 0
+588 StoreGlobal 142
+590 LoadSmallInt 0
+592 StoreGlobal 143
+594 LoadSmallInt 0
+596 StoreGlobal 144
+598 LoadSmallInt 0
+600 StoreGlobal 145
+602 LoadSmallInt 0
+604 StoreGlobal 146
+606 LoadSmallInt 0
+608 StoreGlobal 147
+610 LoadSmallInt 0
+612 StoreGlobal 148
+614 LoadSmallInt 0
+616 StoreGlobal 149
+618 LoadSmallInt 0
+620 StoreGlobal 150
+622 LoadSmallInt 0
+624 StoreGlobal 151
+626 LoadSmallInt 0
+628 StoreGlobal 152
+630 LoadSmallInt 0
+632 StoreGlobal 153
+634 LoadSmallInt 0
+636 StoreGlobal 154
+638 LoadSmallInt 0
+640 StoreGlobal 155
+642 LoadSmallInt 0
+644 StoreGlobal 156
+646 LoadSmallInt 0
+648 StoreGlobal 157
+650 LoadSmallInt 0
+652 StoreGlobal 158
+654 LoadSmallInt 0
+656 StoreGlobal 159
+658 LoadSmallInt 0
+660 StoreGlobal 160
+662 LoadSmallInt 0
+664 StoreGlobal 161
+666 LoadSmallInt 0
+668 StoreGlobal 162
+670 LoadSmallInt 0
+672 StoreGlobal 163
+674 LoadSmallInt 0
+676 StoreGlobal 164
+678 LoadSmallInt 0
+680 StoreGlobal 165
+682 LoadSmallInt 0
+684 StoreGlobal 166
+686 LoadSmallInt 0
+688 StoreGlobal 167
+690 LoadSmallInt 0
+692 StoreGlobal 168
+694 LoadSmallInt 0
+696 StoreGlobal 169
+698 LoadSmallInt 0
+700 StoreGlobal 170
+702 LoadSmallInt 0
+704 StoreGlobal 171
+706 LoadSmallInt 0
+708 StoreGlobal 172
+710 LoadSmallInt 0
+712 StoreGlobal 173
+714 LoadSmallInt 0
+716 StoreGlobal 174
+718 LoadSmallInt 0
+720 StoreGlobal 175
+722 LoadSmallInt 0
+724 StoreGlobal 176
+726 LoadSmallInt 0
+728 StoreGlobal 177
+730 LoadSmallInt 0
+732 StoreGlobal 178
+734 LoadSmallInt 0
+736 StoreGlobal 179
+738 LoadSmallInt 0
+740 StoreGlobal 180
+742 LoadSmallInt 0
+744 StoreGlobal 181
+746 LoadSmallInt 0
+748 StoreGlobal 182
+750 LoadSmallInt 0
+752 StoreGlobal 183
+754 LoadSmallInt 0
+756 StoreGlobal 184
+758 LoadSmallInt 0
+760 StoreGlobal 185
+762 LoadSmallInt 0
+764 StoreGlobal 186
+766 LoadSmallInt 0
+768 StoreGlobal 187
+770 LoadSmallInt 0
+772 StoreGlobal 188
+774 LoadSmallInt 0
+776 StoreGlobal 189
+778 LoadSmallInt 0
+780 StoreGlobal 190
+782 LoadSmallInt 0
+784 StoreGlobal 191
+786 LoadSmallInt 0
+788 StoreGlobal 192
+790 LoadSmallInt 0
+792 StoreGlobal 193
+794 LoadSmallInt 0
+796 StoreGlobal 194
+798 LoadSmallInt 0
+800 StoreGlobal 195
+802 LoadSmallInt 0
+804 StoreGlobal 196
+806 LoadSmallInt 0
+808 StoreGlobal 197
+810 LoadSmallInt 0
+812 StoreGlobal 198
+814 LoadSmallInt 0
+816 StoreGlobal 199
+818 LoadSmallInt 0
+820 StoreGlobal 200
+822 LoadSmallInt 0
+824 StoreGlobal 201
+826 LoadSmallInt 0
+828 StoreGlobal 202
+830 LoadSmallInt 0
+832 StoreGlobal 203
+834 LoadSmallInt 0
+836 StoreGlobal 204
+838 LoadSmallInt 0
+840 StoreGlobal 205
+842 LoadSmallInt 0
+844 StoreGlobal 206
+846 LoadSmallInt 0
+848 StoreGlobal 207
+850 LoadSmallInt 0
+852 StoreGlobal 208
+854 LoadSmallInt 0
+856 StoreGlobal 209
+858 LoadSmallInt 0
+860 StoreGlobal 210
+862 LoadSmallInt 0
+864 StoreGlobal 211
+866 LoadSmallInt 0
+868 StoreGlobal 212
+870 LoadSmallInt 0
+872 StoreGlobal 213
+874 LoadSmallInt 0
+876 StoreGlobal 214
+878 LoadSmallInt 0
+880 StoreGlobal 215
+882 LoadSmallInt 0
+884 StoreGlobal 216
+886 LoadSmallInt 0
+888 StoreGlobal 217
+890 LoadSmallInt 0
+892 StoreGlobal 218
+894 LoadSmallInt 0
+896 StoreGlobal 219
+898 LoadSmallInt 0
+900 StoreGlobal 220
+902 LoadSmallInt 0
+904 StoreGlobal 221
+906 LoadSmallInt 0
+908 StoreGlobal 222
+910 LoadSmallInt 0
+912 StoreGlobal 223
+914 LoadSmallInt 0
+916 StoreGlobal 224
+918 LoadSmallInt 0
+920 StoreGlobal 225
+922 LoadSmallInt 0
+924 StoreGlobal 226
+926 LoadSmallInt 0
+928 StoreGlobal 227
+930 LoadSmallInt 0
+932 StoreGlobal 228
+934 LoadSmallInt 0
+936 StoreGlobal 229
+938 LoadSmallInt 0
+940 StoreGlobal 230
+942 LoadSmallInt 0
+944 StoreGlobal 231
+946 LoadSmallInt 0
+948 StoreGlobal 232
+950 LoadSmallInt 0
+952 StoreGlobal 233
+954 LoadSmallInt 0
+956 StoreGlobal 234
+958 LoadSmallInt 0
+960 StoreGlobal 235
+962 LoadSmallInt 0
+964 StoreGlobal 236
+966 LoadSmallInt 0
+968 StoreGlobal 237
+970 LoadSmallInt 0
+972 StoreGlobal 238
+974 LoadSmallInt 0
+976 StoreGlobal 239
+978 LoadSmallInt 0
+980 StoreGlobal 240
+982 LoadSmallInt 0
+984 StoreGlobal 241
+986 LoadSmallInt 0
+988 StoreGlobal 242
+990 LoadSmallInt 0
+992 StoreGlobal 243
+994 LoadSmallInt 0
+996 StoreGlobal 244
+998 LoadSmallInt 0
+1000 StoreGlobal 245
+1002 LoadSmallInt 0
+1004 StoreGlobal 246
+1006 LoadSmallInt 0
+1008 StoreGlobal 247
+1010 LoadSmallInt 0
+1012 StoreGlobal 248
+1014 LoadSmallInt 0
+1016 StoreGlobal 249
+1018 LoadSmallInt 0
+1020 StoreGlobal 250
+1022 LoadSmallInt 0
+1024 StoreGlobal 251
+1026 LoadSmallInt 0
+1028 StoreGlobal 252
+1030 LoadSmallInt 0
+1032 StoreGlobal 253
+1034 LoadSmallInt 0
+1036 StoreGlobal 254
+1038 LoadSmallInt 0
+1040 StoreGlobal 255
+1042 LoadSmallInt 0
+1044 Wide StoreGlobal 256
+1048 LoadSmallInt 0
+1050 Wide StoreGlobal 257
+1054 LoadSmallInt 0
+1056 Wide StoreGlobal 258
+1060 LoadSmallInt 0
+1062 Wide StoreGlobal 259
+1066 LoadSmallInt 0
+1068 Wide StoreGlobal 260
+1072 LoadSmallInt 0
+1074 Wide StoreGlobal 261
+1078 LoadSmallInt 0
+1080 Wide StoreGlobal 262
+1084 Exit 

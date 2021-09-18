@@ -41,6 +41,31 @@ impl<'vm> Compiler<'vm> {
         }
     }
 
+    pub fn bench(mut self) -> FunctionInfoWriter<'vm> {
+        let mut b = BytecodeCompiler::new(&mut self);
+        let _ = b.new_global("i");
+        b.write1(Op::LoadSmallInt, 0, 0);
+        b.write0(Op::StoreR0, 0);
+        let loop_start = b.bytecode.size();
+        let large_number = b.bytecode.int_constant(100000000).unwrap();
+        b.write1(Op::LoadConstant, large_number as u32, 0);
+        b.write1(Op::LesserThan, 0, 0);
+        let c = b.bytecode.int_constant(0).unwrap();
+        let loop_cond_check = b.bytecode.size();
+        b.write1(Op::JumpIfFalseOrNullConstant, c.into(), 0);
+        b.write0(Op::LoadR0, 0);
+        b.write1(Op::AddInt, signed_to_unsigned(1), 0);
+        b.write0(Op::StoreR0, 0);
+        let almost_loop_end = b.bytecode.size();
+        b.write1(Op::JumpBack, (almost_loop_end - loop_start) as u32, 0);
+        let loop_end = b.bytecode.size();
+        b.bytecode
+            .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
+        b.write0(Op::LoadR0, 0);
+        b.write0(Op::Exit, 0);
+        b.bytecode
+    }
+
     pub fn can_eval(ast: &[Statement]) -> Option<&Expr> {
         match ast {
             [Statement::Expr(e)] => match e {
@@ -62,7 +87,11 @@ impl<'vm> Compiler<'vm> {
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         let mut b = BytecodeCompiler::new(&mut self);
         match b.evaluate_expr(ast) {
-            Ok(er) => b.store_in_accumulator(er, 0),
+            Ok(er) => {
+                if let Err(e) = b.store_in_accumulator(er, 0) {
+                    b.error(e)
+                }
+            }
             Err(e) => b.error(e),
         }
         b.bytecode.shrink();
@@ -263,6 +292,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         );
         Ok(())
     }
+
+    fn load_int(&mut self, i: i32, line: u32) -> CompileResult<()> {
+        match i {
+            0..=255 => Ok(self.write1(Op::LoadSmallInt, i as u32, line)),
+            -256..=-1 => Ok(self.write1(Op::LoadSmallInt, i as i8 as u8 as u32, line)),
+            _ => {
+                let c = self.bytecode.int_constant(i);
+                self.load_const(c, line)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -279,7 +319,7 @@ macro_rules! binary_op {
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
                 reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line);
+                self.store_in_accumulator(left, line)?;
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -300,18 +340,18 @@ macro_rules! binary_op {
                     )?))
                 }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line);
+                    self.store_in_accumulator(right, line)?;
                     self.write1(Op::$register_inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
-                    self.store_in_accumulator(left, line);
+                    self.store_in_accumulator(left, line)?;
                     self.write1(Op::$int_inst, signed_to_unsigned(i), line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line);
+                    self.store_in_accumulator(right, line)?;
                     self.write1(Op::$register_inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -327,7 +367,7 @@ macro_rules! comparing_binary_op {
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
                 reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line);
+                self.store_in_accumulator(left, line)?;
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -341,12 +381,12 @@ macro_rules! comparing_binary_op {
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line);
+                    self.store_in_accumulator(right, line)?;
                     self.write1(Op::$inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line);
+                    self.store_in_accumulator(right, line)?;
                     self.write1(Op::$inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -369,23 +409,24 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.pop_last_op();
     }
 
-    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) {
+    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
         match result {
             ExprResult::Register(reg) => {
                 self.write_op_load_register(reg, line);
             }
             ExprResult::Accumulator => {}
             ExprResult::Int(i) => {
-                self.write1(Op::LoadInt, signed_to_unsigned(i), line);
+                self.load_int(i, line)?;
             }
         }
+        Ok(())
     }
 
     fn store_in_register(&mut self, result: ExprResult, line: u32) -> CompileResult<u16> {
         if let ExprResult::Register(r) = result {
             Ok(r)
         } else {
-            self.store_in_accumulator(result, line);
+            self.store_in_accumulator(result, line)?;
             let reg = self.push_register(line)?;
             self.write_op_store_register(reg, line);
             Ok(reg)
@@ -433,7 +474,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 ExprResult::Register(reg2) => self.write2(Op::Move, reg2, reg, line),
                 ExprResult::Accumulator => self.write_op_store_register(reg, line),
                 ExprResult::Int(i) => {
-                    self.write1(Op::LoadInt, signed_to_unsigned(i), line);
+                    self.load_int(i, line)?;
                     self.write_op_store_register(reg, line)
                 }
             }
@@ -446,7 +487,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             let g = self.new_global(name);
             let res = self.evaluate_expr(expr)?;
-            self.store_in_accumulator(res, line);
+            self.store_in_accumulator(res, line)?;
             self.write1(Op::StoreGlobal, g, line);
         }
         Ok(())
@@ -531,19 +572,38 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.var_declaration(name, expr, *line)?;
                 }
                 Statement::Block(b) => {
-                    let count = self.regcount();
-                    self.regcounts.push(count);
-                    for stmt in b {
-                        self.evaluate_statement(stmt)
-                    }
-                    self.regcounts.pop();
-                    self.locals.truncate(self.regcount() as usize);
+                    self.block(b);
+                }
+                Statement::If { condition, block } => {
+                    let res = self.evaluate_expr(condition)?;
+                    let line = condition.line();
+                    self.store_in_accumulator(res, line)?;
+                    let c = self.bytecode.int_constant(0).map_err(|e| CompileError {
+                        line: line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })?;
+                    let cond_check = self.bytecode.size();
+                    self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
+                    self.block(block);
+                    let end = self.bytecode.size();
+                    self.bytecode
+                        .patch_jump(cond_check, (end - cond_check) as u32);
                 }
             };
             Ok(())
         })() {
             self.error(e)
         }
+    }
+
+    fn block(&mut self, stmts: &[Statement]) {
+        let count = self.regcount();
+        self.regcounts.push(count);
+        for stmt in stmts {
+            self.evaluate_statement(stmt);
+        }
+        self.regcounts.pop();
+        self.locals.truncate(self.regcount() as usize);
     }
 
     fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
@@ -641,7 +701,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     Substring::Expr(e) => {
                         let expr_res = self.evaluate_expr(e)?;
-                        self.store_in_accumulator(expr_res, *line);
+                        self.store_in_accumulator(expr_res, *line)?;
                         self.write0(Op::ToString, *line);
                     }
                 }
@@ -660,7 +720,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             }
                             Substring::Expr(expr) => {
                                 let expr = self.evaluate_expr(expr)?;
-                                self.store_in_accumulator(expr, *line);
+                                self.store_in_accumulator(expr, *line)?;
                                 self.write0(Op::ToString, *line);
                             }
                         }
@@ -687,7 +747,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 );
                 for (index, expr) in inner.iter().enumerate() {
                     let expr_res = self.evaluate_expr(expr)?;
-                    self.store_in_accumulator(expr_res, expr.line());
+                    self.store_in_accumulator(expr_res, expr.line())?;
                     self.write2(
                         Op::StoreArrayUnchecked,
                         array_reg,
@@ -707,7 +767,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let res = self.evaluate_expr(object)?;
                 let reg = self.store_in_register(res, *line)?;
                 let subscript = self.evaluate_expr(subscript)?;
-                self.store_in_accumulator(subscript, *line);
+                self.store_in_accumulator(subscript, *line)?;
                 self.write1(Op::LoadSubscript, reg as u32, *line);
                 if !matches!(res, ExprResult::Register(_)) {
                     self.pop_register();
@@ -733,7 +793,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let key_res = self.evaluate_expr(key)?;
                     let key_reg = self.store_in_register(key_res, key.line())?;
                     let val_res = self.evaluate_expr(val)?;
-                    self.store_in_accumulator(val_res, val.line());
+                    self.store_in_accumulator(val_res, val.line())?;
                     self.write2(Op::StoreSubscript, map_reg, key_reg, val.line());
                     if !(matches!(key_res, ExprResult::Register(_))) {
                         self.pop_register();
@@ -809,7 +869,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 })
             }
             right => {
-                self.store_in_accumulator(right, line);
+                self.store_in_accumulator(right, line)?;
                 self.write1(Op::ConcatRegister, reg as u32, line);
                 Ok(ExprResult::Accumulator)
             }
@@ -828,7 +888,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             let subscript = self.evaluate_expr(subscript)?;
             let subscript_reg = self.store_in_register(subscript, *line)?;
             let right = self.evaluate_expr(right)?;
-            self.store_in_accumulator(right, *line);
+            self.store_in_accumulator(right, *line)?;
             self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
             if !matches!(subscript, ExprResult::Register(_)) {
                 self.pop_register();
@@ -852,7 +912,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         Ok(())
                     }
                     res => {
-                        self.store_in_accumulator(res, *line);
+                        self.store_in_accumulator(res, *line)?;
                         self.write_op_store_register(dest, *line);
                         Ok(())
                     }
@@ -862,7 +922,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     .get_global(name)
                     .unwrap_or_else(|| self.new_global(name));
                 let res = self.evaluate_expr(right)?;
-                self.store_in_accumulator(res, *line);
+                self.store_in_accumulator(res, *line)?;
                 self.write1(Op::StoreGlobal, global, *line);
                 Ok(())
             }
@@ -874,10 +934,31 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    binary_op!(add, AddRegister, AddInt, add, checked_add,"add");
-    binary_op!(subtract, SubtractRegister, SubtractInt, sub, checked_sub,"subtract");
-    binary_op!(multiply, MultiplyRegister, MultiplyInt, mul, checked_mul,"multiply");
-    binary_op!(divide, DivideRegister, DivideInt, div, checked_div,"divide");
+    binary_op!(add, AddRegister, AddInt, add, checked_add, "add");
+    binary_op!(
+        subtract,
+        SubtractRegister,
+        SubtractInt,
+        sub,
+        checked_sub,
+        "subtract"
+    );
+    binary_op!(
+        multiply,
+        MultiplyRegister,
+        MultiplyInt,
+        mul,
+        checked_mul,
+        "multiply"
+    );
+    binary_op!(
+        divide,
+        DivideRegister,
+        DivideInt,
+        div,
+        checked_div,
+        "divide"
+    );
 
     comparing_binary_op!(equal_equal,Equal,==);
     comparing_binary_op!(equal_equal_equal,StrictEqual,==);
