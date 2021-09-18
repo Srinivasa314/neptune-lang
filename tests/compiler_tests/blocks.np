@@ -1,6 +1,9 @@
 let a='hi'
+global=9
+let b=1.3
 {
-    let z=null
+    let a=0
+    let z=global
     {
         let x=false
         z=x
@@ -16,5 +19,5 @@ let a='hi'
         let z=7 // shadow
         let a=z+1 //shadow
     }
-    z=false
+    z=b
 }

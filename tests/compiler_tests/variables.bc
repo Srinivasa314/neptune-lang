@@ -2,8 +2,10 @@
 2 StoreGlobal 0
 4 LoadSmallInt 1
 6 StoreR0 
-7 Move r0 r1
-10 EmptyArray 
-11 StoreR2 
-12 Move r2 r0
-15 Exit 
+7 LoadSmallInt 1
+9 StoreR1 
+10 Move r1 r2
+13 EmptyArray 
+14 StoreR3 
+15 Move r3 r1
+18 Exit 

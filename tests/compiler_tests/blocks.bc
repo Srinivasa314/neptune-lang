@@ -1,20 +1,25 @@
 0 LoadConstant 'hi'
-2 StoreGlobal 0
-4 LoadNull 
-5 StoreR0 
-6 LoadFalse 
-7 StoreR1 
-8 Move r1 r0
-11 LoadConstant @y
-13 StoreR1 
-14 Move r1 r0
-17 LoadGlobal 1
-19 StoreR0 
-20 LoadSmallInt 7
-22 StoreR1 
-23 LoadSmallInt 1
-25 AddRegister r1
-27 StoreR2 
-28 LoadFalse 
-29 StoreR0 
-30 Exit 
+2 StoreR0 
+3 LoadSmallInt 9
+5 StoreGlobal 0
+7 LoadConstant 1.3
+9 StoreR1 
+10 LoadSmallInt 0
+12 StoreR2 
+13 LoadGlobal 0
+15 StoreR3 
+16 LoadFalse 
+17 StoreR4 
+18 Move r4 r3
+21 LoadConstant @y
+23 StoreR4 
+24 Move r4 r3
+27 LoadGlobal 1
+29 StoreR3 
+30 LoadSmallInt 7
+32 StoreR4 
+33 LoadSmallInt 1
+35 AddRegister r4
+37 StoreR5 
+38 Move r1 r3
+41 Exit 

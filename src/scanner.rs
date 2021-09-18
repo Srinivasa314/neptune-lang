@@ -257,7 +257,7 @@ impl<'src> Scanner<'src> {
                 |IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
                 and it is not followed by whitespaces and a dot (to allow method chaining) and it is not inside brackets(except block) then insert semicolon.
 
-                Statements like if and for are handled
+                Statements like if and for can have a newline after the condition
                 */
                 if self.brackets.is_empty()
                     || matches!(self.brackets.last(), Some(TokenType::LeftBrace))

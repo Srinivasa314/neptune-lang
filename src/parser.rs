@@ -165,6 +165,8 @@ pub enum Statement {
     If {
         condition: Expr,
         block: Vec<Statement>,
+        else_stmt: Option<Box<Statement>>,
+        else_line: u32,
     },
 }
 
@@ -631,7 +633,33 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             "Expect { after condition in if statement".into(),
         )?;
         let block = self.block()?;
-        Ok(Statement::If { condition, block })
+        self.ignore_newline();
+        let mut else_line = 0;
+        let else_stmt = if self.match_token(TokenType::Else) {
+            else_line = self.previous.line;
+            let s = self.statement(false);
+            if let Some(s) = s {
+                if matches!(s, Statement::If { .. } | Statement::Block(_)) {
+                    Some(s)
+                } else {
+                    self.errors.push(CompileError {
+                        message: "Can only have if statement or block after else".into(),
+                        line: else_line,
+                    });
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        Ok(Statement::If {
+            condition,
+            block,
+            else_stmt: else_stmt.map(|s| Box::new(s)),
+            else_line,
+        })
     }
 }
 

@@ -1,4 +1,5 @@
-let global=1.2
+global=1.2
+let x=1
 {
     let a=1
     let b=a

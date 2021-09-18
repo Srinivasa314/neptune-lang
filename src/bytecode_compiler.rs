@@ -433,6 +433,27 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
+    fn store_in_specific_register(
+        &mut self,
+        result: ExprResult,
+        reg: u16,
+        line: u32,
+    ) -> CompileResult<()> {
+        match result {
+            ExprResult::Register(r) => {
+                if r != reg {
+                    self.write2(Op::Move, r, reg, line)
+                }
+            }
+            ExprResult::Accumulator => self.write_op_store_register(reg, line),
+            ExprResult::Int(i) => {
+                self.load_int(i, line)?;
+                self.write_op_store_register(reg, line)
+            }
+        }
+        Ok(())
+    }
+
     fn resolve_local(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local == name {
@@ -451,45 +472,30 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
-        if self.regcounts.len() != 1 {
-            // Shadowing cannot be done within the same block
-            let last_block = self.regcounts[self.regcounts.len() - 2];
-            let this_block = self.regcount();
-            if self.locals[((last_block) as usize)..(this_block as usize)]
-                .iter()
-                .any(|local| local == name)
-            {
-                return Err(CompileError {
-                    message: format!("Cannot redeclare variable {}", name),
-                    line,
-                });
-            }
-            let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
-                line,
-                message: "Cannot have more than 65535 locals".into(),
-            })?;
-            self.locals.push(name.to_string());
-            self.push_register(line)?;
-            match self.evaluate_expr(expr)? {
-                ExprResult::Register(reg2) => self.write2(Op::Move, reg2, reg, line),
-                ExprResult::Accumulator => self.write_op_store_register(reg, line),
-                ExprResult::Int(i) => {
-                    self.load_int(i, line)?;
-                    self.write_op_store_register(reg, line)
-                }
-            }
+        // Shadowing cannot be done within the same block
+        let last_scope = if self.regcounts.len() != 1 {
+            self.regcounts[self.regcounts.len() - 2]
         } else {
-            if self.get_global(name).is_some() {
-                return Err(CompileError {
-                    message: format!("Cannot redeclare variable {}", name),
-                    line,
-                });
-            }
-            let g = self.new_global(name);
-            let res = self.evaluate_expr(expr)?;
-            self.store_in_accumulator(res, line)?;
-            self.write1(Op::StoreGlobal, g, line);
+            0
+        };
+        let this_block = self.regcount();
+        if self.locals[((last_scope) as usize)..(this_block as usize)]
+            .iter()
+            .any(|local| local == name)
+        {
+            return Err(CompileError {
+                message: format!("Cannot redeclare variable {}", name),
+                line,
+            });
         }
+        let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
+            line,
+            message: "Cannot have more than 65535 locals".into(),
+        })?;
+        self.locals.push(name.to_string());
+        self.push_register(line)?;
+        let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
+        self.store_in_specific_register(res, reg, line)?;
         Ok(())
     }
 
@@ -574,20 +580,39 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Statement::Block(b) => {
                     self.block(b);
                 }
-                Statement::If { condition, block } => {
+                Statement::If {
+                    condition,
+                    block,
+                    else_stmt,
+                    else_line,
+                } => {
                     let res = self.evaluate_expr(condition)?;
                     let line = condition.line();
                     self.store_in_accumulator(res, line)?;
-                    let c = self.bytecode.int_constant(0).map_err(|e| CompileError {
-                        line: line,
+                    let c = self.bytecode.int_constant(0).map_err(|_| CompileError {
+                        line,
                         message: "Cannot have more than 65535 constants per function".into(),
                     })?;
                     let cond_check = self.bytecode.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
                     self.block(block);
-                    let end = self.bytecode.size();
-                    self.bytecode
-                        .patch_jump(cond_check, (end - cond_check) as u32);
+                    let if_end = self.bytecode.size();
+                    if let Some(else_stmt) = else_stmt {
+                        let c = self.bytecode.int_constant(0).map_err(|_| CompileError {
+                            line,
+                            message: "Cannot have more than 65535 constants per function".into(),
+                        })?;
+                        self.write1(Op::JumpConstant, c.into(), *else_line);
+                        let jump_end = self.bytecode.size();
+                        self.bytecode
+                            .patch_jump(cond_check, (jump_end - cond_check) as u32);
+                        self.evaluate_statement(else_stmt);
+                        let else_end = self.bytecode.size();
+                        self.bytecode.patch_jump(if_end, (else_end - if_end) as u32);
+                    } else {
+                        self.bytecode
+                            .patch_jump(cond_check, (if_end - cond_check) as u32);
+                    }
                 }
             };
             Ok(())
@@ -607,6 +632,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
+        self.evaluate_expr_with_dest(expr, None)
+    }
+
+    fn evaluate_expr_with_dest(
+        &mut self,
+        expr: &Expr,
+        dest: Option<u16>,
+    ) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
                 TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
@@ -735,7 +768,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.write0(Op::EmptyArray, *line);
                     return Ok(ExprResult::Accumulator);
                 }
-                let array_reg = self.push_register(*line)?;
+                let array_reg = match dest {
+                    Some(r) => r,
+                    None => self.push_register(*line)?,
+                };
                 self.write2(
                     Op::NewArray,
                     u16::try_from(inner.len()).map_err(|_| CompileError {
@@ -755,9 +791,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         expr.line(),
                     );
                 }
-                self.write_op_load_register(array_reg, *line);
-                self.pop_register();
-                Ok(ExprResult::Accumulator)
+                if dest.is_none() {
+                    self.write_op_load_register(array_reg, *line);
+                    self.pop_register();
+                    Ok(ExprResult::Accumulator)
+                } else {
+                    Ok(ExprResult::Register(array_reg))
+                }
             }
             Expr::Subscript {
                 object,
@@ -779,7 +819,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.write0(Op::EmptyMap, *line);
                     return Ok(ExprResult::Accumulator);
                 }
-                let map_reg = self.push_register(*line)?;
+                let map_reg = match dest {
+                    Some(r) => r,
+                    None => self.push_register(*line)?,
+                };
                 self.write2(
                     Op::NewMap,
                     u16::try_from(inner.len()).map_err(|_| CompileError {
@@ -799,9 +842,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.pop_register();
                     }
                 }
-                self.write_op_load_register(map_reg, *line);
-                self.pop_register();
-                Ok(ExprResult::Accumulator)
+                if dest.is_none() {
+                    self.write_op_load_register(map_reg, *line);
+                    self.pop_register();
+                    Ok(ExprResult::Accumulator)
+                } else {
+                    Ok(ExprResult::Register(map_reg))
+                }
             }
         }
     }
@@ -906,17 +953,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 });
             }
             if let Some(dest) = self.resolve_local(name) {
-                match self.evaluate_expr(right)? {
-                    ExprResult::Register(r) => {
-                        self.write2(Op::Move, r, dest, *line);
-                        Ok(())
-                    }
-                    res => {
-                        self.store_in_accumulator(res, *line)?;
-                        self.write_op_store_register(dest, *line);
-                        Ok(())
-                    }
-                }
+                let expr_res = self.evaluate_expr_with_dest(right, Some(dest))?;
+                self.store_in_specific_register(expr_res, dest, *line)
             } else {
                 let global = self
                     .get_global(name)

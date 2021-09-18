@@ -1,30 +1,28 @@
 0 LoadNull 
-1 StoreGlobal 0
-3 LoadSmallInt 3
-5 StoreR0 
-6 LoadSmallInt 3
-8 AddRegister r0
-10 StoreR1 
-11 LoadGlobal 0
-13 AddInt 1
-15 StoreR2 
-16 LoadGlobal 0
+1 StoreR0 
+2 LoadSmallInt 3
+4 StoreR1 
+5 LoadSmallInt 3
+7 AddRegister r1
+9 StoreR2 
+10 LoadSmallInt 1
+12 AddRegister r0
+14 StoreR3 
+15 LoadR3 
+16 AddRegister r0
 18 StoreR4 
-19 LoadR2 
-20 AddRegister r4
-22 StoreR3 
-23 LoadSmallInt 42
-25 AddRegister r0
-27 StoreR0 
-28 LoadR3 
-29 AddRegister r0
-31 StoreR0 
-32 LoadConstant 'v'
-34 ConcatRegister r0
-36 StoreR0 
-37 LoadConstant 'abc'
-39 StoreR5 
-40 LoadConstant 'xyz'
-42 ConcatRegister r5
-44 StoreR4 
-45 Exit 
+19 LoadSmallInt 42
+21 AddRegister r1
+23 StoreR1 
+24 LoadR4 
+25 AddRegister r1
+27 StoreR1 
+28 LoadConstant 'v'
+30 ConcatRegister r1
+32 StoreR1 
+33 LoadConstant 'abc'
+35 StoreR6 
+36 LoadConstant 'xyz'
+38 ConcatRegister r6
+40 StoreR5 
+41 Exit 

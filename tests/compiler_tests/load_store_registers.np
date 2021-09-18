@@ -1,5 +1,4 @@
-let global=null;
-{
+global=null;
 let v1=global;global=v1
 let v2=global;global=v2
 let v3=global;global=v3
@@ -19,4 +18,3 @@ let v16=global;global=v16
 let v17=global;global=v17
 let v18=global;global=v18
 let v19=global;global=v19
-}

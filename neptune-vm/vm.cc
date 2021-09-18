@@ -140,6 +140,12 @@ VMResult VM::run(FunctionInfo *f) {
 #undef utype
 #undef itype
 #undef handler
+
+// Doubles performance for MSVC!!
+#ifndef COMPUTED_GOTO
+  default:
+    unreachable();
+#endif
   }
 end:
   std::ostringstream os;
