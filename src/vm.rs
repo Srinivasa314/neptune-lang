@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(n.eval("'\"'").unwrap().unwrap(), "'\"'");
         assert_eq!(n.eval("'\\''").unwrap().unwrap(), "'\\''");
         assert_eq!(n.eval("@abc").unwrap().unwrap(), "@abc");
-        assert_eq!(n.eval("let global=1"), Ok(None));
+        assert_eq!(n.eval("global=1"), Ok(None));
         assert_eq!(
             n.eval("glibal").unwrap_err(),
             InterpretError::RuntimePanic("Cannot access uninitialized variable glibal".into())
@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(n.eval("'\\('hello')'").unwrap().unwrap(), "'hello'");
         assert_eq!(n.eval("'\\(@bye)'").unwrap().unwrap(), "'bye'");
         assert_eq!(n.eval("@a==@a").unwrap().unwrap(), "true");
-        n.exec("let arr=[]").unwrap();
+        n.exec("arr=[]").unwrap();
         assert_eq!(
             n.eval("arr[0]"),
             Err(InterpretError::RuntimePanic(
@@ -374,5 +374,11 @@ mod tests {
             n.exec("8[0]=1"),
             Err(InterpretError::RuntimePanic("Cannot index type int".into()))
         );
+        n.exec("if true{global=3}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(),"3");
+        n.exec("if global==3{global=5}else{global=7}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(),"5");
+        n.exec("if global==0{global=10}else if global==5{global=11}else{global=12}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(),"11");
     }
 }

@@ -633,7 +633,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             "Expect { after condition in if statement".into(),
         )?;
         let block = self.block()?;
-        self.ignore_newline();
         let mut else_line = 0;
         let else_stmt = if self.match_token(TokenType::Else) {
             else_line = self.previous.line;

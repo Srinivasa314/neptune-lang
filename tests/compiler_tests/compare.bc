@@ -8,4 +8,20 @@
 8 EmptyArray 
 9 Equal r3
 11 StoreR2 
-12 Exit 
+12 LoadFalse 
+13 StoreR3 
+14 LoadTrue 
+15 StoreR4 
+16 LoadSmallInt 4
+18 GreaterThanOrEqual r4
+20 StoreR5 
+21 LoadR4 
+22 LesserThanOrEqual r5
+24 StoreR6 
+25 LoadR6 
+26 NotEqual r6
+28 StoreR6 
+29 LoadR6 
+30 StrictNotEqual r6
+32 StoreR6 
+33 Exit 
