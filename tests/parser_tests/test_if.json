@@ -56,7 +56,9 @@
             }
           }
         }
-      ]
+      ],
+      "else_stmt": null,
+      "else_line": 0
     }
   },
   {
@@ -90,7 +92,208 @@
             }
           }
         }
-      ]
+      ],
+      "else_stmt": null,
+      "else_line": 0
+    }
+  },
+  {
+    "If": {
+      "condition": {
+        "Binary": {
+          "line": 11,
+          "left": {
+            "Variable": {
+              "line": 11,
+              "name": "x"
+            }
+          },
+          "op": "EqualEqual",
+          "right": {
+            "Literal": {
+              "line": 11,
+              "inner": {
+                "IntLiteral": 3
+              }
+            }
+          }
+        }
+      },
+      "block": [
+        {
+          "Expr": {
+            "Binary": {
+              "line": 12,
+              "left": {
+                "Variable": {
+                  "line": 12,
+                  "name": "y"
+                }
+              },
+              "op": "Equal",
+              "right": {
+                "Literal": {
+                  "line": 12,
+                  "inner": {
+                    "IntLiteral": 7
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "else_stmt": {
+        "Block": [
+          {
+            "Expr": {
+              "Binary": {
+                "line": 14,
+                "left": {
+                  "Variable": {
+                    "line": 14,
+                    "name": "y"
+                  }
+                },
+                "op": "Equal",
+                "right": {
+                  "Literal": {
+                    "line": 14,
+                    "inner": {
+                      "IntLiteral": 5
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "else_line": 13
+    }
+  },
+  {
+    "If": {
+      "condition": {
+        "Binary": {
+          "line": 17,
+          "left": {
+            "Variable": {
+              "line": 17,
+              "name": "x"
+            }
+          },
+          "op": "EqualEqual",
+          "right": {
+            "Literal": {
+              "line": 17,
+              "inner": {
+                "IntLiteral": 3
+              }
+            }
+          }
+        }
+      },
+      "block": [
+        {
+          "Expr": {
+            "Binary": {
+              "line": 18,
+              "left": {
+                "Variable": {
+                  "line": 18,
+                  "name": "y"
+                }
+              },
+              "op": "Equal",
+              "right": {
+                "Literal": {
+                  "line": 18,
+                  "inner": {
+                    "IntLiteral": 7
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "else_stmt": {
+        "If": {
+          "condition": {
+            "Binary": {
+              "line": 19,
+              "left": {
+                "Variable": {
+                  "line": 19,
+                  "name": "x"
+                }
+              },
+              "op": "EqualEqual",
+              "right": {
+                "Literal": {
+                  "line": 19,
+                  "inner": {
+                    "IntLiteral": 4
+                  }
+                }
+              }
+            }
+          },
+          "block": [
+            {
+              "Expr": {
+                "Binary": {
+                  "line": 20,
+                  "left": {
+                    "Variable": {
+                      "line": 20,
+                      "name": "y"
+                    }
+                  },
+                  "op": "Equal",
+                  "right": {
+                    "Literal": {
+                      "line": 20,
+                      "inner": {
+                        "IntLiteral": 5
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "else_stmt": {
+            "Block": [
+              {
+                "Expr": {
+                  "Binary": {
+                    "line": 22,
+                    "left": {
+                      "Variable": {
+                        "line": 22,
+                        "name": "y"
+                      }
+                    },
+                    "op": "Equal",
+                    "right": {
+                      "Literal": {
+                        "line": 22,
+                        "inner": {
+                          "IntLiteral": 9
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "else_line": 21
+        }
+      },
+      "else_line": 19
     }
   }
 ]

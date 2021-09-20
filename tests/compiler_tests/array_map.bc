@@ -47,4 +47,8 @@
 92 LoadR6 
 93 LoadSubscript r8
 95 StoreSubscript r9 r7
-98 Exit 
+98 NewMap 1 r10
+101 LoadSmallInt 5
+103 StoreSubscript r10 r6
+106 LoadR10 
+107 Exit 

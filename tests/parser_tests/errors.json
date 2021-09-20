@@ -6,5 +6,7 @@
     "test_invalid_let2",
     "test_no_separator",
     "test_invalid_block",
-    "test_invalid_if"
+    "test_invalid_if",
+    "test_invalid_if2",
+    "test_invalid_if3"
 ]
