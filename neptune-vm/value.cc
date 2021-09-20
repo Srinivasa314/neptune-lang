@@ -92,6 +92,11 @@ ALWAYS_INLINE bool Value::is_true() const { return inner == VALUE_TRUE; }
 
 ALWAYS_INLINE bool Value::is_false() const { return inner == VALUE_FALSE; }
 
+ALWAYS_INLINE void Value::inc() {
+  assert(is_int());
+  inner++; // there is no need to check for overflow because it is impossible
+}
+
 #else
 ALWAYS_INLINE Value::Value(int32_t i) {
   tag = Tag::Int;
@@ -152,6 +157,11 @@ ALWAYS_INLINE bool Value::is_bool() const {
 ALWAYS_INLINE bool Value::is_true() const { return tag == Tag::True; }
 
 ALWAYS_INLINE bool Value::is_false() const { return tag == Tag::False; }
+
+ALWAYS_INLINE void Value::inc() {
+  assert(is_int());
+  value.as_int++; // there is no need to check for overflow because it is impossible
+}
 #endif
 
 ALWAYS_INLINE bool Value::operator==(Value rhs) const {

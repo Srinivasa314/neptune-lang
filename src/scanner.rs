@@ -29,7 +29,6 @@ pub enum TokenType {
     Slash,
     Star,
     Colon,
-    DotDot,
     Bang,
     BangEqual,
     Equal,
@@ -72,6 +71,7 @@ pub enum TokenType {
     True,
     Let,
     While,
+    To,
     //Other types
     Interpolation, // It stores
     Error(String),
@@ -100,6 +100,7 @@ fn get_keyword(s: &str) -> Option<TokenType> {
         "true" => Some(TokenType::True),
         "let" => Some(TokenType::Let),
         "while" => Some(TokenType::While),
+        "to" => Some(TokenType::To),
         _ => None,
     }
 }
@@ -186,7 +187,7 @@ impl<'src> Scanner<'src> {
                 self.brackets.pop();
             }
             b',' => self.add_token(TokenType::Comma),
-            b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
+            b'.' => self.add_token(TokenType::Dot),
             b'-' => self.add_token_if_match(b'=', TokenType::MinusEqual, TokenType::Minus),
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),

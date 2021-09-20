@@ -179,3 +179,30 @@ handler(JumpIfFalseOrNullConstant, {
     ip += (offset - (1 + sizeof(utype)));
   }
 });
+
+handler(BeginForLoop, {
+  auto offset = READ(utype);
+  auto iter = bp[READ(utype)];
+  auto end = bp[READ(utype)];
+  if (likely(iter.is_int() && end.is_int())) {
+    if (iter.as_int() >= end.as_int()) {
+      ip += (offset - (1 + sizeof(utype)));
+    }
+  } else {
+    PANIC("Expected int and int for the start and end of for loop got "
+          << iter.type_string() << " and " << end.type_string() << " instead");
+  }
+});
+handler(BeginForLoopConstant, {
+  auto offset = constants[READ(utype)].as_int();
+  auto iter = bp[READ(utype)];
+  auto end = bp[READ(utype)];
+  if (likely(iter.is_int() && end.is_int())) {
+    if (iter.as_int() >= end.as_int()) {
+      ip += (offset - (1 + sizeof(utype)));
+    }
+  } else {
+    PANIC("Expected int and int for the start and end of for loop got "
+          << iter.type_string() << " and " << end.type_string() << " instead");
+  }
+});

@@ -91,7 +91,7 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
   if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
     assert_in_range(op_position + 3, len);
     if (jump_offset < 65536) {
-      bytecode[op_position + 1] -= 3;
+      bytecode[op_position + 1] -= 4;
       write_unaligned<uint16_t>(bytecode + op_position + 2,
                                 static_cast<uint16_t>(jump_offset));
     } else {
@@ -102,7 +102,7 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
   } else {
     assert_in_range(op_position + 1, len);
     if (jump_offset < 256) {
-      bytecode[op_position] -= 3;
+      bytecode[op_position] -= 4;
       bytecode[op_position + 1] = jump_offset;
     } else {
       hf->object->constants[bytecode[op_position + 1]] =
@@ -113,7 +113,9 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
 
 size_t FunctionInfoWriter::size() const { return hf->object->bytecode.size(); }
 
-uint16_t FunctionInfoWriter::int_constant(int32_t i) { return constant(Value(i)); }
+uint16_t FunctionInfoWriter::int_constant(int32_t i) {
+  return constant(Value(i));
+}
 
 std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
   std::ostringstream os;
@@ -223,6 +225,15 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(JumpBack) << READ(uint16_t);
         break;
+        CASE(BeginForLoop) << READ(uint16_t) << ' ' << REG(uint16_t) << ' '
+                           << REG(uint16_t);
+        break;
+        CASE(BeginForLoopConstant) << f.constants[READ(uint16_t)] << ' '
+                                   << REG(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(ForLoop) << READ(uint16_t) << ' ' << REG(uint16_t) << ' '
+                      << REG(uint16_t);
+        break;
 
       default:
         os << "An op that doesnt have a wide variant is here!";
@@ -245,6 +256,9 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(DivideInt) << READ(int32_t);
         break;
         CASE(JumpBack) << READ(uint32_t);
+        break;
+        CASE(ForLoop) << READ(uint32_t) << ' ' << REG(uint32_t) << ' '
+                      << REG(uint32_t);
         break;
 
       default:
@@ -339,6 +353,15 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(JumpIfFalseOrNullConstant) << f.constants[READ(uint8_t)];
       break;
       CASE(JumpBack) << READ(uint8_t);
+      break;
+      CASE(BeginForLoop) << READ(uint8_t) << ' ' << REG(uint8_t) << ' '
+                         << REG(uint8_t);
+      break;
+      CASE(BeginForLoopConstant) << f.constants[READ(uint8_t)] << ' '
+                                 << REG(uint8_t) << ' ' << REG(uint8_t);
+      break;
+      CASE(ForLoop) << READ(uint8_t) << ' ' << REG(uint8_t) << ' '
+                    << REG(uint8_t);
       break;
       CASE(Return);
       break;

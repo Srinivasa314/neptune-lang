@@ -37,3 +37,13 @@ handler(JumpBack, {
   auto offset = READ(utype);
   ip -= (offset + 1 + sizeof(utype));
 });
+
+handler(ForLoop, {
+  auto offset = READ(utype);
+  auto iter = READ(utype);
+  auto end = READ(utype);
+  bp[iter].inc();
+  if (bp[iter].as_int() < bp[end].as_int()) {
+    ip -= (offset + 1 + sizeof(utype));
+  }
+});

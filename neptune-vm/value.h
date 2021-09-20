@@ -80,6 +80,7 @@ public:
   ALWAYS_INLINE bool is_false() const;
   ALWAYS_INLINE bool operator==(Value rhs) const;
   ALWAYS_INLINE const char *type_string() const;
+  ALWAYS_INLINE void inc();
   friend std::ostream &operator<<(std::ostream &os, const Value v);
   friend struct ValueHasher;
   friend struct ValueStrictEquality;

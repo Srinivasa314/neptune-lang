@@ -43,7 +43,6 @@ impl<'vm> Compiler<'vm> {
 
     pub fn bench(mut self) -> FunctionInfoWriter<'vm> {
         let mut b = BytecodeCompiler::new(&mut self);
-        let _ = b.new_global("i");
         b.write1(Op::LoadSmallInt, 0, 0);
         b.write0(Op::StoreR0, 0);
         let loop_start = b.bytecode.size();
@@ -206,6 +205,33 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
+    fn write3(&mut self, op: Op, u1: u32, u2: u16, u3: u16, line: u32) {
+        match (u8::try_from(u1), u8::try_from(u2), u8::try_from(u3)) {
+            (Ok(u1), Ok(u2), Ok(u3)) => {
+                self.write0(op, line);
+                self.bytecode.write_u8(u1);
+                self.bytecode.write_u8(u2);
+                self.bytecode.write_u8(u3);
+            }
+            _ => match (u16::try_from(u1), u16::try_from(u2), u16::try_from(u3)) {
+                (Ok(u1), Ok(u2), Ok(u3)) => {
+                    self.write0(Op::Wide, line);
+                    self.write0(op, line);
+                    self.bytecode.write_u16(u1);
+                    self.bytecode.write_u16(u2);
+                    self.bytecode.write_u16(u3);
+                }
+                _ => {
+                    self.write0(Op::ExtraWide, line);
+                    self.write0(op, line);
+                    self.bytecode.write_u32(u1);
+                    self.bytecode.write_u32(u2 as u32);
+                    self.bytecode.write_u32(u3 as u32);
+                }
+            },
+        }
+    }
+
     fn pop_last_op(&mut self) {
         let pos = self.op_positions.pop().unwrap();
         self.bytecode.pop_last_op(pos);
@@ -293,6 +319,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Ok(())
     }
 
+    fn reserve_int(&mut self, line: u32) -> CompileResult<u16> {
+        self.bytecode.int_constant(0).map_err(|_| CompileError {
+            line,
+            message: "Cannot have more than 65535 constants per function".into(),
+        })
+    }
+
     fn load_int(&mut self, i: i32, line: u32) -> CompileResult<()> {
         match i {
             0..=255 => Ok(self.write1(Op::LoadSmallInt, i as u32, line)),
@@ -302,6 +335,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 self.load_const(c, line)
             }
         }
+    }
+
+    fn new_local(&mut self, line: u32, name: String) -> CompileResult<u16> {
+        let u = u16::try_from(self.locals.len()).map_err(|_| CompileError {
+            line,
+            message: "Cannot have more than 65535 locals".into(),
+        })?;
+        self.push_register(line)?;
+        self.locals.push(name);
+        Ok(u)
     }
 }
 
@@ -339,15 +382,15 @@ macro_rules! binary_op {
                         },
                     )?))
                 }
-                (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
-                    self.write1(Op::$register_inst, r as u32, line);
-                    Ok(ExprResult::Accumulator)
-                }
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
                     self.store_in_accumulator(left, line)?;
                     self.write1(Op::$int_inst, signed_to_unsigned(i), line);
+                    Ok(ExprResult::Accumulator)
+                }
+                (ExprResult::Register(r), right) => {
+                    self.store_in_accumulator(right, line)?;
+                    self.write1(Op::$register_inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
@@ -398,15 +441,15 @@ macro_rules! comparing_binary_op {
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn undo_save_to_register(&mut self, result: ExprResult) {
         match result {
-            ExprResult::Register(_) => {
+            ExprResult::Register(_) => {}
+            ExprResult::Accumulator => {
                 self.pop_last_op();
             }
-            ExprResult::Accumulator => {}
             ExprResult::Int(_) => {
+                self.pop_last_op();
                 self.pop_last_op();
             }
         }
-        self.pop_last_op();
     }
 
     fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
@@ -488,12 +531,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             });
         }
-        let reg = u16::try_from(self.locals.len()).map_err(|_| CompileError {
-            line,
-            message: "Cannot have more than 65535 locals".into(),
-        })?;
-        self.locals.push(name.to_string());
-        self.push_register(line)?;
+        let reg = self.new_local(line, name.into())?;
         let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
         self.store_in_specific_register(res, reg, line)?;
         Ok(())
@@ -589,19 +627,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let res = self.evaluate_expr(condition)?;
                     let line = condition.line();
                     self.store_in_accumulator(res, line)?;
-                    let c = self.bytecode.int_constant(0).map_err(|_| CompileError {
-                        line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })?;
+                    let c = self.reserve_int(line)?;
                     let cond_check = self.bytecode.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
                     self.block(block);
                     let if_end = self.bytecode.size();
                     if let Some(else_stmt) = else_stmt {
-                        let c = self.bytecode.int_constant(0).map_err(|_| CompileError {
-                            line,
-                            message: "Cannot have more than 65535 constants per function".into(),
-                        })?;
+                        let c = self.reserve_int(*else_line)?;
                         self.write1(Op::JumpConstant, c.into(), *else_line);
                         let jump_end = self.bytecode.size();
                         self.bytecode
@@ -613,6 +645,70 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.bytecode
                             .patch_jump(cond_check, (if_end - cond_check) as u32);
                     }
+                }
+                Statement::While {
+                    condition,
+                    block,
+                    end_line,
+                } => {
+                    let loop_start = self.bytecode.size();
+                    self.evaluate_expr(condition)?;
+                    let c = self.reserve_int(condition.line())?;
+                    let loop_cond_check = self.bytecode.size();
+                    self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
+                    self.block(block);
+                    let almost_loop_end = self.bytecode.size();
+                    self.write1(
+                        Op::JumpBack,
+                        (almost_loop_end - loop_start) as u32,
+                        *end_line,
+                    );
+                    let loop_end = self.bytecode.size();
+                    self.bytecode
+                        .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
+                }
+                Statement::For {
+                    iter,
+                    start,
+                    end,
+                    block,
+                    begin_line,
+                    end_line,
+                } => {
+                    let start = self.evaluate_expr(start)?;
+                    let count = self.regcount();
+                    self.regcounts.push(count);
+                    let iter_reg = self.new_local(*begin_line, iter.clone())?;
+                    self.store_in_specific_register(start, iter_reg, *begin_line)?;
+                    let end = self.evaluate_expr(end)?;
+                    let end_reg = self.new_local(*begin_line, "$end".into())?;
+                    self.store_in_specific_register(end, end_reg, *begin_line)?;
+                    let c = self.reserve_int(*begin_line)?;
+                    let before_loop_prep = self.bytecode.size();
+                    self.write3(
+                        Op::BeginForLoopConstant,
+                        c as u32,
+                        iter_reg,
+                        end_reg,
+                        *begin_line,
+                    );
+                    let loop_start = self.bytecode.size();
+                    for stmt in block {
+                        self.evaluate_statement(stmt);
+                    }
+                    let loop_almost_end = self.bytecode.size();
+                    self.write3(
+                        Op::ForLoop,
+                        (loop_almost_end - loop_start) as u32,
+                        iter_reg,
+                        end_reg,
+                        *end_line,
+                    );
+                    let loop_end = self.bytecode.size();
+                    self.bytecode
+                        .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
+                    self.regcounts.pop();
+                    self.locals.truncate(self.regcount() as usize);
                 }
             };
             Ok(())

@@ -23,7 +23,6 @@ enum Precedence {
     And,
     Equality,
     Comparison,
-    Range,
     Additive,
     Multiplicative,
     Unary,
@@ -47,7 +46,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Slash => Precedence::Multiplicative,
         TokenType::Star => Precedence::Multiplicative,
         TokenType::Colon => Precedence::None,
-        TokenType::DotDot => Precedence::Range,
         TokenType::Bang => Precedence::None,
         TokenType::BangEqual => Precedence::Comparison,
         TokenType::Equal => Precedence::Assignment,
@@ -91,6 +89,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::TildeEqual => Precedence::Assignment,
         TokenType::EqualEqualEqual => Precedence::Comparison,
         TokenType::BangEqualEqual => Precedence::Comparison,
+        TokenType::To => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -167,6 +166,19 @@ pub enum Statement {
         block: Vec<Statement>,
         else_stmt: Option<Box<Statement>>,
         else_line: u32,
+    },
+    While {
+        condition: Expr,
+        block: Vec<Statement>,
+        end_line: u32,
+    },
+    For {
+        begin_line: u32,
+        iter: String,
+        start: Expr,
+        end: Expr,
+        block: Vec<Statement>,
+        end_line:u32
     },
 }
 
@@ -292,7 +304,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Slash => None,
             TokenType::Star => None,
             TokenType::Colon => None,
-            TokenType::DotDot => None,
             TokenType::Bang => Some(todo!()),
             TokenType::BangEqual => None,
             TokenType::Equal => None,
@@ -336,6 +347,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => None,
             TokenType::EqualEqualEqual => None,
             TokenType::BangEqualEqual => None,
+            TokenType::To => None,
         }
     }
 
@@ -355,7 +367,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Slash => self.binary(left),
             TokenType::Star => self.binary(left),
             TokenType::Colon => unreachable!(),
-            TokenType::DotDot => todo!(),
             TokenType::Bang => unreachable!(),
             TokenType::BangEqual => self.binary(left),
             TokenType::Equal => self.binary(left),
@@ -399,6 +410,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => self.binary(left),
             TokenType::EqualEqualEqual => self.binary(left),
             TokenType::BangEqualEqual => self.binary(left),
+            TokenType::To => unreachable!(),
         }
     }
 
@@ -531,6 +543,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 }
             } else if self.match_token(TokenType::If) {
                 self.if_statement()
+            } else if self.match_token(TokenType::While) {
+                self.while_loop()
+            } else if self.match_token(TokenType::For) {
+                self.for_loop()
             } else {
                 self.expression_statement()
             }?;
@@ -659,6 +675,47 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             block,
             else_stmt: else_stmt.map(|s| Box::new(s)),
             else_line,
+        })
+    }
+
+    fn while_loop(&mut self) -> CompileResult<Statement> {
+        let condition = self.expression()?;
+        self.ignore_newline();
+        self.consume(
+            TokenType::LeftBrace,
+            "Expect { after condition in while statement".into(),
+        )?;
+        let block = self.block()?;
+        let end_line = self.previous.line;
+        Ok(Statement::While {
+            condition,
+            block,
+            end_line,
+        })
+    }
+
+    fn for_loop(&mut self) -> CompileResult<Statement> {
+        let begin_line = self.previous.line;
+        self.consume(TokenType::Identifier, "Expect identifier after for".into())?;
+        let iter = self.previous.inner.to_string();
+        self.consume(TokenType::In, "Expect in after loop variable".into())?;
+        let start = self.expression()?;
+        self.consume(TokenType::To, "Expect to".into())?;
+        let end = self.expression()?;
+        self.ignore_newline();
+        self.consume(
+            TokenType::LeftBrace,
+            "Expect { after range in for statement".into(),
+        )?;
+        let block = self.block()?;
+        let end_line = self.previous.line;
+        Ok(Statement::For {
+            begin_line,
+            iter,
+            start,
+            end,
+            block,
+            end_line
         })
     }
 }
