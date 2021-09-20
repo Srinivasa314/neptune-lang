@@ -33,6 +33,7 @@
                 }
               }
             },
+            "mutable": true,
             "line": 2
           }
         },

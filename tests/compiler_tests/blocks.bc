@@ -18,8 +18,8 @@
 29 StoreR3 
 30 LoadSmallInt 7
 32 StoreR4 
-33 LoadSmallInt 1
-35 AddRegister r4
-37 StoreR5 
-38 Move r1 r3
-41 Exit 
+33 LoadR4 
+34 AddInt 1
+36 StoreR5 
+37 Move r1 r3
+40 Exit 

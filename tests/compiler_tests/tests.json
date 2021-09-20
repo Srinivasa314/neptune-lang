@@ -10,5 +10,6 @@
     "string",
     "array_map",
     "constants",
-    "if"
+    "if",
+    "loop"
 ]

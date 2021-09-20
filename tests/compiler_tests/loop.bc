@@ -1,0 +1,16 @@
+0 LoadSmallInt 1
+2 StoreR0 
+3 LoadSmallInt 10
+5 StoreR1 
+6 BeginForLoop 8 r0 r1
+10 ForLoop 0 r0 r1
+14 LoadSmallInt 0
+16 StoreR0 
+17 LoadSmallInt 10
+19 LesserThan r0
+21 JumpIfFalseOrNull 8
+23 LoadR0 
+24 AddInt 1
+26 StoreR0 
+27 JumpBack 10
+29 Exit 

@@ -1,0 +1,90 @@
+[
+  {
+    "For": {
+      "begin_line": 1,
+      "iter": "i",
+      "start": {
+        "Literal": {
+          "line": 1,
+          "inner": {
+            "IntLiteral": 1
+          }
+        }
+      },
+      "end": {
+        "Literal": {
+          "line": 1,
+          "inner": {
+            "IntLiteral": 10
+          }
+        }
+      },
+      "block": [],
+      "end_line": 3
+    }
+  },
+  {
+    "VarDeclaration": {
+      "name": "i",
+      "expr": {
+        "Literal": {
+          "line": 4,
+          "inner": {
+            "IntLiteral": 0
+          }
+        }
+      },
+      "mutable": true,
+      "line": 4
+    }
+  },
+  {
+    "While": {
+      "condition": {
+        "Binary": {
+          "line": 5,
+          "left": {
+            "Variable": {
+              "line": 5,
+              "name": "i"
+            }
+          },
+          "op": "Less",
+          "right": {
+            "Literal": {
+              "line": 5,
+              "inner": {
+                "IntLiteral": 10
+              }
+            }
+          }
+        }
+      },
+      "block": [
+        {
+          "Expr": {
+            "Binary": {
+              "line": 6,
+              "left": {
+                "Variable": {
+                  "line": 6,
+                  "name": "i"
+                }
+              },
+              "op": "PlusEqual",
+              "right": {
+                "Literal": {
+                  "line": 6,
+                  "inner": {
+                    "IntLiteral": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "end_line": 7
+    }
+  }
+]

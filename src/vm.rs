@@ -378,10 +378,15 @@ mod tests {
             Err(InterpretError::RuntimePanic("Cannot index type int".into()))
         );
         n.exec("if true{global=3}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(),"3");
+        assert_eq!(n.eval("global").unwrap().unwrap(), "3");
         n.exec("if global==3{global=5}else{global=7}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(),"5");
-        n.exec("if global==0{global=10}else if global==5{global=11}else{global=12}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(),"11");
+        assert_eq!(n.eval("global").unwrap().unwrap(), "5");
+        n.exec("if global==0{global=10}else if global==5{global=11}else{global=12}")
+            .unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "11");
+        n.exec("global=0\nfor i in 1 to 10{global+=i}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "45");
+        n.exec("global=0\nfor i in 1 to 10{for j in 1 to 10{global+=1}}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "81");
     }
 }

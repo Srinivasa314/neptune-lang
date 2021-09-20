@@ -3,5 +3,6 @@
     "var_redeclare",
     "equal_as_expr",
     "other_err",
-    "concat_int"
+    "concat_int",
+    "invalid_for"
 ]

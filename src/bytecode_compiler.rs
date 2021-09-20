@@ -41,30 +41,6 @@ impl<'vm> Compiler<'vm> {
         }
     }
 
-    pub fn bench(mut self) -> FunctionInfoWriter<'vm> {
-        let mut b = BytecodeCompiler::new(&mut self);
-        b.write1(Op::LoadSmallInt, 0, 0);
-        b.write0(Op::StoreR0, 0);
-        let loop_start = b.bytecode.size();
-        let large_number = b.bytecode.int_constant(100000000).unwrap();
-        b.write1(Op::LoadConstant, large_number as u32, 0);
-        b.write1(Op::LesserThan, 0, 0);
-        let c = b.bytecode.int_constant(0).unwrap();
-        let loop_cond_check = b.bytecode.size();
-        b.write1(Op::JumpIfFalseOrNullConstant, c.into(), 0);
-        b.write0(Op::LoadR0, 0);
-        b.write1(Op::AddInt, signed_to_unsigned(1), 0);
-        b.write0(Op::StoreR0, 0);
-        let almost_loop_end = b.bytecode.size();
-        b.write1(Op::JumpBack, (almost_loop_end - loop_start) as u32, 0);
-        let loop_end = b.bytecode.size();
-        b.bytecode
-            .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
-        b.write0(Op::LoadR0, 0);
-        b.write0(Op::Exit, 0);
-        b.bytecode
-    }
-
     pub fn can_eval(ast: &[Statement]) -> Option<&Expr> {
         match ast {
             [Statement::Expr(e)] => match e {
@@ -104,11 +80,15 @@ impl<'vm> Compiler<'vm> {
         }
     }
 }
+struct Local {
+    name: String,
+    mutable: bool,
+}
 
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
     bytecode: FunctionInfoWriter<'vm>,
-    locals: Vec<String>,
+    locals: Vec<Local>,
     regcounts: Vec<u16>,
     max_registers: u16,
     op_positions: Vec<usize>,
@@ -337,13 +317,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn new_local(&mut self, line: u32, name: String) -> CompileResult<u16> {
+    fn new_local(&mut self, line: u32, name: String, mutable: bool) -> CompileResult<u16> {
         let u = u16::try_from(self.locals.len()).map_err(|_| CompileError {
             line,
             message: "Cannot have more than 65535 locals".into(),
         })?;
         self.push_register(line)?;
-        self.locals.push(name);
+        self.locals.push(Local { name, mutable });
         Ok(u)
     }
 }
@@ -499,7 +479,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn resolve_local(&self, name: &str) -> Option<u16> {
         for (index, local) in self.locals.iter().enumerate().rev() {
-            if local == name {
+            if local.name == name {
                 return Some(index as u16);
             }
         }
@@ -514,7 +494,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.bytecode.set_max_registers(self.max_registers);
     }
 
-    fn var_declaration(&mut self, name: &str, expr: &Expr, line: u32) -> CompileResult<()> {
+    fn var_declaration(
+        &mut self,
+        name: &str,
+        expr: &Expr,
+        line: u32,
+        mutable: bool,
+    ) -> CompileResult<()> {
         // Shadowing cannot be done within the same block
         let last_scope = if self.regcounts.len() != 1 {
             self.regcounts[self.regcounts.len() - 2]
@@ -524,14 +510,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         let this_block = self.regcount();
         if self.locals[((last_scope) as usize)..(this_block as usize)]
             .iter()
-            .any(|local| local == name)
+            .any(|local| local.name == name)
         {
             return Err(CompileError {
                 message: format!("Cannot redeclare variable {}", name),
                 line,
             });
         }
-        let reg = self.new_local(line, name.into())?;
+        let reg = self.new_local(line, name.into(), mutable)?;
         let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
         self.store_in_specific_register(res, reg, line)?;
         Ok(())
@@ -612,8 +598,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.evaluate_expr(expr)?;
                     }
                 },
-                Statement::VarDeclaration { name, expr, line } => {
-                    self.var_declaration(name, expr, *line)?;
+                Statement::VarDeclaration {
+                    name,
+                    expr,
+                    mutable,
+                    line,
+                } => {
+                    self.var_declaration(name, expr, *line, *mutable)?;
                 }
                 Statement::Block(b) => {
                     self.block(b);
@@ -678,10 +669,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let start = self.evaluate_expr(start)?;
                     let count = self.regcount();
                     self.regcounts.push(count);
-                    let iter_reg = self.new_local(*begin_line, iter.clone())?;
+                    let iter_reg = self.new_local(*begin_line, iter.clone(), false)?;
                     self.store_in_specific_register(start, iter_reg, *begin_line)?;
                     let end = self.evaluate_expr(end)?;
-                    let end_reg = self.new_local(*begin_line, "$end".into())?;
+                    let end_reg = self.new_local(*begin_line, "$end".into(), false)?;
                     self.store_in_specific_register(end, end_reg, *begin_line)?;
                     let c = self.reserve_int(*begin_line)?;
                     let before_loop_prep = self.bytecode.size();
@@ -1042,13 +1033,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             return Ok(());
         }
         if let Expr::Variable { name, line } = left {
-            if name.chars().next().unwrap().is_ascii_uppercase() {
-                return Err(CompileError {
-                    message: format!("Cannot modify constant {}", name),
-                    line: *line,
-                });
-            }
             if let Some(dest) = self.resolve_local(name) {
+                if !self.locals[dest as usize].mutable {
+                    return Err(CompileError {
+                        message: format!("Cannot modify constant {}", name),
+                        line: *line,
+                    });
+                }
                 let expr_res = self.evaluate_expr_with_dest(right, Some(dest))?;
                 self.store_in_specific_register(expr_res, dest, *line)
             } else {

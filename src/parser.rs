@@ -63,6 +63,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Break => Precedence::None,
         TokenType::Class => Precedence::None,
         TokenType::Continue => Precedence::None,
+        TokenType::Const => Precedence::None,
         TokenType::Else => Precedence::None,
         TokenType::Extends => Precedence::None,
         TokenType::False => Precedence::None,
@@ -158,6 +159,7 @@ pub enum Statement {
     VarDeclaration {
         name: String,
         expr: Expr,
+        mutable: bool,
         line: u32,
     },
     Block(Vec<Statement>),
@@ -178,7 +180,7 @@ pub enum Statement {
         start: Expr,
         end: Expr,
         block: Vec<Statement>,
-        end_line:u32
+        end_line: u32,
     },
 }
 
@@ -321,6 +323,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Break => None,
             TokenType::Class => None,
             TokenType::Continue => None,
+            TokenType::Const => None,
             TokenType::Else => None,
             TokenType::Extends => None,
             TokenType::False => Some(self.literal()),
@@ -384,6 +387,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Break => unreachable!(),
             TokenType::Class => unreachable!(),
             TokenType::Continue => unreachable!(),
+            TokenType::Const => unreachable!(),
             TokenType::Else => unreachable!(),
             TokenType::Extends => unreachable!(),
             TokenType::False => unreachable!(),
@@ -534,7 +538,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn statement(&mut self, needs_sep: bool) -> Option<Statement> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
-                self.var_declaration()
+                self.var_declaration(true)
+            } else if self.match_token(TokenType::Const) {
+                self.var_declaration(false)
             } else if self.match_token(TokenType::LeftBrace) {
                 if self.try_expr {
                     self.map().map(|e| Statement::Expr(e))
@@ -567,14 +573,19 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         }
     }
 
-    fn var_declaration(&mut self) -> CompileResult<Statement> {
+    fn var_declaration(&mut self, mutable: bool) -> CompileResult<Statement> {
         if TokenType::Identifier == self.current.token_type {
             self.advance();
             let name = self.previous.inner.into();
             let line = self.previous.line;
             self.consume(TokenType::Equal, "Variable must be initialized".into())?;
             let expr = self.expression()?;
-            Ok(Statement::VarDeclaration { name, expr, line })
+            Ok(Statement::VarDeclaration {
+                name,
+                expr,
+                line,
+                mutable,
+            })
         } else {
             Err(self.error_at_current("Expect identifier".into()))
         }
@@ -714,7 +725,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             start,
             end,
             block,
-            end_line
+            end_line,
         })
     }
 }

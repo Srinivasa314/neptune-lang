@@ -103,13 +103,6 @@ impl Neptune {
             Err(InterpretError::CompileError(errors))
         }
     }
-
-    pub fn bench(&mut self) -> String {
-        let compiler = Compiler::new(&self.vm, &mut self.globals);
-        let mut fw = compiler.bench();
-        dbg!(&fw);
-        unsafe { fw.run().get_result().to_string() }
-    }
 }
 
 impl Default for Neptune {

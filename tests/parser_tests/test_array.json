@@ -33,6 +33,7 @@
           ]
         }
       },
+      "mutable": true,
       "line": 1
     }
   },
@@ -45,6 +46,7 @@
           "inner": []
         }
       },
+      "mutable": true,
       "line": 2
     }
   },
@@ -74,6 +76,7 @@
           ]
         }
       },
+      "mutable": true,
       "line": 3
     }
   },
@@ -99,6 +102,7 @@
           }
         }
       },
+      "mutable": true,
       "line": 4
     }
   }
