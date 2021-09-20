@@ -46,9 +46,11 @@ public:
   template <typename O> void release(Handle<O> *handle);
   Symbol *intern(StringSlice s);
   void release(Object *o);
+  void collect();
   VM()
-      : stack(1024 * 1024, Value::null()), frames(1024), bytes_allocated(0),
-        first_obj(nullptr), threshhold(10 * 1024 * 1024), handles(nullptr) {}
+      : stack(1024 * 1024, Value::null()), stack_top(nullptr), frames(1024),
+        bytes_allocated(0), first_obj(nullptr), threshhold(10 * 1024 * 1024),
+        handles(nullptr) {}
   ~VM();
 };
 

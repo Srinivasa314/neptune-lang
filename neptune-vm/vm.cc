@@ -169,6 +169,7 @@ FunctionInfoWriter VM::new_function_info() const {
 }
 
 template <typename O> O *VM::manage(O *t) {
+  collect();
   static_assert(std::is_base_of<Object, O>::value,
                 "O must be a descendant of Object");
   bytes_allocated += sizeof(O);
@@ -296,6 +297,78 @@ Value VM::to_string(Value val) {
         manage(String::from_string_slice(StringSlice{"null", strlen("null")})));
   } else {
     unreachable();
+  }
+}
+
+void VM::collect() {
+  std::vector<Object *> greyobjects;
+
+  // Mark roots
+  auto current_handle = handles;
+  while (current_handle != nullptr) {
+    greyobjects.push_back(current_handle->object);
+    current_handle = current_handle->next;
+  }
+  if (stack_top != nullptr) {
+    for (auto i = stack.data(); i < stack_top; i++) {
+      if (i->is_object())
+        greyobjects.push_back(i->as_object());
+    }
+  }
+  for (auto i : globals) {
+    if (i.is_object())
+      greyobjects.push_back(i.as_object());
+  }
+  for (auto i : symbols) {
+    i->is_dark = true;
+  }
+
+  // Mark all objects
+  while (!greyobjects.empty()) {
+    auto o = greyobjects.back();
+    greyobjects.pop_back();
+    if (o != nullptr && !o->is_dark) {
+      o->is_dark = true;
+      switch (o->type) {
+      case Type::Array:
+        for (auto i : o->as<Array>()->inner) {
+          if (i.is_object())
+            greyobjects.push_back(i.as_object());
+        }
+        break;
+      case Type::Map:
+        for (auto i : o->as<Map>()->inner) {
+          if (i.first.is_object())
+            greyobjects.push_back(i.first.as_object());
+          if (i.second.is_object())
+            greyobjects.push_back(i.second.as_object());
+        }
+        break;
+      case Type::FunctionInfo:
+        for (auto i : o->as<FunctionInfo>()->constants) {
+          if (i.is_object())
+            greyobjects.push_back(i.as_object());
+        }
+      }
+    }
+  }
+
+  // Sweep
+  Object *prev = nullptr;
+  auto current_object = first_obj;
+  while (current_object != NULL) {
+    auto next = current_object->next;
+    if (!current_object->is_dark) {
+      if (prev == nullptr)
+        first_obj = next;
+      else
+        prev->next = next;
+      release(current_object);
+    } else {
+      current_object->is_dark = false;
+      prev = current_object;
+    }
+    current_object = next;
   }
 }
 } // namespace neptune_vm
