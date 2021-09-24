@@ -186,7 +186,7 @@ handler(BeginForLoop, {
   auto end = bp[READ(utype)];
   if (likely(iter.is_int() && end.is_int())) {
     if (iter.as_int() >= end.as_int()) {
-      ip += (offset - (1 + sizeof(utype)));
+      ip += (offset - (1 + 3 * sizeof(utype)));
     }
   } else {
     PANIC("Expected int and int for the start and end of for loop got "
@@ -199,7 +199,7 @@ handler(BeginForLoopConstant, {
   auto end = bp[READ(utype)];
   if (likely(iter.is_int() && end.is_int())) {
     if (iter.as_int() >= end.as_int()) {
-      ip += (offset - (1 + sizeof(utype)));
+      ip += (offset - (1 + 3 * sizeof(utype)));
     }
   } else {
     PANIC("Expected int and int for the start and end of for loop got "

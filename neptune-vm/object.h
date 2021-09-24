@@ -51,10 +51,10 @@ public:
 
 struct StringEquality {
   using is_transparent = void;
-  bool operator()(Symbol *const sym, StringSlice s) const {
+  bool operator()(Symbol *sym, StringSlice s) const {
     return StringEquality{}(static_cast<StringSlice>(*sym), s);
   }
-  bool operator()(StringSlice s, Symbol *const sym) const {
+  bool operator()(StringSlice s, Symbol *sym) const {
     return StringEquality{}(s, static_cast<StringSlice>(*sym));
   }
   bool operator()(Symbol *sym1, Symbol *sym2) const { return sym1 == sym2; }

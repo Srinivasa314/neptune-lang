@@ -1,7 +1,6 @@
 #include "neptune-vm.h"
 #include "object.h"
 #include <SafeInt/SafeInt.hpp>
-#include <iostream>
 #include <sstream>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -57,7 +56,23 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
+    stack_top = stack.get();                                                   \
+    num_frames = 0;                                                            \
     return VMResult{VMStatus::Error, std::move(str)};                          \
+  } while (0)
+
+#define CALL(f)                                                                \
+  do {                                                                         \
+    stack_top = bp + f->max_registers;                                         \
+    if (stack_top > stack_end)                                                 \
+      PANIC("Stack overflow");                                                 \
+    for (size_t i = 0; i < f->max_registers; i++)                              \
+      bp[i] = Value::empty();                                                  \
+    if (num_frames == MAX_FRAMES)                                              \
+      PANIC("Recursion depth exceeded");                                       \
+    frames[num_frames++] = Frame{bp, f};                                       \
+    constants = f->constants.data();                                           \
+    ip = f->bytecode.data();                                                    \
   } while (0)
 
 namespace neptune_vm {
@@ -77,10 +92,11 @@ VMResult VM::run(FunctionInfo *f) {
 #endif
   Value accumulator = Value::null();
   Value *bp = &stack[0];
-  const uint8_t *ip = f->bytecode.data();
-  stack_top = bp + f->max_registers;
   auto globals = this->globals.begin();
-  auto constants = f->constants.data();
+  Value *constants;
+  const uint8_t *ip;
+  Value *stack_end = stack.get() + STACK_SIZE;
+  CALL(f);
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -169,7 +185,8 @@ FunctionInfoWriter VM::new_function_info() const {
 }
 
 template <typename O> O *VM::manage(O *t) {
-  collect();
+  if (STRESS_GC || bytes_allocated > threshhold)
+    collect();
   static_assert(std::is_base_of<Object, O>::value,
                 "O must be a descendant of Object");
   bytes_allocated += sizeof(O);
@@ -223,6 +240,8 @@ Symbol *VM::intern(StringSlice s) {
 }
 
 void VM::release(Object *o) {
+  if (DEBUG_GC)
+    std::cout << "Freeing: " << *o << std::endl;
   // todo change this when more types are added
   if (o->is<String>())
     free(o);
@@ -239,6 +258,8 @@ void VM::release(Object *o) {
 }
 
 VM::~VM() {
+  if (DEBUG_GC)
+    std::cout << "VM destructor:" << std::endl;
   while (handles != nullptr) {
     auto old = handles;
     handles = handles->next;
@@ -301,74 +322,93 @@ Value VM::to_string(Value val) {
 }
 
 void VM::collect() {
-  std::vector<Object *> greyobjects;
+  if (DEBUG_GC)
+    std::cout << "Starting GC\nBytes allocated before: " << bytes_allocated
+              << std::endl;
+  bytes_allocated = 0;
 
   // Mark roots
   auto current_handle = handles;
   while (current_handle != nullptr) {
-    greyobjects.push_back(current_handle->object);
+    grey(current_handle->object);
     current_handle = current_handle->next;
   }
-  if (stack_top != nullptr) {
-    for (auto i = stack.data(); i < stack_top; i++) {
-      if (i->is_object())
-        greyobjects.push_back(i->as_object());
-    }
+  for (auto i = stack.get(); i < stack_top; i++) {
+    if (!i->is_empty() && i->is_object())
+      grey(i->as_object());
   }
   for (auto i : globals) {
-    if (i.is_object())
-      greyobjects.push_back(i.as_object());
+    if (!i.is_empty() && i.is_object())
+      grey(i.as_object());
   }
-  for (auto i : symbols) {
-    i->is_dark = true;
+  for (auto frame = frames.get(); frame < frames.get() + num_frames; frame++) {
+    grey(frame->f);
   }
 
-  // Mark all objects
+  // Blacken all objects
   while (!greyobjects.empty()) {
-    auto o = greyobjects.back();
+    Object *o = greyobjects.back();
     greyobjects.pop_back();
-    if (o != nullptr && !o->is_dark) {
-      o->is_dark = true;
-      switch (o->type) {
-      case Type::Array:
-        for (auto i : o->as<Array>()->inner) {
-          if (i.is_object())
-            greyobjects.push_back(i.as_object());
-        }
-        break;
-      case Type::Map:
-        for (auto i : o->as<Map>()->inner) {
-          if (i.first.is_object())
-            greyobjects.push_back(i.first.as_object());
-          if (i.second.is_object())
-            greyobjects.push_back(i.second.as_object());
-        }
-        break;
-      case Type::FunctionInfo:
-        for (auto i : o->as<FunctionInfo>()->constants) {
-          if (i.is_object())
-            greyobjects.push_back(i.as_object());
-        }
-      }
-    }
+    blacken(o);
   }
 
-  // Sweep
-  Object *prev = nullptr;
-  auto current_object = first_obj;
-  while (current_object != NULL) {
-    auto next = current_object->next;
-    if (!current_object->is_dark) {
-      if (prev == nullptr)
-        first_obj = next;
-      else
-        prev->next = next;
-      release(current_object);
+  threshhold = bytes_allocated * HEAP_GROWTH_FACTOR;
+  // Sweep white objects
+  Object **obj = &first_obj;
+  while (*obj != nullptr) {
+    if (!((*obj)->is_dark)) {
+      auto to_free = *obj;
+      *obj = to_free->next;
+      release(to_free);
     } else {
-      current_object->is_dark = false;
-      prev = current_object;
+      (*obj)->is_dark = false;
+      obj = &(*obj)->next;
     }
-    current_object = next;
+  }
+  if (DEBUG_GC)
+    std::cout << "Bytes allocated after: " << bytes_allocated << std::endl;
+}
+
+void VM::grey(Object *o) {
+  if (o->is_dark)
+    return;
+  o->is_dark = true;
+  greyobjects.push_back(o);
+}
+
+void VM::blacken(Object *o) {
+  switch (o->type) {
+  case Type::Array:
+    for (auto i : o->as<Array>()->inner) {
+      if (i.is_object())
+        grey(i.as_object());
+    }
+    bytes_allocated += sizeof(Array);
+    break;
+  case Type::Map:
+    for (auto i : o->as<Map>()->inner) {
+      if (i.first.is_object())
+        grey(i.first.as_object());
+      if (i.second.is_object())
+        grey(i.second.as_object());
+    }
+    bytes_allocated += sizeof(Map);
+    break;
+  case Type::FunctionInfo:
+    for (auto i : o->as<FunctionInfo>()->constants) {
+      if (i.is_object())
+        grey(i.as_object());
+    }
+    bytes_allocated += sizeof(FunctionInfo);
+    break;
+  case Type::String:
+    bytes_allocated += sizeof(String);
+    break;
+  case Type::Symbol:
+    bytes_allocated += sizeof(Symbol);
+    break;
+  default:
+    break;
   }
 }
 } // namespace neptune_vm

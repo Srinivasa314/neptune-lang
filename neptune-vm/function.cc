@@ -1,6 +1,5 @@
 #include "neptune-vm.h"
 #include <algorithm>
-#include <iostream>
 #include <memory>
 #include <ostream>
 #include <sstream>

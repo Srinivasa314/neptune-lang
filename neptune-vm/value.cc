@@ -160,7 +160,8 @@ ALWAYS_INLINE bool Value::is_false() const { return tag == Tag::False; }
 
 ALWAYS_INLINE void Value::inc() {
   assert(is_int());
-  value.as_int++; // there is no need to check for overflow because it is impossible
+  value.as_int++; // there is no need to check for overflow because it is
+                  // impossible
 }
 #endif
 

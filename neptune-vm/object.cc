@@ -57,6 +57,8 @@ const char *Object::type_string() const {
     return "array";
   case Type::Map:
     return "map";
+  case Type::FunctionInfo:
+    return "function";
   default:
     unreachable();
   }
@@ -106,6 +108,8 @@ std::ostream &operator<<(std::ostream &os, Object &o) {
     return os << "[ Array @ " << static_cast<void *>(&o) << " ]";
   case Type::Map:
     return os << "[ Map @ " << static_cast<void *>(&o) << " ]";
+  case Type::FunctionInfo:
+    return os << "FunctionInfo";
   default:
     unreachable();
   }

@@ -52,4 +52,8 @@ handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
 handler(Return, TODO(););
-handler(Exit, goto end;);
+handler(Exit, {
+  num_frames=0;
+  stack_top = stack.get();
+  goto end;
+});

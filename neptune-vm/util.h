@@ -1,9 +1,17 @@
 #pragma once
 #include <cstring>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
-#ifdef __GNUC__ // gcc or clang
+#ifndef NDEBUG
+#define unreachable()                                                          \
+  do {                                                                         \
+    std::cout << "unreachable at: " << __FILE__ << ":" << __LINE__             \
+              << std::endl;                                                    \
+    exit(1);                                                                   \
+  } while (0)
+#elif __GNUC__ // gcc or clang
 #define unreachable() __builtin_unreachable()
 #elif defined(_MSC_VER) // MSVC
 #define unreachable() __assume(false)
@@ -47,8 +55,10 @@ static T checked_read(const uint8_t *&ip, const uint8_t *end) {
 }
 
 #define TODO()                                                                 \
-  std::cout << "TODO at: " << __FILE__ << ":" << __LINE__ << std::endl;        \
-  exit(1)
+  do {                                                                         \
+    std::cout << "TODO at: " << __FILE__ << ":" << __LINE__ << std::endl;      \
+    exit(1);                                                                   \
+  } while (0)
 
 #ifdef __GNUC__
 #define likely(x) __builtin_expect((x), 1)

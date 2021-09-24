@@ -386,7 +386,12 @@ mod tests {
         assert_eq!(n.eval("global").unwrap().unwrap(), "11");
         n.exec("global=0\nfor i in 1 to 10{global+=i}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "45");
-        n.exec("global=0\nfor i in 1 to 10{for j in 1 to 10{global+=1}}").unwrap();
+        n.exec("global=0\nfor i in 1 to 10{for j in 1 to 10{global+=1}}")
+            .unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "81");
+        n.exec("global=0\nfor i in 1 to 1{global+=1}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "0");
+        n.exec("global=0\nfor i in 1 to -1{global+=1}").unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "0");
     }
 }

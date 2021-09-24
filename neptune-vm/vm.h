@@ -3,9 +3,17 @@
 #include <string>
 #include <tsl/robin_set.h>
 
+constexpr size_t MAX_FRAMES = 1024;
+constexpr size_t STACK_SIZE = 128 * 1024;
+constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
+constexpr size_t INITIAL_HEAP_SIZE = 10 * 1024 * 1024;
+constexpr bool STRESS_GC = false;
+constexpr bool DEBUG_GC = false;
+
 namespace neptune_vm {
 struct Frame {
-  Value *bp; // base pointer which points to the base of the stack
+  Value *bp;
+  FunctionInfo *f;
 };
 
 enum class VMStatus : uint8_t { Success, Error };
@@ -24,8 +32,9 @@ public:
 };
 
 class VM {
-  std::vector<Value> stack;
-  std::vector<Frame> frames;
+  std::unique_ptr<Value[]> stack;
+  std::unique_ptr<Frame[]> frames;
+  size_t num_frames;
   mutable std::vector<Value> globals;
   mutable std::vector<std::string> global_names;
   size_t bytes_allocated;
@@ -35,6 +44,7 @@ class VM {
   tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
   Handle<Object> *handles;
   Value *stack_top;
+  std::vector<Object *> greyobjects;
 
 public:
   Value to_string(Value val);
@@ -47,10 +57,13 @@ public:
   Symbol *intern(StringSlice s);
   void release(Object *o);
   void collect();
+  void blacken(Object *o);
+  void grey(Object *o);
   VM()
-      : stack(1024 * 1024, Value::null()), stack_top(nullptr), frames(1024),
-        bytes_allocated(0), first_obj(nullptr), threshhold(10 * 1024 * 1024),
-        handles(nullptr) {}
+      : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
+        num_frames(0), bytes_allocated(0), first_obj(nullptr),
+        threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
+        stack_top(stack.get()) {}
   ~VM();
 };
 
