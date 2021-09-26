@@ -95,9 +95,15 @@ struct BytecodeCompiler<'c, 'vm> {
     loops: Vec<Loop>,
 }
 
-struct Loop {
-    loop_start: usize,
-    breaks: Vec<usize>,
+enum Loop {
+    While {
+        loop_start: usize,
+        breaks: Vec<usize>,
+    },
+    For {
+        continues: Vec<usize>,
+        breaks: Vec<usize>,
+    },
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
@@ -650,7 +656,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     end_line,
                 } => {
                     let loop_start = self.bytecode.size();
-                    self.loops.push(Loop {
+                    self.loops.push(Loop::While {
                         loop_start,
                         breaks: vec![],
                     });
@@ -668,6 +674,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let loop_end = self.bytecode.size();
                     self.bytecode
                         .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
+                    match self.loops.last().unwrap() {
+                        Loop::While { loop_start, breaks } => {
+                            for b in breaks.iter() {
+                                self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                            }
+                        }
+                        Loop::For { continues, breaks } => unreachable!(),
+                    }
+                    self.loops.pop();
                 }
                 Statement::For {
                     iter,
@@ -695,9 +710,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         *begin_line,
                     );
                     let loop_start = self.bytecode.size();
-                    self.loops.push(Loop {
-                        loop_start,
+                    self.loops.push(Loop::For {
                         breaks: vec![],
+                        continues: vec![],
                     });
                     for stmt in block {
                         self.evaluate_statement(stmt);
@@ -713,6 +728,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let loop_end = self.bytecode.size();
                     self.bytecode
                         .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
+                    match self.loops.last().unwrap() {
+                        Loop::While { loop_start, breaks } => unreachable!(),
+                        Loop::For { continues, breaks } => {
+                            for b in breaks.iter() {
+                                self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                            }
+                            for c in continues.iter() {
+                                self.bytecode.patch_jump(*c, (loop_almost_end - c) as u32);
+                            }
+                        }
+                    }
                     self.regcounts.pop();
                     self.locals.truncate(self.regcount() as usize);
                 }
@@ -735,14 +761,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.locals.truncate(self.regcount() as usize);
     }
 
-    fn end_loop(&mut self) {
-        let end = self.bytecode.size();
-        for b in self.loops.last().unwrap().breaks.iter() {
-            self.bytecode.patch_jump(*b, (end - b) as u32);
-        }
-        self.loops.pop();
-    }
-
     fn break_stmt(&mut self, line: u32) -> CompileResult<()> {
         if self.loops.is_empty() {
             self.error(CompileError {
@@ -751,9 +769,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             })
         } else {
             let break_pos = self.bytecode.size();
-            self.loops.last_mut().unwrap().breaks.push(break_pos);
+            match self.loops.last_mut().unwrap() {
+                Loop::While { loop_start, breaks } => breaks.push(break_pos),
+                Loop::For { continues, breaks } => breaks.push(break_pos),
+            }
             let c = self.reserve_int(line)?;
-            self.write1(Op::Jump, c.into(), line);
+            self.write1(Op::JumpConstant, c.into(), line);
         }
         Ok(())
     }
@@ -765,9 +786,19 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             })
         } else {
-            let loop_start = self.loops.last().unwrap().loop_start;
-            let continue_pos = self.bytecode.size();
-            self.write1(Op::JumpBack, (loop_start - continue_pos) as u32, line);
+            match self.loops.last_mut().unwrap() {
+                Loop::While { loop_start, breaks } => {
+                    let continue_pos = self.bytecode.size();
+                    let loop_start = *loop_start;
+                    self.write1(Op::JumpBack, (continue_pos - loop_start) as u32, line);
+                }
+                Loop::For { continues, breaks } => {
+                    let continue_pos = self.bytecode.size();
+                    continues.push(continue_pos);
+                    let c = self.reserve_int(line)?;
+                    self.write1(Op::JumpConstant, c.into(), line);
+                }
+            }
         }
         Ok(())
     }
@@ -868,39 +899,44 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             },
             Expr::String { inner, line } => {
-                match &inner[0] {
-                    Substring::String(s) => {
-                        let str = self.bytecode.string_constant(s.as_str().into());
-                        self.load_const(str, *line)?;
+                if inner.len() == 0 {
+                    let str = self.bytecode.string_constant("".into());
+                    self.load_const(str, *line)?;
+                } else {
+                    match &inner[0] {
+                        Substring::String(s) => {
+                            let str = self.bytecode.string_constant(s.as_str().into());
+                            self.load_const(str, *line)?;
+                        }
+                        Substring::Expr(e) => {
+                            let expr_res = self.evaluate_expr(e)?;
+                            self.store_in_accumulator(expr_res, *line)?;
+                            self.write0(Op::ToString, *line);
+                        }
                     }
-                    Substring::Expr(e) => {
-                        let expr_res = self.evaluate_expr(e)?;
-                        self.store_in_accumulator(expr_res, *line)?;
-                        self.write0(Op::ToString, *line);
-                    }
-                }
-                if inner.len() > 1 {
-                    let reg = self.push_register(*line)?;
-                    self.write_op_store_register(reg, *line);
-                    for i in &inner[1..] {
-                        match i {
-                            Substring::String(s) => {
-                                if !s.is_empty() {
-                                    let str = self.bytecode.string_constant(s.as_str().into());
-                                    self.load_const(str, *line)?;
-                                } else {
-                                    continue;
+                    if inner.len() > 1 {
+                        let reg = self.push_register(*line)?;
+                        self.write_op_store_register(reg, *line);
+                        for i in &inner[1..] {
+                            match i {
+                                Substring::String(s) => {
+                                    if !s.is_empty() {
+                                        let str = self.bytecode.string_constant(s.as_str().into());
+                                        self.load_const(str, *line)?;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                                Substring::Expr(expr) => {
+                                    let expr = self.evaluate_expr(expr)?;
+                                    self.store_in_accumulator(expr, *line)?;
+                                    self.write0(Op::ToString, *line);
                                 }
                             }
-                            Substring::Expr(expr) => {
-                                let expr = self.evaluate_expr(expr)?;
-                                self.store_in_accumulator(expr, *line)?;
-                                self.write0(Op::ToString, *line);
-                            }
+                            self.write1(Op::ConcatRegister, reg as u32, *line);
                         }
-                        self.write1(Op::ConcatRegister, reg as u32, *line);
+                        self.pop_register();
                     }
-                    self.pop_register();
                 }
                 Ok(ExprResult::Accumulator)
             }
