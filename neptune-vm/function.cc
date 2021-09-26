@@ -210,6 +210,10 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(LesserThanOrEqual) << REG(uint16_t);
         break;
+
+        CASE(Call) << REG(uint16_t) << ' ' << READ(uint16_t);
+        break;
+
         CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
         CASE(StoreSubscript) << REG(uint16_t) << ' ' << REG(uint16_t);
@@ -332,6 +336,9 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(GreaterThanOrEqual) << REG(uint8_t);
       break;
       CASE(LesserThanOrEqual) << REG(uint8_t);
+      break;
+
+      CASE(Call) << REG(uint8_t) << ' ' << READ(uint8_t);
       break;
 
       CASE(ToString);

@@ -1069,6 +1069,33 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     Ok(ExprResult::Register(map_reg))
                 }
             }
+            Expr::Call {
+                line,
+                function,
+                arguments,
+            } => {
+                let start = self.regcount();
+                let reg = self.push_register(*line)?;
+                let expr = self.evaluate_expr_with_dest(function, Some(reg))?;
+                self.store_in_specific_register(expr, reg, *line)?;
+                if arguments.len() >= u16::MAX.into() {
+                    self.error(CompileError {
+                        message: "Too many arguments".to_string(),
+                        line: *line,
+                    })
+                }
+                for arg in arguments {
+                    let reg = self.push_register(*line)?;
+                    let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
+                    self.store_in_specific_register(expr, reg, *line)?;
+                }
+                self.write2(Op::Call, start, arguments.len() as u16, *line);
+                for _ in 0..arguments.len() {
+                    self.pop_register();
+                }
+                self.pop_register();
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {

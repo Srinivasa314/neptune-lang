@@ -136,6 +136,11 @@ pub enum Expr {
         line: u32,
         inner: Vec<(Expr, Expr)>,
     },
+    Call {
+        line: u32,
+        function: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
 }
 
 impl Expr {
@@ -149,6 +154,7 @@ impl Expr {
             Expr::Array { line, .. } => *line,
             Expr::Subscript { line, .. } => *line,
             Expr::Map { line, .. } => *line,
+            Expr::Call { line, .. } => *line,
         }
     }
 }
@@ -372,7 +378,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 
     fn infix(&mut self, token_type: TokenType, left: Box<Expr>) -> CompileResult<Expr> {
         match token_type {
-            TokenType::LeftParen => todo!(),
+            TokenType::LeftParen => self.call(left),
             TokenType::RightParen => unreachable!(),
             TokenType::LeftSquareBracket => self.subscript(left),
             TokenType::RightSquareBracket => unreachable!(),
@@ -468,6 +474,27 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             self.consume(TokenType::Comma, "Expect comma after array element".into())?;
         }
         Ok(Expr::Array { inner: ret, line })
+    }
+
+    fn call(&mut self, function: Box<Expr>) -> CompileResult<Expr> {
+        let mut arguments: Vec<Expr> = vec![];
+        let line = self.previous.line;
+        loop {
+            if self.current.token_type == TokenType::RightParen {
+                self.advance();
+                break;
+            }
+            arguments.push(self.expression()?);
+            if self.match_token(TokenType::RightParen) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after array element".into())?;
+        }
+        Ok(Expr::Call {
+            line,
+            function,
+            arguments,
+        })
     }
 
     fn subscript(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
