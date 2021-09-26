@@ -182,6 +182,12 @@ pub enum Statement {
         block: Vec<Statement>,
         end_line: u32,
     },
+    Break {
+        line: u32,
+    },
+    Continue {
+        line: u32,
+    },
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -553,6 +559,14 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.while_loop()
             } else if self.match_token(TokenType::For) {
                 self.for_loop()
+            } else if self.match_token(TokenType::Break) {
+                Ok(Statement::Break {
+                    line: self.previous.line,
+                })
+            } else if self.match_token(TokenType::Continue) {
+                Ok(Statement::Continue {
+                    line: self.previous.line,
+                })
             } else {
                 self.expression_statement()
             }?;

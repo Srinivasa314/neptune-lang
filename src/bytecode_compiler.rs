@@ -92,6 +92,12 @@ struct BytecodeCompiler<'c, 'vm> {
     regcounts: Vec<u16>,
     max_registers: u16,
     op_positions: Vec<usize>,
+    loops: Vec<Loop>,
+}
+
+struct Loop {
+    loop_start: usize,
+    breaks: Vec<usize>,
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
@@ -103,6 +109,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             compiler: Some(c),
             max_registers: 0,
             op_positions: vec![],
+            loops: vec![],
         }
     }
 
@@ -643,6 +650,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     end_line,
                 } => {
                     let loop_start = self.bytecode.size();
+                    self.loops.push(Loop {
+                        loop_start,
+                        breaks: vec![],
+                    });
                     self.evaluate_expr(condition)?;
                     let c = self.reserve_int(condition.line())?;
                     let loop_cond_check = self.bytecode.size();
@@ -684,6 +695,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         *begin_line,
                     );
                     let loop_start = self.bytecode.size();
+                    self.loops.push(Loop {
+                        loop_start,
+                        breaks: vec![],
+                    });
                     for stmt in block {
                         self.evaluate_statement(stmt);
                     }
@@ -701,6 +716,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.regcounts.pop();
                     self.locals.truncate(self.regcount() as usize);
                 }
+                Statement::Break { line } => self.break_stmt(*line)?,
+                Statement::Continue { line } => self.continue_stmt(*line)?,
             };
             Ok(())
         })() {
@@ -716,6 +733,43 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
         self.regcounts.pop();
         self.locals.truncate(self.regcount() as usize);
+    }
+
+    fn end_loop(&mut self) {
+        let end = self.bytecode.size();
+        for b in self.loops.last().unwrap().breaks.iter() {
+            self.bytecode.patch_jump(*b, (end - b) as u32);
+        }
+        self.loops.pop();
+    }
+
+    fn break_stmt(&mut self, line: u32) -> CompileResult<()> {
+        if self.loops.is_empty() {
+            self.error(CompileError {
+                message: "Cannot use break outside a loop".into(),
+                line,
+            })
+        } else {
+            let break_pos = self.bytecode.size();
+            self.loops.last_mut().unwrap().breaks.push(break_pos);
+            let c = self.reserve_int(line)?;
+            self.write1(Op::Jump, c.into(), line);
+        }
+        Ok(())
+    }
+
+    fn continue_stmt(&mut self, line: u32) -> CompileResult<()> {
+        if self.loops.is_empty() {
+            self.error(CompileError {
+                message: "Cannot use continue outside a loop".into(),
+                line,
+            })
+        } else {
+            let loop_start = self.loops.last().unwrap().loop_start;
+            let continue_pos = self.bytecode.size();
+            self.write1(Op::JumpBack, (loop_start - continue_pos) as u32, line);
+        }
+        Ok(())
     }
 
     fn evaluate_expr(&mut self, expr: &Expr) -> CompileResult<ExprResult> {
