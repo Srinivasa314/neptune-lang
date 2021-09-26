@@ -4,11 +4,10 @@ fn main() {
     let mut n = Neptune::new();
     n.exec(
         r"
-        let head=null
-        for j in 0 to 100000{
-            head={@next:head}
-        }
+        a=[0]
+        a[0]=a
     ",
     )
     .unwrap();
+    println!("{:?}", n.eval("a"));
 }

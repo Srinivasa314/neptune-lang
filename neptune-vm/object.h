@@ -14,12 +14,12 @@ struct StringSlice {
 enum class Type : uint8_t { String, Symbol, Array, Map, FunctionInfo };
 
 class Object {
-  Type type;
   bool is_dark;
   Object *next; // part of intrusive linked list contained in GC
   friend class VM;
 
 public:
+  Type type;
   template <typename O> bool is() const;
   template <typename O> O *as();
   const char *type_string() const;

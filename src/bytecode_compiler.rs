@@ -97,7 +97,7 @@ struct BytecodeCompiler<'c, 'vm> {
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>) -> Self {
         Self {
-            bytecode: c.vm.new_function_info(),
+            bytecode: c.vm.new_function_info("<script>".into()),
             locals: vec![],
             regcounts: vec![0],
             compiler: Some(c),

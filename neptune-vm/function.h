@@ -18,12 +18,15 @@ struct LineInfo {
 class FunctionInfo : public Object {
 public:
   static constexpr Type type = Type::FunctionInfo;
+  std::string name;
   std::vector<uint8_t> bytecode;
   std::vector<Value> constants;
   std::vector<LineInfo> lines;
   uint16_t max_registers;
 
+public:
   friend class FunctionInfoWriter;
+  FunctionInfo(StringSlice name_) : name(name_.data, name_.len) {}
   friend std::ostream &operator<<(std::ostream &os, const FunctionInfo &f);
 };
 

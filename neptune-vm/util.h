@@ -11,7 +11,7 @@
               << std::endl;                                                    \
     exit(1);                                                                   \
   } while (0)
-#elif __GNUC__ // gcc or clang
+#elif defined(__GNUC__) // gcc or clang
 #define unreachable() __builtin_unreachable()
 #elif defined(_MSC_VER) // MSVC
 #define unreachable() __assume(false)

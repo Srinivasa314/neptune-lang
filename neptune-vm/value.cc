@@ -212,32 +212,31 @@ ALWAYS_INLINE const char *Value::type_string() const {
   else
     unreachable();
 }
-std::ostream &operator<<(std::ostream &os, const Value v) {
+void operator<<(ValueFormatter vf, Value v) {
   if (v.is_int())
-    os << v.as_int();
+    vf.os << v.as_int();
   else if (v.is_float()) {
     auto f = v.as_float();
     if (std::isnan(f)) {
       if (std::signbit(f))
-        os << "-nan";
+        vf.os << "-nan";
       else
-        os << "nan";
+        vf.os << "nan";
     } else {
-      os << std::setprecision(14) << f;
+      vf.os << std::setprecision(14) << f;
       if (fmod(f, 1.0) == 0)
-        os << ".0";
+        vf.os << ".0";
     }
   } else if (v.is_null())
-    os << "null";
+    vf.os << "null";
   else if (v.is_true())
-    os << "true";
+    vf.os << "true";
   else if (v.is_false())
-    os << "false";
+    vf.os << "false";
   else if (v.is_object())
-    os << *v.as_object();
+    vf << v.as_object();
   else
     unreachable();
-  return os;
 }
 
 #ifndef NANBOX
@@ -337,4 +336,16 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
   }
 }
 #endif
+
+std::ostream &operator<<(std::ostream &os, Value v) {
+  ValueFormatter vf{os};
+  vf << v;
+  return os;
+}
+
+std::ostream &operator<<(std::ostream &os, Object &o) {
+  ValueFormatter vf{os};
+  vf << &o;
+  return os;
+}
 } // namespace neptune_vm

@@ -94,22 +94,52 @@ static std::string escaped_string(neptune_vm::StringSlice s) {
   return str;
 }
 
-std::ostream &operator<<(std::ostream &os, Object &o) {
+void operator<<(ValueFormatter vf, Object *obj) {
+  constexpr uint32_t MAX_DEPTH = 10;
   // todo change this when more types are added
-  switch (o.type) {
+  switch (obj->type) {
   case Type::String:
-    return os << escaped_string(static_cast<StringSlice>(*o.as<String>()));
+    vf.os << escaped_string(static_cast<StringSlice>(*obj->as<String>()));
+    break;
   case Type::Symbol: {
-    os << '@';
-    auto s = static_cast<StringSlice>(*o.as<Symbol>());
-    return os.write(s.data, static_cast<std::streamsize>(s.len));
+    vf.os << '@';
+    auto s = static_cast<StringSlice>(*obj->as<Symbol>());
+    vf.os.write(s.data, static_cast<std::streamsize>(s.len));
+    break;
   }
-  case Type::Array:
-    return os << "[ Array @ " << static_cast<void *>(&o) << " ]";
-  case Type::Map:
-    return os << "[ Map @ " << static_cast<void *>(&o) << " ]";
+  case Type::Array: {
+    if (vf.depth > MAX_DEPTH) {
+      vf.os << "[...]";
+    } else {
+      auto new_vf = vf.inc_depth();
+      vf.os << "[ ";
+      for (Value v : obj->as<Array>()->inner) {
+        new_vf << v;
+        new_vf.os << ", ";
+      }
+      vf.os << ']';
+    }
+    break;
+  }
+  case Type::Map: {
+    if (vf.depth > MAX_DEPTH) {
+      vf.os << "{...}";
+    } else {
+      auto new_vf = vf.inc_depth();
+      vf.os << "{ ";
+      for (auto p : obj->as<Map>()->inner) {
+        new_vf << p.first;
+        new_vf.os << ": ";
+        new_vf << p.second;
+        new_vf.os << ", ";
+      }
+      vf.os << '}';
+    }
+    break;
+  }
   case Type::FunctionInfo:
-    return os << "FunctionInfo";
+    vf.os << "[function " << obj->as<FunctionInfo>()->name << ']';
+    break;
   default:
     unreachable();
   }

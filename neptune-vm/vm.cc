@@ -72,7 +72,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
       PANIC("Recursion depth exceeded");                                       \
     frames[num_frames++] = Frame{bp, f};                                       \
     constants = f->constants.data();                                           \
-    ip = f->bytecode.data();                                                    \
+    ip = f->bytecode.data();                                                   \
   } while (0)
 
 namespace neptune_vm {
@@ -177,9 +177,9 @@ void VM::add_global(StringSlice name) const {
 
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 
-FunctionInfoWriter VM::new_function_info() const {
+FunctionInfoWriter VM::new_function_info(StringSlice name) const {
   auto this_ = const_cast<VM *>(this);
-  auto function_info = new FunctionInfo;
+  auto function_info = new FunctionInfo(name);
   this_->manage(function_info);
   return FunctionInfoWriter(this_->make_handle(function_info), this);
 }
