@@ -11,5 +11,6 @@
     "array_map",
     "constants",
     "if",
-    "loop"
+    "loop",
+    "test_break_continue"
 ]

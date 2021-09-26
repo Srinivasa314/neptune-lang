@@ -1,0 +1,69 @@
+0 LoadSmallInt 0
+2 StoreGlobal 0
+4 LoadSmallInt 1
+6 StoreR0 
+7 LoadSmallInt 10
+9 StoreR1 
+10 BeginForLoop 24 r0 r1
+14 LoadSmallInt 7
+16 Equal r0
+18 JumpIfFalseOrNull 4
+20 Jump 14
+22 LoadGlobal 0
+24 StoreR2 
+25 LoadR0 
+26 AddRegister r2
+28 StoreGlobal 0
+30 ForLoop 16 r0 r1
+34 LoadSmallInt 1
+36 StoreR0 
+37 LoadSmallInt 10
+39 StoreR1 
+40 BeginForLoop 24 r0 r1
+44 LoadSmallInt 7
+46 Equal r0
+48 JumpIfFalseOrNull 4
+50 Jump 10
+52 LoadGlobal 0
+54 StoreR2 
+55 LoadR0 
+56 AddRegister r2
+58 StoreGlobal 0
+60 ForLoop 16 r0 r1
+64 LoadSmallInt 0
+66 StoreR0 
+67 LoadSmallInt 10
+69 LesserThan r0
+71 JumpIfFalseOrNull 26
+73 LoadGlobal 0
+75 AddInt 1
+77 StoreGlobal 0
+79 LoadSmallInt 7
+81 Equal r0
+83 JumpIfFalseOrNull 4
+85 Jump 12
+87 LoadGlobal 0
+89 StoreR1 
+90 LoadR0 
+91 AddRegister r1
+93 StoreGlobal 0
+95 JumpBack 28
+97 LoadSmallInt 0
+99 StoreR0 
+100 LoadSmallInt 10
+102 LesserThan r0
+104 JumpIfFalseOrNull 26
+106 LoadGlobal 0
+108 AddInt 1
+110 StoreGlobal 0
+112 LoadSmallInt 7
+114 Equal r0
+116 JumpIfFalseOrNull 4
+118 JumpBack 18
+120 LoadGlobal 0
+122 StoreR1 
+123 LoadR0 
+124 AddRegister r1
+126 StoreGlobal 0
+128 JumpBack 28
+130 Exit 

@@ -1,0 +1,29 @@
+x=0
+for i in 1 to 10{
+    if i==7{
+        break
+    }
+    x+=i
+}
+for i in 1 to 10{
+    if i==7{
+        continue
+    }
+    x+=i
+}
+let i=0
+while i<10{
+    x+=1
+    if i==7{
+        break
+    }
+    x+=i
+}
+i=0
+while i<10{
+    x+=1
+    if i==7{
+        continue
+    }
+    x+=i
+}

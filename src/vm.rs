@@ -393,5 +393,61 @@ mod tests {
         assert_eq!(n.eval("global").unwrap().unwrap(), "0");
         n.exec("global=0\nfor i in 1 to -1{global+=1}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "0");
+        n.exec(
+            r#"
+                global=0
+                for i in 1 to 10{
+                    if i==7{
+                        break
+                    }
+                global+=i
+                }
+       "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "21");
+        n.exec(
+            r#"
+                global=0
+                for i in 1 to 10{
+                    if i==7{
+                        continue
+                    }
+                global+=i
+                }
+       "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "38");
+        n.exec(
+            r#"
+                let i=0
+                global=0
+                while i<10{
+                    i+=1
+                    if i==7{
+                        break
+                    }
+                global+=i
+                }
+       "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "21");
+        n.exec(
+            r#"
+                let i=0
+                global=0
+                while i<10{
+                    i+=1
+                    if i==7{
+                        continue
+                    }
+                global+=i
+                }
+       "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("global").unwrap().unwrap(), "48");
     }
 }

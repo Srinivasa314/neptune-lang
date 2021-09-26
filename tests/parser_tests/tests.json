@@ -8,5 +8,6 @@
     "test_string",
     "test_map_eval",
     "test_if",
-    "test_loop"
+    "test_loop",
+    "test_break_continue"
 ]
