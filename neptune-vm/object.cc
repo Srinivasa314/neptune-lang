@@ -109,31 +109,45 @@ void operator<<(ValueFormatter vf, Object *obj) {
   }
   case Type::Array: {
     if (vf.depth > MAX_DEPTH) {
-      vf.os << "[...]";
+      vf.os << "[ ... ]";
     } else {
       auto new_vf = vf.inc_depth();
       vf.os << "[ ";
-      for (Value v : obj->as<Array>()->inner) {
-        new_vf << v;
-        new_vf.os << ", ";
+      auto o = obj->as<Array>()->inner;
+      auto it = o.begin();
+      if (it != o.end()) {
+        new_vf << *it;
+        it++;
+        for (auto v = it; v != o.end(); v++) {
+          new_vf.os << ", ";
+          new_vf << *v;
+        }
       }
-      vf.os << ']';
+      vf.os << " ]";
     }
     break;
   }
   case Type::Map: {
     if (vf.depth > MAX_DEPTH) {
-      vf.os << "{...}";
+      vf.os << "{ ... }";
     } else {
       auto new_vf = vf.inc_depth();
       vf.os << "{ ";
-      for (auto p : obj->as<Map>()->inner) {
-        new_vf << p.first;
+      auto o = obj->as<Map>()->inner;
+      auto it = o.begin();
+      if (it != o.end()) {
+        new_vf << it->first;
         new_vf.os << ": ";
-        new_vf << p.second;
-        new_vf.os << ", ";
+        new_vf << it->second;
+        it++;
+        for (auto p = it; p != o.end(); p++) {
+          new_vf.os << ", ";
+          new_vf << p->first;
+          new_vf.os << ": ";
+          new_vf << p->second;
+        }
       }
-      vf.os << '}';
+      vf.os << " }";
     }
     break;
   }
