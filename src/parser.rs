@@ -188,6 +188,16 @@ pub enum Statement {
     Continue {
         line: u32,
     },
+    Function {
+        line: u32,
+        name: String,
+        arguments: Vec<String>,
+        body: Vec<Statement>,
+    },
+    Return {
+        line: u32,
+        expr: Option<Expr>,
+    },
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -498,6 +508,57 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Expr::Map { inner: ret, line })
     }
 
+    fn function(&mut self) -> CompileResult<Statement> {
+        self.consume(
+            TokenType::Identifier,
+            "Expect identifier for function name".into(),
+        )?;
+        let name = self.previous.inner.to_string();
+        let line = self.previous.line;
+        let mut arguments: Vec<String> = vec![];
+        self.consume(
+            TokenType::LeftParen,
+            "Expect ( to begin argument list".into(),
+        )?;
+        loop {
+            if self.current.token_type == TokenType::RightParen {
+                self.advance();
+                break;
+            }
+            self.consume(TokenType::Identifier, "Expect argument name".into())?;
+            arguments.push(self.previous.inner.to_string());
+            if self.match_token(TokenType::RightParen) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after argument".into())?;
+        }
+        self.consume(
+            TokenType::LeftBrace,
+            "Expect { to begin function body".into(),
+        )?;
+        let body = self.block()?;
+        Ok(Statement::Function {
+            line,
+            name,
+            arguments,
+            body,
+        })
+    }
+
+    fn return_stmt(&mut self) -> CompileResult<Statement> {
+        if self.current.token_type == TokenType::StatementSeparator {
+            Ok(Statement::Return {
+                line: self.previous.line,
+                expr: None,
+            })
+        } else {
+            Ok(Statement::Return {
+                line: self.previous.line,
+                expr: Some(self.expression()?),
+            })
+        }
+    }
+
     fn binary(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
         let op = self.previous.token_type.clone();
         let right =
@@ -567,6 +628,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 Ok(Statement::Continue {
                     line: self.previous.line,
                 })
+            } else if self.match_token(TokenType::Fun) {
+                self.function()
+            } else if self.match_token(TokenType::Return) {
+                self.return_stmt()
             } else {
                 self.expression_statement()
             }?;

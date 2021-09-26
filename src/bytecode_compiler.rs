@@ -30,7 +30,7 @@ impl<'vm> Compiler<'vm> {
         mut self,
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self);
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script);
         b.evaluate_statments(&ast);
         b.write0(Op::Exit, 0);
         let bytecode = b.bytecode;
@@ -60,7 +60,7 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self);
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script);
         match b.evaluate_expr(ast) {
             Ok(er) => {
                 if let Err(e) = b.store_in_accumulator(er, 0) {
@@ -93,6 +93,13 @@ struct BytecodeCompiler<'c, 'vm> {
     max_registers: u16,
     op_positions: Vec<usize>,
     loops: Vec<Loop>,
+    bctype: BytecodeType,
+}
+
+#[derive(PartialEq, Eq)]
+enum BytecodeType {
+    Script,
+    Function,
 }
 
 enum Loop {
@@ -107,15 +114,16 @@ enum Loop {
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
-    fn new(c: &'c mut Compiler<'vm>) -> Self {
+    fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType) -> Self {
         Self {
-            bytecode: c.vm.new_function_info("<script>".into()),
+            bytecode: c.vm.new_function_info(name.into()),
             locals: vec![],
             regcounts: vec![0],
             compiler: Some(c),
             max_registers: 0,
             op_positions: vec![],
             loops: vec![],
+            bctype,
         }
     }
 
@@ -130,7 +138,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn push_register(&mut self, line: u32) -> CompileResult<u16> {
         if self.regcount() == u16::MAX {
             Err(CompileError {
-                message: "Cannot have more than 65535 locals+expressions".into(),
+                message: "Cannot have more than 65535 locals and temporaries".into(),
                 line,
             })
         } else {
@@ -331,10 +339,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn new_local(&mut self, line: u32, name: String, mutable: bool) -> CompileResult<u16> {
-        let u = u16::try_from(self.locals.len()).map_err(|_| CompileError {
-            line,
-            message: "Cannot have more than 65535 locals".into(),
-        })?;
+        let u = self.locals.len() as u16;
         self.push_register(line)?;
         self.locals.push(Local { name, mutable });
         Ok(u)
@@ -675,12 +680,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.bytecode
                         .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
                     match self.loops.last().unwrap() {
-                        Loop::While { loop_start, breaks } => {
+                        Loop::While { breaks, .. } => {
                             for b in breaks.iter() {
                                 self.bytecode.patch_jump(*b, (loop_end - b) as u32);
                             }
                         }
-                        Loop::For { continues, breaks } => unreachable!(),
+                        _ => unreachable!(),
                     }
                     self.loops.pop();
                 }
@@ -729,7 +734,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.bytecode
                         .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
                     match self.loops.last().unwrap() {
-                        Loop::While { loop_start, breaks } => unreachable!(),
                         Loop::For { continues, breaks } => {
                             for b in breaks.iter() {
                                 self.bytecode.patch_jump(*b, (loop_end - b) as u32);
@@ -738,12 +742,50 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 self.bytecode.patch_jump(*c, (loop_almost_end - c) as u32);
                             }
                         }
+                        _ => unreachable!(),
                     }
                     self.regcounts.pop();
                     self.locals.truncate(self.regcount() as usize);
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,
+                Statement::Function {
+                    line,
+                    name,
+                    arguments,
+                    body,
+                } => {
+                    let mut bc = BytecodeCompiler::new(
+                        self.compiler.take().unwrap(),
+                        name.as_str(),
+                        BytecodeType::Function,
+                    );
+                    for arg in arguments {
+                        bc.new_local(*line, arg.clone(), true)?;
+                    }
+                    bc.evaluate_statments(body);
+                    self.compiler = Some(bc.compiler.take().unwrap());
+                    dbg!(&bc.bytecode);
+                    let c = self.bytecode.fun_constant(bc.bytecode);
+                    self.load_const(c, *line)?;
+                    let g = self.new_global(name.as_str());
+                    self.write1(Op::StoreGlobal, g, *line);
+                }
+                Statement::Return { line, expr } => {
+                    if self.bctype == BytecodeType::Script {
+                        self.error(CompileError {
+                            message: "Cannot use return outside a function or method".into(),
+                            line: *line,
+                        });
+                    }
+                    if let Some(expr) = expr {
+                        let expr_res = self.evaluate_expr(expr)?;
+                        self.store_in_accumulator(expr_res, *line)?;
+                    } else {
+                        self.write0(Op::LoadNull, *line);
+                    }
+                    self.write0(Op::Return, *line);
+                }
             };
             Ok(())
         })() {
@@ -770,8 +812,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         } else {
             let break_pos = self.bytecode.size();
             match self.loops.last_mut().unwrap() {
-                Loop::While { loop_start, breaks } => breaks.push(break_pos),
-                Loop::For { continues, breaks } => breaks.push(break_pos),
+                Loop::While { breaks, .. } => breaks.push(break_pos),
+                Loop::For { breaks, .. } => breaks.push(break_pos),
             }
             let c = self.reserve_int(line)?;
             self.write1(Op::JumpConstant, c.into(), line);
@@ -787,12 +829,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             })
         } else {
             match self.loops.last_mut().unwrap() {
-                Loop::While { loop_start, breaks } => {
+                Loop::While { loop_start, .. } => {
                     let continue_pos = self.bytecode.size();
                     let loop_start = *loop_start;
                     self.write1(Op::JumpBack, (continue_pos - loop_start) as u32, line);
                 }
-                Loop::For { continues, breaks } => {
+                Loop::For { continues, .. } => {
                     let continue_pos = self.bytecode.size();
                     continues.push(continue_pos);
                     let c = self.reserve_int(line)?;

@@ -86,7 +86,7 @@ impl Neptune {
             errors.append(e);
         }
         if errors.is_empty() {
-            let vm_result = unsafe { fw.unwrap().run() };
+            let vm_result = unsafe { dbg!(fw.unwrap()).run() };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(if is_expr {
                     Some(vm_result.get_result().to_string())

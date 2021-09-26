@@ -46,6 +46,7 @@ public:
   uint16_t float_constant(double d);
   uint16_t string_constant(StringSlice s);
   uint16_t symbol_constant(StringSlice s);
+  uint16_t fun_constant(FunctionInfoWriter f);
   void shrink();
   void pop_last_op(size_t last_op_pos);
   void release();

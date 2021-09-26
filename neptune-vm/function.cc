@@ -54,6 +54,12 @@ uint16_t FunctionInfoWriter::symbol_constant(StringSlice s) {
   return constant(Value{static_cast<Object *>(p)});
 }
 
+uint16_t FunctionInfoWriter::fun_constant(FunctionInfoWriter f) {
+  auto c = constant(Value{static_cast<Object *>(f.hf->object)});
+  f.release();
+  return c;
+}
+
 void FunctionInfoWriter::shrink() {
   hf->object->bytecode.shrink_to_fit();
   hf->object->constants.shrink_to_fit();
@@ -141,6 +147,7 @@ std::ostream &operator<<(std::ostream &os, uint8_t i) {
 #define READ(type) checked_read<type>(ip, end)
 std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
   using namespace numerical_chars;
+  os << "Bytecode for " << f.name << '\n';
   // todo implement other ops
   auto ip = f.bytecode.data();
   auto end = f.bytecode.data() + f.bytecode.size();

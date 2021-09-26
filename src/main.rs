@@ -4,10 +4,15 @@ fn main() {
     let mut n = Neptune::new();
     n.exec(
         r"
-        a=[0]
-        a[0]=a
+        fun fib(n){
+            if(n<2){
+                return n
+            }else{
+                return
+            }
+        }
     ",
     )
     .unwrap();
-    println!("{:?}", n.eval("a"));
+    println!("{:?}", n.exec("return 1"));
 }

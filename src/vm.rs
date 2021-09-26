@@ -188,6 +188,7 @@ mod ffi {
             s: StringSlice<'s>,
         ) -> Result<u16>;
         fn int_constant(self: &mut FunctionInfoWriter, i: i32) -> Result<u16>;
+        fn fun_constant(self: &mut FunctionInfoWriter, f: FunctionInfoWriter) -> Result<u16>;
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
@@ -357,8 +358,12 @@ mod tests {
         assert_eq!(n.eval("global[true]").unwrap().unwrap(), "true");
         assert_eq!(n.eval("global['a']").unwrap().unwrap(), "'b'");
         assert_eq!(n.eval("global[@a]").unwrap().unwrap(), "6");
-        // todo:enable this test when u can properly print array
-        //assert!(n.eval("global[[]]").is_err());
+        assert_eq!(
+            n.eval("global[[]]"),
+            Err(InterpretError::RuntimePanic(
+                "Key [] does not exist in map".into()
+            ))
+        );
         assert_eq!(n.eval("global[global]").unwrap().unwrap(), "'global'");
         assert_eq!(
             n.eval("1[2]"),
@@ -449,5 +454,28 @@ mod tests {
         )
         .unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "48");
+        assert_eq!(n.eval("[]").unwrap().unwrap(), "[]");
+        assert_eq!(n.eval("[1]").unwrap().unwrap(), "[ 1 ]");
+        assert_eq!(n.eval("[1,2]").unwrap().unwrap(), "[ 1, 2 ]");
+        assert_eq!(n.eval("{}").unwrap().unwrap(), "{}");
+        assert_eq!(n.eval("{'one':1}").unwrap().unwrap(), "{ 'one': 1 }");
+        n.exec("a=[0];a[0]=a").unwrap();
+        assert_eq!(
+            n.eval("a").unwrap().unwrap(),
+            "[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]"
+        );
+        n.exec(
+            r"
+        list=null
+        for i in 0 to 50 {
+            list={@next:list}
+        }
+        ",
+        )
+        .unwrap();
+        assert_eq!(
+            n.eval("list").unwrap().unwrap(),
+            "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
+        );
     }
 }

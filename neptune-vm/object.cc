@@ -112,18 +112,21 @@ void operator<<(ValueFormatter vf, Object *obj) {
       vf.os << "[ ... ]";
     } else {
       auto new_vf = vf.inc_depth();
-      vf.os << "[ ";
       auto o = obj->as<Array>()->inner;
       auto it = o.begin();
       if (it != o.end()) {
+        vf.os << "[ ";
+
         new_vf << *it;
         it++;
         for (auto v = it; v != o.end(); v++) {
           new_vf.os << ", ";
           new_vf << *v;
         }
+        vf.os << " ]";
+      } else {
+        vf.os << "[]";
       }
-      vf.os << " ]";
     }
     break;
   }
@@ -132,10 +135,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
       vf.os << "{ ... }";
     } else {
       auto new_vf = vf.inc_depth();
-      vf.os << "{ ";
       auto o = obj->as<Map>()->inner;
       auto it = o.begin();
       if (it != o.end()) {
+        vf.os << "{ ";
         new_vf << it->first;
         new_vf.os << ": ";
         new_vf << it->second;
@@ -146,8 +149,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
           new_vf.os << ": ";
           new_vf << p->second;
         }
+        vf.os << " }";
+      } else {
+        vf.os << "{}";
       }
-      vf.os << " }";
     }
     break;
   }

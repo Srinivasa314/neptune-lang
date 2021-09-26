@@ -12,5 +12,6 @@
     "constants",
     "if",
     "loop",
-    "test_break_continue"
+    "test_break_continue",
+    "patch_jump"
 ]
