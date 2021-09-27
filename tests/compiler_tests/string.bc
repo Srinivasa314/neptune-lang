@@ -1,3 +1,4 @@
+Bytecode for <script>
 0 LoadConstant 'abc'
 2 StoreR0 
 3 LoadSmallInt 5

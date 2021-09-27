@@ -1,3 +1,4 @@
+Bytecode for <script>
 0 LoadNull 
 1 StoreGlobal 0
 3 LoadGlobal 0

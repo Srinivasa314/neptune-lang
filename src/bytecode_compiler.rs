@@ -181,11 +181,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.bytecode.write_u8(u);
         } else if let Ok(u) = u16::try_from(u) {
             self.write0(Op::Wide, line);
-            self.write0(op, line);
+            self.bytecode.write_op(op, line);
             self.bytecode.write_u16(u);
         } else {
             self.write0(Op::ExtraWide, line);
-            self.write0(op, line);
+            self.bytecode.write_op(op, line);
             self.bytecode.write_u32(u);
         }
     }
@@ -199,36 +199,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             _ => {
                 self.write0(Op::Wide, line);
-                self.write0(op, line);
+                self.bytecode.write_op(op, line);
                 self.bytecode.write_u16(u1);
                 self.bytecode.write_u16(u2)
             }
         }
     }
 
-    fn write3(&mut self, op: Op, u1: u32, u2: u16, u3: u16, line: u32) {
-        match (u8::try_from(u1), u8::try_from(u2), u8::try_from(u3)) {
-            (Ok(u1), Ok(u2), Ok(u3)) => {
-                self.write0(op, line);
-                self.bytecode.write_u8(u1);
-                self.bytecode.write_u8(u2);
-                self.bytecode.write_u8(u3);
-            }
-            _ => match (u16::try_from(u1), u16::try_from(u2), u16::try_from(u3)) {
-                (Ok(u1), Ok(u2), Ok(u3)) => {
-                    self.write0(Op::Wide, line);
-                    self.write0(op, line);
-                    self.bytecode.write_u16(u1);
-                    self.bytecode.write_u16(u2);
-                    self.bytecode.write_u16(u3);
-                }
-                _ => {
-                    self.write0(Op::ExtraWide, line);
-                    self.write0(op, line);
-                    self.bytecode.write_u32(u1);
-                    self.bytecode.write_u32(u2 as u32);
-                    self.bytecode.write_u32(u3 as u32);
-                }
+    fn write2_u32(&mut self, op: Op, u1: u32, u2: u16, line: u32) {
+        match u16::try_from(u1){
+            Ok(u1) => self.write2(op, u1, u2, line),
+            Err(_) => {
+                self.write0(Op::ExtraWide, line);
+                self.bytecode.write_op(op, line);
+                self.bytecode.write_u32(u1);
+                self.bytecode.write_u32(u2 as u32);
             },
         }
     }
@@ -707,11 +692,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.store_in_specific_register(end, end_reg, *begin_line)?;
                     let c = self.reserve_int(*begin_line)?;
                     let before_loop_prep = self.bytecode.size();
-                    self.write3(
+                    self.write2_u32(
                         Op::BeginForLoopConstant,
                         c as u32,
                         iter_reg,
-                        end_reg,
                         *begin_line,
                     );
                     let loop_start = self.bytecode.size();
@@ -723,11 +707,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.evaluate_statement(stmt);
                     }
                     let loop_almost_end = self.bytecode.size();
-                    self.write3(
+                    self.write2_u32(
                         Op::ForLoop,
                         (loop_almost_end - loop_start) as u32,
                         iter_reg,
-                        end_reg,
                         *end_line,
                     );
                     let loop_end = self.bytecode.size();

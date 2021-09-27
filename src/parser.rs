@@ -488,7 +488,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             if self.match_token(TokenType::RightParen) {
                 break;
             }
-            self.consume(TokenType::Comma, "Expect comma after array element".into())?;
+            self.consume(TokenType::Comma, "Expect comma after argument".into())?;
         }
         Ok(Expr::Call {
             line,

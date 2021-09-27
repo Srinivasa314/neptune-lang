@@ -1,3 +1,4 @@
+Bytecode for <script>
 0 LoadConstant 'hi'
 2 StoreR0 
 3 LoadSmallInt 9

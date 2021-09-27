@@ -235,14 +235,12 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(JumpBack) << READ(uint16_t);
         break;
-        CASE(BeginForLoop) << READ(uint16_t) << ' ' << REG(uint16_t) << ' '
-                           << REG(uint16_t);
+        CASE(BeginForLoop) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
-        CASE(BeginForLoopConstant) << f.constants[READ(uint16_t)] << ' '
-                                   << REG(uint16_t) << ' ' << REG(uint16_t);
+        CASE(BeginForLoopConstant)
+            << f.constants[READ(uint16_t)] << ' ' << REG(uint16_t);
         break;
-        CASE(ForLoop) << READ(uint16_t) << ' ' << REG(uint16_t) << ' '
-                      << REG(uint16_t);
+        CASE(ForLoop) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
 
       default:
@@ -267,8 +265,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(JumpBack) << READ(uint32_t);
         break;
-        CASE(ForLoop) << READ(uint32_t) << ' ' << REG(uint32_t) << ' '
-                      << REG(uint32_t);
+        CASE(ForLoop) << READ(uint32_t) << ' ' << REG(uint32_t);
         break;
 
       default:
@@ -367,14 +364,12 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(JumpBack) << READ(uint8_t);
       break;
-      CASE(BeginForLoop) << READ(uint8_t) << ' ' << REG(uint8_t) << ' '
-                         << REG(uint8_t);
+      CASE(BeginForLoop) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
-      CASE(BeginForLoopConstant) << f.constants[READ(uint8_t)] << ' '
-                                 << REG(uint8_t) << ' ' << REG(uint8_t);
+      CASE(BeginForLoopConstant)
+          << f.constants[READ(uint8_t)] << ' ' << REG(uint8_t);
       break;
-      CASE(ForLoop) << READ(uint8_t) << ' ' << REG(uint8_t) << ' '
-                    << REG(uint8_t);
+      CASE(ForLoop) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(Return);
       break;

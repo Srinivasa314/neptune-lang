@@ -1,3 +1,4 @@
+Bytecode for <script>
 0 LoadSmallInt 0
 2 StoreR0 
 3 LoadSmallInt 0

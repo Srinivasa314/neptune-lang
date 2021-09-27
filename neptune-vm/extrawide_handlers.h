@@ -41,9 +41,9 @@ handler(JumpBack, {
 handler(ForLoop, {
   auto offset = READ(utype);
   auto iter = READ(utype);
-  auto end = READ(utype);
+  auto end = iter + 1;
   bp[iter].inc();
   if (bp[iter].as_int() < bp[end].as_int()) {
-    ip -= (offset + 1 + 3 * sizeof(utype));
+    ip -= (offset + 1 + 2 * sizeof(utype));
   }
 });
