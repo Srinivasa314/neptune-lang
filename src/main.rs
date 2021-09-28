@@ -14,5 +14,5 @@ fn main() {
     ",
     )
     .unwrap();
-    println!("{:?}", n.exec("fib(30)"));
+    println!("{:?}", n.eval("fib(8)"));
 }

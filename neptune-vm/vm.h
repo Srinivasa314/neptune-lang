@@ -14,6 +14,7 @@ namespace neptune_vm {
 struct Frame {
   Value *bp;
   FunctionInfo *f;
+  const uint8_t *ip;
 };
 
 enum class VMStatus : uint8_t { Success, Error };

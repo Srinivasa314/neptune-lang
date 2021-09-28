@@ -61,16 +61,16 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     return VMResult{VMStatus::Error, std::move(str)};                          \
   } while (0)
 
-#define CALL(f)                                                                \
+#define CALL(f, offset, arity)                                                 \
   do {                                                                         \
     stack_top = bp + f->max_registers;                                         \
     if (stack_top > stack_end)                                                 \
       PANIC("Stack overflow");                                                 \
-    for (size_t i = 0; i < f->max_registers; i++)                              \
+    for (size_t i = (arity); i < f->max_registers; i++)                        \
       bp[i] = Value::empty();                                                  \
     if (num_frames == MAX_FRAMES)                                              \
       PANIC("Recursion depth exceeded");                                       \
-    frames[num_frames++] = Frame{bp, f};                                       \
+    frames[num_frames++] = Frame{bp - (offset), f, ip};                        \
     constants = f->constants.data();                                           \
     ip = f->bytecode.data();                                                   \
   } while (0)
@@ -96,7 +96,7 @@ VMResult VM::run(FunctionInfo *f) {
   Value *constants;
   const uint8_t *ip;
   Value *stack_end = stack.get() + STACK_SIZE;
-  CALL(f);
+  CALL(f, 0, 0);
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -207,8 +207,8 @@ template <typename O> Handle<O> *VM::make_handle(O *object) {
                                      nullptr));
   else
     return reinterpret_cast<Handle<O> *>(
-        handles->next = new Handle<Object>(
-            handles->next, static_cast<Object *>(object), nullptr));
+        handles = new Handle<Object>(nullptr, static_cast<Object *>(object),
+                                     handles->next));
 }
 
 template <typename O> void VM::release(Handle<O> *handle) {

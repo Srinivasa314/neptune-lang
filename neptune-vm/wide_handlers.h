@@ -70,10 +70,19 @@ handler(GreaterThanOrEqual, COMPARE_OP_REGISTER(>=););
 handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 handler(Call, TODO(););
 handler(Call0Argument, TODO(););
-handler(Call1Argument, TODO(););
+handler(Call1Argument, {
+  auto offset = READ(utype);
+  bp += offset;
+  if (likely(accumulator.is_object())) {
+    if (likely(accumulator.as_object()->is<FunctionInfo>())) {
+      auto f = accumulator.as_object()->as<FunctionInfo>();
+      std::cout << "TODO CHECK arity" << std::endl;
+      CALL(f, offset, 1);
+    }
+  }
+});
 handler(Call2Argument, TODO(););
 handler(Call3Argument, TODO(););
-
 
 handler(NewArray, {
   auto len = READ(utype);

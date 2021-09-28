@@ -51,9 +51,15 @@ handler(
 handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
-handler(Return, TODO(););
+handler(Return, {
+  auto frame = frames[num_frames - 1];
+  num_frames--;
+  bp = frame.bp;
+  ip = frame.ip;
+  constants = frame.f->constants.data();
+});
 handler(Exit, {
-  num_frames=0;
+  num_frames = 0;
   stack_top = stack.get();
   goto end;
 });
