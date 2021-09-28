@@ -72,6 +72,8 @@ handler(Call, TODO(););
 handler(Call0Argument, TODO(););
 handler(Call1Argument, TODO(););
 handler(Call2Argument, TODO(););
+handler(Call3Argument, TODO(););
+
 
 handler(NewArray, {
   auto len = READ(utype);

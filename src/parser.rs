@@ -196,6 +196,7 @@ pub enum Statement {
     },
     Function {
         line: u32,
+        last_line: u32,
         name: String,
         arguments: Vec<String>,
         body: Vec<Statement>,
@@ -564,8 +565,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             "Expect { to begin function body".into(),
         )?;
         let body = self.block()?;
+        let last_line = self.previous.line;
         Ok(Statement::Function {
             line,
+            last_line,
             name,
             arguments,
             body,

@@ -207,14 +207,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn write2_u32(&mut self, op: Op, u1: u32, u2: u16, line: u32) {
-        match u16::try_from(u1){
+        match u16::try_from(u1) {
             Ok(u1) => self.write2(op, u1, u2, line),
             Err(_) => {
                 self.write0(Op::ExtraWide, line);
                 self.bytecode.write_op(op, line);
                 self.bytecode.write_u32(u1);
                 self.bytecode.write_u32(u2 as u32);
-            },
+            }
         }
     }
 
@@ -692,12 +692,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.store_in_specific_register(end, end_reg, *begin_line)?;
                     let c = self.reserve_int(*begin_line)?;
                     let before_loop_prep = self.bytecode.size();
-                    self.write2_u32(
-                        Op::BeginForLoopConstant,
-                        c as u32,
-                        iter_reg,
-                        *begin_line,
-                    );
+                    self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, *begin_line);
                     let loop_start = self.bytecode.size();
                     self.loops.push(Loop::For {
                         breaks: vec![],
@@ -737,6 +732,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     name,
                     arguments,
                     body,
+                    last_line,
                 } => {
                     let mut bc = BytecodeCompiler::new(
                         self.compiler.take().unwrap(),
@@ -747,11 +743,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         bc.new_local(*line, arg.clone(), true)?;
                     }
                     bc.evaluate_statments(body);
+                    if !matches!(body.last(), Some(Statement::Return { .. })) {
+                        bc.write0(Op::LoadNull, *last_line);
+                        bc.write0(Op::Return, *last_line);
+                    }
                     self.compiler = Some(bc.compiler.take().unwrap());
                     dbg!(&bc.bytecode);
                     let c = self.bytecode.fun_constant(bc.bytecode);
                     self.load_const(c, *line)?;
-                    let g = self.new_global(name.as_str());
+                    let g = self
+                        .get_global(name.as_str())
+                        .unwrap_or_else(|| self.new_global(name.as_str()));
                     self.write1(Op::StoreGlobal, g, *line);
                 }
                 Statement::Return { line, expr } => {
@@ -1058,12 +1060,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 arguments,
             } => {
                 let start = self.regcount();
-                let reg = self.push_register(*line)?;
-                let expr = self.evaluate_expr_with_dest(function, Some(reg))?;
-                self.store_in_specific_register(expr, reg, *line)?;
-                if arguments.len() >= u16::MAX.into() {
+                if arguments.len() >= 25 {
                     self.error(CompileError {
-                        message: "Too many arguments".to_string(),
+                        message: "Cannot have more than 25 arguments".to_string(),
                         line: *line,
                     })
                 }
@@ -1072,11 +1071,22 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
                     self.store_in_specific_register(expr, reg, *line)?;
                 }
-                self.write2(Op::Call, start, arguments.len() as u16, *line);
+                let expr = self.evaluate_expr(function)?;
+                self.store_in_accumulator(expr, *line)?;
+                let call_op = match arguments.len() {
+                    0 => Op::Call0Argument,
+                    1 => Op::Call1Argument,
+                    2 => Op::Call2Argument,
+                    3 => Op::Call3Argument,
+                    _ => Op::Call,
+                };
+                self.write1(call_op, start as u32, *line);
+                if arguments.len() > 3 {
+                    self.bytecode.write_u8(arguments.len() as u8);
+                }
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
-                self.pop_register();
                 Ok(ExprResult::Accumulator)
             }
         }

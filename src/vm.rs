@@ -140,6 +140,7 @@ mod ffi {
         Call0Argument,
         Call1Argument,
         Call2Argument,
+        Call3Argument,
         ToString,
         NewArray,
         NewMap,

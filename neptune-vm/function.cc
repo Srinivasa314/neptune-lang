@@ -211,7 +211,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(LesserThanOrEqual) << REG(uint16_t);
         break;
 
-        CASE(Call) << REG(uint16_t) << ' ' << READ(uint16_t);
+        CASE(Call) << REG(uint16_t) << ' ' << READ(uint8_t);
         break;
 
         CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
@@ -241,6 +241,14 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
             << f.constants[READ(uint16_t)] << ' ' << REG(uint16_t);
         break;
         CASE(ForLoop) << READ(uint16_t) << ' ' << REG(uint16_t);
+        break;
+        CASE(Call0Argument) << REG(uint16_t);
+        break;
+        CASE(Call1Argument) << REG(uint16_t);
+        break;
+        CASE(Call2Argument) << REG(uint16_t);
+        break;
+        CASE(Call3Argument) << REG(uint16_t);
         break;
 
       default:
@@ -440,6 +448,14 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(StoreR14);
       break;
       CASE(StoreR15);
+      break;
+      CASE(Call0Argument) << REG(uint8_t);
+      break;
+      CASE(Call1Argument) << REG(uint8_t);
+      break;
+      CASE(Call2Argument) << REG(uint8_t);
+      break;
+      CASE(Call3Argument) << REG(uint8_t);
       break;
     default:
       os << "Invalid op here!";
