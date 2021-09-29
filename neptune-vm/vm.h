@@ -51,7 +51,7 @@ public:
   Value to_string(Value val);
   VMResult run(FunctionInfo *f);
   void add_global(StringSlice name) const;
-  FunctionInfoWriter new_function_info(StringSlice name) const;
+  FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
   template <typename O> O *manage(O *t);
   template <typename O> Handle<O> *make_handle(O *object);
   template <typename O> void release(Handle<O> *handle);

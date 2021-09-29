@@ -68,21 +68,48 @@ handler(GreaterThan, COMPARE_OP_REGISTER(>););
 handler(LesserThan, COMPARE_OP_REGISTER(<););
 handler(GreaterThanOrEqual, COMPARE_OP_REGISTER(>=););
 handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
-handler(Call, TODO(););
-handler(Call0Argument, TODO(););
-handler(Call1Argument, {
-  auto offset = READ(utype);
-  bp += offset;
-  if (likely(accumulator.is_object())) {
-    if (likely(accumulator.as_object()->is<FunctionInfo>())) {
-      auto f = accumulator.as_object()->as<FunctionInfo>();
-      std::cout << "TODO CHECK arity" << std::endl;
-      CALL(f, offset, 1);
-    }
+
+#define CALLOP(n)                                                              \
+  if (likely(accumulator.is_object())) {                                       \
+    if (likely(accumulator.as_object()->is<FunctionInfo>())) {                 \
+      auto new_f = accumulator.as_object()->as<FunctionInfo>();                \
+      if (unlikely(new_f->arity != n))                                         \
+        PANIC("Function " << new_f->name << " takes " << new_f->arity          \
+                          << " arguments but " << n << "were given");          \
+      if (num_frames == MAX_FRAMES)                                            \
+        PANIC("Recursion depth exceeded");                                     \
+      frames[num_frames++] = Frame{bp, f, ip};                                 \
+      f = new_f;                                                               \
+      bp += offset;                                                            \
+      stack_top = bp + f->max_registers;                                       \
+      for (size_t i = arity; i < f->max_registers; i++)                        \
+        bp[i] = Value::empty();                                                \
+      if (stack_top > stack_end)                                               \
+        PANIC("Stack overflow");                                               \
+      constants = f->constants.data();                                         \
+      ip = f->bytecode.data();                                                 \
+    } else {                                                                   \
+      PANIC(accumulator.type_string() << " is not callable");                  \
+    }                                                                          \
+  } else {                                                                     \
+    PANIC(accumulator.type_string() << " is not callable");                    \
   }
+
+#define CALLNARGUMENT(n)                                                       \
+  do {                                                                         \
+    auto offset = READ(utype);                                                 \
+    CALLOP(n)                                                                  \
+  } while (0)
+
+handler(Call0Argument, CALLNARGUMENT(0););
+handler(Call1Argument, CALLNARGUMENT(1););
+handler(Call2Argument, CALLNARGUMENT(2););
+handler(Call3Argument, CALLNARGUMENT(3););
+handler(Call, {
+  auto offset = READ(utype);
+  auto n = READ(uint8_t);
+  CALLOP(n)
 });
-handler(Call2Argument, TODO(););
-handler(Call3Argument, TODO(););
 
 handler(NewArray, {
   auto len = READ(utype);

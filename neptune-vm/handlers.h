@@ -57,6 +57,7 @@ handler(Return, {
   bp = frame.bp;
   ip = frame.ip;
   constants = frame.f->constants.data();
+  stack_top = bp + f->max_registers;
 });
 handler(Exit, {
   num_frames = 0;

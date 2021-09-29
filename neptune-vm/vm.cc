@@ -61,20 +61,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     return VMResult{VMStatus::Error, std::move(str)};                          \
   } while (0)
 
-#define CALL(f, offset, arity)                                                 \
-  do {                                                                         \
-    stack_top = bp + f->max_registers;                                         \
-    if (stack_top > stack_end)                                                 \
-      PANIC("Stack overflow");                                                 \
-    for (size_t i = (arity); i < f->max_registers; i++)                        \
-      bp[i] = Value::empty();                                                  \
-    if (num_frames == MAX_FRAMES)                                              \
-      PANIC("Recursion depth exceeded");                                       \
-    frames[num_frames++] = Frame{bp - (offset), f, ip};                        \
-    constants = f->constants.data();                                           \
-    ip = f->bytecode.data();                                                   \
-  } while (0)
-
 namespace neptune_vm {
 VMResult VM::run(FunctionInfo *f) {
 #ifdef COMPUTED_GOTO
@@ -93,10 +79,9 @@ VMResult VM::run(FunctionInfo *f) {
   Value accumulator = Value::null();
   Value *bp = &stack[0];
   auto globals = this->globals.begin();
-  Value *constants;
-  const uint8_t *ip;
+  Value *constants = f->constants.data();
+  const uint8_t *ip = f->bytecode.data();
   Value *stack_end = stack.get() + STACK_SIZE;
-  CALL(f, 0, 0);
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -177,9 +162,10 @@ void VM::add_global(StringSlice name) const {
 
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 
-FunctionInfoWriter VM::new_function_info(StringSlice name) const {
+FunctionInfoWriter VM::new_function_info(StringSlice name,
+                                         uint8_t arity) const {
   auto this_ = const_cast<VM *>(this);
-  auto function_info = new FunctionInfo(name);
+  auto function_info = new FunctionInfo(name, arity);
   this_->manage(function_info);
   return FunctionInfoWriter(this_->make_handle(function_info), this);
 }

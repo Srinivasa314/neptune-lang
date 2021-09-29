@@ -194,7 +194,11 @@ mod ffi {
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
         fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>);
-        fn new_function_info<'vm>(self: &'vm VM, name: StringSlice) -> FunctionInfoWriter<'vm>;
+        fn new_function_info<'vm>(
+            self: &'vm VM,
+            name: StringSlice,
+            arity: u8,
+        ) -> FunctionInfoWriter<'vm>;
         fn new_vm() -> UniquePtr<VM>;
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
