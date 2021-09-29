@@ -182,6 +182,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(DivideRegister) << REG(uint16_t);
         break;
+        CASE(ModRegister) << REG(uint16_t);
+        break;
         CASE(ConcatRegister) << REG(uint16_t);
         break;
 
@@ -192,6 +194,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(MultiplyInt) << READ(int16_t);
         break;
         CASE(DivideInt) << READ(int16_t);
+        break;
+        CASE(ModInt) << READ(int16_t);
         break;
 
         CASE(Equal) << REG(uint16_t);
@@ -229,9 +233,13 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(JumpIfFalseOrNull) << READ(uint16_t);
         break;
+        CASE(JumpIfNotFalseOrNull) << READ(uint16_t);
+        break;
         CASE(JumpConstant) << f.constants[READ(uint16_t)];
         break;
         CASE(JumpIfFalseOrNullConstant) << f.constants[READ(uint16_t)];
+        break;
+        CASE(JumpIfNotFalseOrNullConstant) << f.constants[READ(uint16_t)];
         break;
         CASE(JumpBack) << READ(uint16_t);
         break;
@@ -270,6 +278,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
         CASE(MultiplyInt) << READ(int32_t);
         break;
         CASE(DivideInt) << READ(int32_t);
+        break;
+        CASE(ModInt) << READ(int32_t);
         break;
         CASE(JumpBack) << READ(uint32_t);
         break;
@@ -311,6 +321,8 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(DivideRegister) << REG(uint8_t);
       break;
+      CASE(ModRegister) << REG(uint8_t);
+      break;
       CASE(ConcatRegister) << REG(uint8_t);
       break;
 
@@ -322,7 +334,10 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(DivideInt) << READ(int8_t);
       break;
+      CASE(ModInt) << READ(int8_t);
+      break;
       CASE(Negate);
+      CASE(Not);
       break;
 
       CASE(Equal) << REG(uint8_t);
@@ -366,9 +381,13 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(JumpIfFalseOrNull) << READ(uint8_t);
       break;
+      CASE(JumpIfNotFalseOrNull) << READ(uint8_t);
+      break;
       CASE(JumpConstant) << f.constants[READ(uint8_t)];
       break;
       CASE(JumpIfFalseOrNullConstant) << f.constants[READ(uint8_t)];
+      break;
+      CASE(JumpIfNotFalseOrNullConstant) << f.constants[READ(uint8_t)];
       break;
       CASE(JumpBack) << READ(uint8_t);
       break;

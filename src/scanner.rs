@@ -24,6 +24,8 @@ pub enum TokenType {
     Comma,
     Dot,
     Minus,
+    Percent,
+    PercentEqual,
     Plus,
     StatementSeparator,
     Slash,
@@ -194,6 +196,7 @@ impl<'src> Scanner<'src> {
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),
             b'*' => self.add_token_if_match(b'=', TokenType::StarEqual, TokenType::Star),
+            b'%' => self.add_token_if_match(b'=', TokenType::PercentEqual, TokenType::Percent),
             b'!' => {
                 if self.match_char(b'=') {
                     if self.match_char(b'=') {

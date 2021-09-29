@@ -52,12 +52,15 @@
   OP(SubtractRegister)                                                         \
   OP(MultiplyRegister)                                                         \
   OP(DivideRegister)                                                           \
+  OP(ModRegister)                                                              \
   OP(ConcatRegister)                                                           \
   OP(AddInt)                                                                   \
   OP(SubtractInt)                                                              \
   OP(MultiplyInt)                                                              \
   OP(DivideInt)                                                                \
+  OP(ModInt)                                                                   \
   OP(Negate)                                                                   \
+  OP(Not)                                                                      \
   OP(Equal)                                                                    \
   OP(NotEqual)                                                                 \
   OP(StrictEqual)                                                              \
@@ -79,10 +82,12 @@
   OP(ForLoop)                                                                  \
   OP(Jump)                                                                     \
   OP(JumpIfFalseOrNull)                                                        \
+  OP(JumpIfNotFalseOrNull)                                                     \
   OP(BeginForLoop)                                                             \
   OP(JumpBack)                                                                 \
   OP(JumpConstant)                                                             \
   OP(JumpIfFalseOrNullConstant)                                                \
+  OP(JumpIfNotFalseOrNullConstant)                                             \
   OP(BeginForLoopConstant)                                                     \
   OP(Return)                                                                   \
   OP(Exit)

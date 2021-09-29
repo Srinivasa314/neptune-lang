@@ -50,7 +50,8 @@ impl<'vm> Compiler<'vm> {
                     | TokenType::MinusEqual
                     | TokenType::StarEqual
                     | TokenType::SlashEqual
-                    | TokenType::TildeEqual => None,
+                    | TokenType::TildeEqual
+                    | TokenType::PercentEqual => None,
                     _ => Some(e),
                 },
                 _ => Some(e),
@@ -582,6 +583,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 },
                                 *line,
                             )?;
+                        } else if *op == TokenType::PercentEqual {
+                            self.equal(
+                                left,
+                                &Expr::Binary {
+                                    left: left.clone(),
+                                    op: TokenType::Percent,
+                                    right: right.clone(),
+                                    line: *line,
+                                },
+                                *line,
+                            )?;
                         } else if *op == TokenType::TildeEqual {
                             self.equal(
                                 left,
@@ -883,6 +895,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::Minus => self.subtract(left, right, *line),
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
+                TokenType::Percent => self.modulus(left, right, *line),
                 TokenType::EqualEqual => self.equal_equal(left, right, *line),
                 TokenType::EqualEqualEqual => self.equal_equal_equal(left, right, *line),
                 TokenType::BangEqualEqual => self.not_equal_equal(left, right, *line),
@@ -911,6 +924,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     message: "/= is not an expression".to_string(),
                     line: *line,
                 }),
+                TokenType::PercentEqual => Err(CompileError {
+                    message: "%= is not an expression".to_string(),
+                    line: *line,
+                }),
                 TokenType::Tilde => self.concat(left, right, *line),
                 TokenType::TildeEqual => Err(CompileError {
                     message: "~= is not an expression".to_string(),
@@ -920,6 +937,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             },
             Expr::Unary { op, right, line } => match op {
                 TokenType::Minus => self.negate(right, *line),
+                TokenType::Bang => self.not(right, *line),
                 _ => todo!(),
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
@@ -1130,6 +1148,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
+    fn not(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
+        let result = self.evaluate_expr(right)?;
+        self.store_in_accumulator(result, line);
+        self.write0(Op::Not, line);
+        Ok(ExprResult::Accumulator)
+    }
+
     fn concat(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         let left = self.evaluate_expr(left)?;
         let reg;
@@ -1243,6 +1268,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         checked_div,
         "divide"
     );
+    binary_op!(modulus, ModRegister, ModInt, rem, checked_rem, "mod");
 
     comparing_binary_op!(equal_equal,Equal,==);
     comparing_binary_op!(equal_equal_equal,StrictEqual,==);

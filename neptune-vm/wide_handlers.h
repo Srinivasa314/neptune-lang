@@ -51,6 +51,25 @@ handler(AddRegister, BINARY_OP_REGISTER(add, SafeAdd, +););
 handler(SubtractRegister, BINARY_OP_REGISTER(subtract, SafeSubtract, -););
 handler(MultiplyRegister, BINARY_OP_REGISTER(multiply, SafeMultiply, *););
 handler(DivideRegister, BINARY_OP_REGISTER(divide, SafeDivide, /););
+handler(ModRegister, {
+  auto reg = READ(utype);
+  int res;
+  if (accumulator.is_int() && bp[reg].is_int()) {
+    if (unlikely(!SafeModulus(bp[reg].as_int(), accumulator.as_int(), res)))
+      PANIC("Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
+                          << " as the result does not fit in an int");
+    accumulator = Value(res);
+  } else if (accumulator.is_float() && bp[reg].is_float()) {
+    accumulator = Value(fmod(bp[reg].as_float(), accumulator.as_float()));
+  } else if (accumulator.is_int() && bp[reg].is_float()) {
+    accumulator = Value(fmod(bp[reg].as_float(), accumulator.as_int()));
+  } else if (accumulator.is_float() && bp[reg].is_int()) {
+    accumulator = Value(fmod(bp[reg].as_int(), accumulator.as_float()));
+  } else {
+    PANIC("Cannot mod types " << bp[reg].type_string() << " and "
+                              << accumulator.type_string());
+  }
+});
 handler(ConcatRegister, {
   auto reg = READ(utype);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<String>() &&
@@ -207,6 +226,14 @@ handler(JumpIfFalseOrNull, {
   }
 });
 
+handler(JumpIfNotFalseOrNull, {
+  auto offset = READ(utype);
+  // This is because clang thinks that this is extremely unlikely
+  if (IF_CLANG(likely)(!accumulator.is_null_or_false())) {
+    ip += (offset - (1 + sizeof(utype)));
+  }
+});
+
 handler(JumpConstant, {
   auto offset = constants[READ(utype)].as_int();
   ip += (offset - (1 + sizeof(utype)));
@@ -216,6 +243,14 @@ handler(JumpIfFalseOrNullConstant, {
   // This is because clang thinks that this is extremely unlikely
   auto offset = constants[READ(utype)].as_int();
   if (IF_CLANG(likely)(accumulator.is_null_or_false())) {
+    ip += (offset - (1 + sizeof(utype)));
+  }
+});
+
+handler(JumpIfNotFalseOrNullConstant, {
+  // This is because clang thinks that this is extremely unlikely
+  auto offset = constants[READ(utype)].as_int();
+  if (IF_CLANG(likely)(!accumulator.is_null_or_false())) {
     ip += (offset - (1 + sizeof(utype)));
   }
 });

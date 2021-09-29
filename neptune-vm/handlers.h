@@ -47,7 +47,13 @@ handler(
     } else if (accumulator.is_float()) {
       accumulator = Value(-accumulator.as_float());
     } else { PANIC("Cannot negate type " << accumulator.type_string()); });
-
+handler(Not, {
+  if (accumulator.is_null_or_false()) {
+    accumulator = Value(true);
+  } else {
+    accumulator = Value(false);
+  }
+});
 handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);

@@ -32,6 +32,21 @@ handler(AddInt, BINARY_OP_INT(add, SafeAdd, +););
 handler(SubtractInt, BINARY_OP_INT(subtract, SafeSubtract, -););
 handler(MultiplyInt, BINARY_OP_INT(multiply, SafeMultiply, *););
 handler(DivideInt, BINARY_OP_INT(divide, SafeDivide, /););
+handler(ModInt, {
+  if (accumulator.is_int()) {
+    int result;
+    int i = READ(itype);
+    if (unlikely(!SafeModulus(accumulator.as_int(), i, result))) {
+      PANIC("Cannot mod " << accumulator.as_int() << " and " << i
+                          << " as the result does not fit in an int");
+    }
+    accumulator = Value(result);
+  } else if (accumulator.is_float()) {
+    accumulator = Value(fmod(accumulator.as_float(), READ(itype)));
+  } else {
+    PANIC("Cannot mod types " << accumulator.type_string() << " and int");
+  }
+});
 
 handler(JumpBack, {
   auto offset = READ(utype);
