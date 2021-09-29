@@ -30,7 +30,7 @@ impl<'vm> Compiler<'vm> {
         mut self,
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script);
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
         b.write0(Op::Exit, 0);
         let bytecode = b.bytecode;
@@ -60,7 +60,7 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script);
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
                 if let Err(e) = b.store_in_accumulator(er, 0) {
@@ -114,9 +114,9 @@ enum Loop {
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
-    fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType) -> Self {
+    fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType, arity: u8) -> Self {
         Self {
-            bytecode: c.vm.new_function_info(name.into()),
+            bytecode: c.vm.new_function_info(name.into(), arity),
             locals: vec![],
             regcounts: vec![0],
             compiler: Some(c),
@@ -734,10 +734,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     body,
                     last_line,
                 } => {
+                    if arguments.len() >= 25 {
+                        return Err(CompileError {
+                            message: "Cannot have more than 25 arguments".to_string(),
+                            line: *line,
+                        });
+                    }
                     let mut bc = BytecodeCompiler::new(
                         self.compiler.take().unwrap(),
                         name.as_str(),
                         BytecodeType::Function,
+                        arguments.len() as u8,
                     );
                     for arg in arguments {
                         bc.new_local(*line, arg.clone(), true)?;
@@ -758,7 +765,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 Statement::Return { line, expr } => {
                     if self.bctype == BytecodeType::Script {
-                        self.error(CompileError {
+                        return Err(CompileError {
                             message: "Cannot use return outside a function or method".into(),
                             line: *line,
                         });
@@ -790,10 +797,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn break_stmt(&mut self, line: u32) -> CompileResult<()> {
         if self.loops.is_empty() {
-            self.error(CompileError {
+            return Err(CompileError {
                 message: "Cannot use break outside a loop".into(),
                 line,
-            })
+            });
         } else {
             let break_pos = self.bytecode.size();
             match self.loops.last_mut().unwrap() {
@@ -808,10 +815,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn continue_stmt(&mut self, line: u32) -> CompileResult<()> {
         if self.loops.is_empty() {
-            self.error(CompileError {
+            return Err(CompileError {
                 message: "Cannot use continue outside a loop".into(),
                 line,
-            })
+            });
         } else {
             match self.loops.last_mut().unwrap() {
                 Loop::While { loop_start, .. } => {
@@ -1061,10 +1068,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             } => {
                 let start = self.regcount();
                 if arguments.len() >= 25 {
-                    self.error(CompileError {
+                    return Err(CompileError {
                         message: "Cannot have more than 25 arguments".to_string(),
                         line: *line,
-                    })
+                    });
                 }
                 for arg in arguments {
                     let reg = self.push_register(*line)?;

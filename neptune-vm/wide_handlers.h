@@ -73,9 +73,11 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
   if (likely(accumulator.is_object())) {                                       \
     if (likely(accumulator.as_object()->is<FunctionInfo>())) {                 \
       auto new_f = accumulator.as_object()->as<FunctionInfo>();                \
-      if (unlikely(new_f->arity != n))                                         \
-        PANIC("Function " << new_f->name << " takes " << new_f->arity          \
-                          << " arguments but " << n << "were given");          \
+      auto arity = new_f->arity;                                               \
+      if (unlikely(arity != n))                                                \
+        PANIC("Function " << new_f->name << " takes "                          \
+                          << static_cast<uint32_t>(arity) << " arguments but " \
+                          << static_cast<uint32_t>(n) << " were given");       \
       if (num_frames == MAX_FRAMES)                                            \
         PANIC("Recursion depth exceeded");                                     \
       frames[num_frames++] = Frame{bp, f, ip};                                 \
