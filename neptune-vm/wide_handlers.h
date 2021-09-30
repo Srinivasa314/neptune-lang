@@ -103,12 +103,12 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
       f = new_f;                                                               \
       bp += offset;                                                            \
       stack_top = bp + f->max_registers;                                       \
-      for (size_t i = arity; i < f->max_registers; i++)                        \
-        bp[i] = Value::empty();                                                \
-      if (stack_top > stack_end)                                               \
-        PANIC("Stack overflow");                                               \
       constants = f->constants.data();                                         \
       ip = f->bytecode.data();                                                 \
+      if (stack_top > stack_end)                                               \
+        PANIC("Stack overflow");                                               \
+      for (size_t i = arity; i < f->max_registers; i++)                        \
+        bp[i] = Value::empty();                                                \
     } else {                                                                   \
       PANIC(accumulator.type_string() << " is not callable");                  \
     }                                                                          \

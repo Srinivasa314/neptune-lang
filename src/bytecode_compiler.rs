@@ -51,7 +51,7 @@ impl<'vm> Compiler<'vm> {
                     | TokenType::StarEqual
                     | TokenType::SlashEqual
                     | TokenType::TildeEqual
-                    | TokenType::PercentEqual => None,
+                    | TokenType::ModEqual => None,
                     _ => Some(e),
                 },
                 _ => Some(e),
@@ -583,12 +583,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 },
                                 *line,
                             )?;
-                        } else if *op == TokenType::PercentEqual {
+                        } else if *op == TokenType::ModEqual {
                             self.equal(
                                 left,
                                 &Expr::Binary {
                                     left: left.clone(),
-                                    op: TokenType::Percent,
+                                    op: TokenType::Mod,
                                     right: right.clone(),
                                     line: *line,
                                 },
@@ -883,7 +883,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.load_const(sym, *line)?;
                     Ok(ExprResult::Accumulator)
                 }
-                _ => todo!(),
+                _ => unreachable!(),
             },
             Expr::Binary {
                 left,
@@ -895,7 +895,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::Minus => self.subtract(left, right, *line),
                 TokenType::Star => self.multiply(left, right, *line),
                 TokenType::Slash => self.divide(left, right, *line),
-                TokenType::Percent => self.modulus(left, right, *line),
+                TokenType::Mod => self.modulus(left, right, *line),
                 TokenType::EqualEqual => self.equal_equal(left, right, *line),
                 TokenType::EqualEqualEqual => self.equal_equal_equal(left, right, *line),
                 TokenType::BangEqualEqual => self.not_equal_equal(left, right, *line),
@@ -924,7 +924,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     message: "/= is not an expression".to_string(),
                     line: *line,
                 }),
-                TokenType::PercentEqual => Err(CompileError {
+                TokenType::ModEqual => Err(CompileError {
                     message: "%= is not an expression".to_string(),
                     line: *line,
                 }),
@@ -933,12 +933,36 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     message: "~= is not an expression".to_string(),
                     line: *line,
                 }),
-                _ => todo!(),
+                TokenType::And => {
+                    let left = self.evaluate_expr(left)?;
+                    self.store_in_accumulator(left, *line)?;
+                    let jump_pos = self.bytecode.size();
+                    let c = self.reserve_int(*line)?;
+                    self.write1(Op::JumpIfFalseOrNullConstant, c as u32, *line);
+                    let right = self.evaluate_expr(right)?;
+                    self.store_in_accumulator(right, *line)?;
+                    let end = self.bytecode.size();
+                    self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
+                    Ok(ExprResult::Accumulator)
+                }
+                TokenType::Or => {
+                    let left = self.evaluate_expr(left)?;
+                    self.store_in_accumulator(left, *line)?;
+                    let jump_pos = self.bytecode.size();
+                    let c = self.reserve_int(*line)?;
+                    self.write1(Op::JumpIfNotFalseOrNullConstant, c as u32, *line);
+                    let right = self.evaluate_expr(right)?;
+                    self.store_in_accumulator(right, *line)?;
+                    let end = self.bytecode.size();
+                    self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
+                    Ok(ExprResult::Accumulator)
+                }
+                _ => unreachable!(),
             },
             Expr::Unary { op, right, line } => match op {
                 TokenType::Minus => self.negate(right, *line),
                 TokenType::Bang => self.not(right, *line),
-                _ => todo!(),
+                _ => unreachable!(),
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
                 Some(index) => Ok(ExprResult::Register(index)),
@@ -1150,7 +1174,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn not(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         let result = self.evaluate_expr(right)?;
-        self.store_in_accumulator(result, line);
+        self.store_in_accumulator(result, line)?;
         self.write0(Op::Not, line);
         Ok(ExprResult::Accumulator)
     }

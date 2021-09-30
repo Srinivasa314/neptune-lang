@@ -82,6 +82,11 @@ VMResult VM::run(FunctionInfo *f) {
   Value *constants = f->constants.data();
   const uint8_t *ip = f->bytecode.data();
   Value *stack_end = stack.get() + STACK_SIZE;
+  stack_top = bp + f->max_registers;
+  if (stack_top > stack_end)
+    PANIC("Stack overflow");
+  for (size_t i = 0; i < f->max_registers; i++)
+    bp[i] = Value::empty();
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();

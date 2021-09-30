@@ -90,13 +90,15 @@ static void assert_in_range(size_t index, size_t len) {
 }
 
 void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
+  constexpr uint8_t PATCH_OFFSET =
+      static_cast<uint8_t>(Op::JumpConstant) - static_cast<uint8_t>(Op::Jump);
   auto len = hf->object->bytecode.size();
   auto bytecode = hf->object->bytecode.data();
   assert_in_range(op_position, len);
   if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
     assert_in_range(op_position + 3, len);
     if (jump_offset < 65536) {
-      bytecode[op_position + 1] -= 4;
+      bytecode[op_position + 1] -= PATCH_OFFSET;
       write_unaligned<uint16_t>(bytecode + op_position + 2,
                                 static_cast<uint16_t>(jump_offset));
     } else {
@@ -107,7 +109,7 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
   } else {
     assert_in_range(op_position + 1, len);
     if (jump_offset < 256) {
-      bytecode[op_position] -= 4;
+      bytecode[op_position] -= PATCH_OFFSET;
       bytecode[op_position + 1] = jump_offset;
     } else {
       hf->object->constants[bytecode[op_position + 1]] =
@@ -148,7 +150,6 @@ std::ostream &operator<<(std::ostream &os, uint8_t i) {
 std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
   using namespace numerical_chars;
   os << "Bytecode for " << f.name << '\n';
-  // todo implement other ops
   auto ip = f.bytecode.data();
   auto end = f.bytecode.data() + f.bytecode.size();
   while (ip != end) {
@@ -337,6 +338,7 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
       CASE(ModInt) << READ(int8_t);
       break;
       CASE(Negate);
+      break;
       CASE(Not);
       break;
 
