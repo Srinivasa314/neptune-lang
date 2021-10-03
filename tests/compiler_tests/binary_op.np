@@ -9,5 +9,6 @@ a=a~'v'
 a-=42
 a*=42
 a/=42
+a%=42
 a~='s'
 let s='abc'~'xyz'

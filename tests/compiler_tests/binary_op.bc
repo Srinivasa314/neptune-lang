@@ -32,12 +32,15 @@ Bytecode for <script>
 11> 43 LoadR0 
 44 DivideInt 42
 46 StoreR0 
-12> 47 LoadConstant 's'
-49 ConcatRegister r0
-51 StoreR0 
-13> 52 LoadConstant 'abc'
-54 StoreR5 
-55 LoadConstant 'xyz'
-57 ConcatRegister r5
-59 StoreR4 
-60 Exit 
+12> 47 LoadR0 
+48 ModInt 42
+50 StoreR0 
+13> 51 LoadConstant 's'
+53 ConcatRegister r0
+55 StoreR0 
+14> 56 LoadConstant 'abc'
+58 StoreR5 
+59 LoadConstant 'xyz'
+61 ConcatRegister r5
+63 StoreR4 
+64 Exit 

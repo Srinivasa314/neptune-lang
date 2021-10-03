@@ -1,0 +1,13 @@
+fun factorial(n){
+    if n==0{
+        return n
+    }
+    return 1*factorial(n-1)
+}
+fun f(){}
+fun g(){
+    return
+}
+factorial(3)
+f()
+fun three(a,b,c){}

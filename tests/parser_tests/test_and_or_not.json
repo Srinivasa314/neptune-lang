@@ -1,0 +1,62 @@
+[
+  {
+    "Expr": {
+      "Binary": {
+        "line": 1,
+        "left": {
+          "Literal": {
+            "line": 1,
+            "inner": {
+              "IntLiteral": 1
+            }
+          }
+        },
+        "op": "And",
+        "right": {
+          "Literal": {
+            "line": 1,
+            "inner": {
+              "IntLiteral": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "Binary": {
+        "line": 2,
+        "left": {
+          "Literal": {
+            "line": 2,
+            "inner": "True"
+          }
+        },
+        "op": "Or",
+        "right": {
+          "Literal": {
+            "line": 2,
+            "inner": "False"
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "Unary": {
+        "line": 3,
+        "op": "Bang",
+        "right": {
+          "Literal": {
+            "line": 3,
+            "inner": {
+              "IntLiteral": 1
+            }
+          }
+        }
+      }
+    }
+  }
+]

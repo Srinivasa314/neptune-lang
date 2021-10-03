@@ -5,5 +5,8 @@
     "other_err",
     "concat_int",
     "invalid_for",
-    "too_many_constants_locals"
+    "too_many_constants_locals",
+    "continue_outside_loop",
+    "break_outside_loop",
+    "return_outside_function"
 ]

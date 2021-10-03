@@ -1341,6 +1341,7 @@ mod tests {
             let tokens = s.scan_tokens();
             let parser = Parser::new(tokens.into_iter());
             let (stmts, errors) = parser.parse(false);
+            dbg!(&errors, &test);
             assert!(errors.is_empty());
             let vm = new_vm();
             let mut globals = HashMap::default();

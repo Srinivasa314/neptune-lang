@@ -403,6 +403,23 @@ mod tests {
             n.eval("list").unwrap().unwrap(),
             "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
         );
+        n.exec("fun retnull(){}").unwrap();
+        assert_eq!(n.eval("retnull()").unwrap().unwrap(), "null");
+        n.exec(
+            r#"
+        fun factorial(n){
+            if n==0{
+                return 1
+            }
+            return n*factorial(n-1)
+        }
+        "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("factorial(5)").unwrap().unwrap(), "120");
+        assert_eq!(n.eval("![]").unwrap().unwrap(), "false");
+        assert_eq!(n.eval("1 and 2").unwrap().unwrap(), "2");
+        assert_eq!(n.eval("1 or 2").unwrap().unwrap(), "1");
     }
     #[test]
     fn error() {
