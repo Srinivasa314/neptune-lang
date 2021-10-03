@@ -19,7 +19,7 @@
 #define unreachable() abort()
 #endif
 
-#ifdef defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
 #define ALWAYS_INLINE inline __attribute__((__always_inline__))
 #elif defined(_MSC_VER)
 #define ALWAYS_INLINE __forceinline
@@ -68,7 +68,7 @@ template <typename T> static size_t header_size() {
     exit(1);                                                                   \
   } while (0)
 
-#ifdef defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 #else

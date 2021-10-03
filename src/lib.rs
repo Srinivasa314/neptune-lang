@@ -19,10 +19,10 @@ pub struct CompileError {
     pub line: u32,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum InterpretError {
     CompileError(Vec<CompileError>),
-    RuntimePanic(String),
+    RuntimePanic { error: String, stack_trace: String },
 }
 
 pub type CompileResult<T> = Result<T, CompileError>;
@@ -55,9 +55,10 @@ impl Neptune {
             let vm_result = unsafe { dbg!(fw.unwrap()).run() };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(()),
-                VMStatus::Error => Err(InterpretError::RuntimePanic(
-                    vm_result.get_result().to_string(),
-                )),
+                VMStatus::Error => Err(InterpretError::RuntimePanic {
+                    error: vm_result.get_result().to_string(),
+                    stack_trace: vm_result.get_stack_trace().to_string(),
+                }),
                 _ => unreachable!(),
             }
         } else {
@@ -92,9 +93,10 @@ impl Neptune {
                 } else {
                     None
                 }),
-                VMStatus::Error => Err(InterpretError::RuntimePanic(
-                    vm_result.get_result().to_string(),
-                )),
+                VMStatus::Error => Err(InterpretError::RuntimePanic {
+                    error: vm_result.get_result().to_string(),
+                    stack_trace: vm_result.get_stack_trace().to_string(),
+                }),
                 _ => unreachable!(),
             }
         } else {

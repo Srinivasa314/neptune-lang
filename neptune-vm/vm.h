@@ -1,6 +1,5 @@
 #pragma once
 #include <memory>
-#include <string>
 #include <tsl/robin_set.h>
 
 constexpr size_t MAX_FRAMES = 1024;
@@ -19,16 +18,17 @@ struct Frame {
 
 enum class VMStatus : uint8_t { Success, Error };
 
-class VMResult {
+struct VMResult {
   VMStatus status;
   std::string result;
+  std::string stack_trace;
 
-public:
-  VMResult(VMStatus status_, const std::string &result_)
-      : status(status_), result(result_) {}
   VMStatus get_status() const { return status; }
   StringSlice get_result() const {
     return StringSlice{result.data(), result.size()};
+  }
+  StringSlice get_stack_trace() const {
+    return StringSlice{stack_trace.data(), stack_trace.size()};
   }
 };
 
@@ -60,6 +60,7 @@ public:
   void collect();
   void blacken(Object *o);
   void grey(Object *o);
+  std::string panic(const uint8_t *ip, FunctionInfo *f);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), bytes_allocated(0), first_obj(nullptr),

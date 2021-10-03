@@ -136,12 +136,6 @@ uint16_t FunctionInfoWriter::int_constant(int32_t i) {
   return constant(Value(i));
 }
 
-std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
-  std::ostringstream os;
-  os << *this->hf->object;
-  return std::unique_ptr<std::string>(new std::string(os.str()));
-}
-
 #define CASE(x)                                                                \
   case Op::x:                                                                  \
     os << #x " "
@@ -159,12 +153,18 @@ static std::ostream &operator<<(std::ostream &os, uint8_t i) {
 } // namespace numerical_chars
 
 #define READ(type) checked_read<type>(ip, end)
-std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
+static void disassemble(std::ostream &os, const FunctionInfo &f) {
   using namespace numerical_chars;
   os << "Bytecode for " << f.name << '\n';
   auto ip = f.bytecode.data();
   auto end = f.bytecode.data() + f.bytecode.size();
+  auto curr_line = f.lines.begin();
   while (ip != end) {
+    if (curr_line != f.lines.end() &&
+        ip - f.bytecode.data() == curr_line->offset) {
+      os << curr_line->line << "> ";
+      curr_line++;
+    }
     os << ip - f.bytecode.data() << ' ';
     switch (READ(Op)) {
     case Op::Wide: {
@@ -495,9 +495,14 @@ std::ostream &operator<<(std::ostream &os, const FunctionInfo &f) {
     }
     os << '\n';
   }
-  return os;
 }
 #undef CASE
 #undef READ
 #undef REG
+
+std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
+  std::ostringstream os;
+  disassemble(os, *this->hf->object);
+  return std::unique_ptr<std::string>(new std::string(os.str()));
+}
 } // namespace neptune_vm

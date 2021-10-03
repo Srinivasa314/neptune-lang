@@ -211,6 +211,7 @@ mod ffi {
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
         fn get_result<'a>(self: &'a VMResult) -> StringSlice<'a>;
+        fn get_stack_trace<'a>(self: &'a VMResult) -> StringSlice<'a>;
         fn get_status(self: &VMResult) -> VMStatus;
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
         fn size(self: &FunctionInfoWriter) -> usize;
@@ -248,42 +249,13 @@ mod tests {
         assert_eq!(n.eval("'\"'").unwrap().unwrap(), "'\"'");
         assert_eq!(n.eval("'\\''").unwrap().unwrap(), "'\\''");
         assert_eq!(n.eval("@abc").unwrap().unwrap(), "@abc");
-        assert_eq!(n.eval("global=1"), Ok(None));
-        assert_eq!(
-            n.eval("glibal").unwrap_err(),
-            InterpretError::RuntimePanic("Cannot access uninitialized variable glibal".into())
-        );
+        assert_eq!(n.eval("global=1").unwrap(), None);
         assert_eq!(n.eval("global").unwrap().unwrap(), "1");
-        assert_eq!(n.eval("global=2"), Ok(None));
         n.exec("global=global+1000").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "1002");
-        assert_eq!(
-            n.eval("global+2147483000").unwrap_err(),
-            InterpretError::RuntimePanic(
-                "Cannot add 1002 and 2147483000 as the result does not fit in an int".into()
-            )
-        );
+        assert_eq!(n.eval("global").unwrap().unwrap(), "1001");
         assert_eq!(n.eval("1.2+3").unwrap().unwrap(), "4.2");
-        assert_eq!(
-            n.eval("null+1"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot add types null and int".into()
-            ))
-        );
         n.exec("{let a=1;let b=a;global=b}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "1");
-        assert_eq!(
-            n.eval("-(-2147483647-global)"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot negate -2147483648 as the result cannot be stored in an int".into()
-            ))
-        );
-        assert_eq!(
-            n.eval("-{}"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot negate type map".into()
-            ))
-        );
         assert_eq!(n.eval("-(2.3)").unwrap().unwrap(), "-2.3");
         assert_eq!(n.eval("'\\(432)'").unwrap().unwrap(), "'432'");
         assert_eq!(n.eval("'\\(-1)'").unwrap().unwrap(), "'-1'");
@@ -296,47 +268,9 @@ mod tests {
         assert_eq!(n.eval("'\\('hello')'").unwrap().unwrap(), "'hello'");
         assert_eq!(n.eval("'\\(@bye)'").unwrap().unwrap(), "'bye'");
         assert_eq!(n.eval("@a==@a").unwrap().unwrap(), "true");
-        n.exec("arr=[]").unwrap();
-        assert_eq!(
-            n.eval("arr[0]"),
-            Err(InterpretError::RuntimePanic(
-                "Array index out of range".into()
-            ))
-        );
-        assert_eq!(
-            n.eval("arr[-1]"),
-            Err(InterpretError::RuntimePanic(
-                "Array index out of range".into()
-            ))
-        );
-        assert_eq!(
-            n.eval("arr[0.0]"),
-            Err(InterpretError::RuntimePanic(
-                "Array indices must be int not float".into()
-            ))
-        );
         assert_eq!(n.eval("[null,true][1]").unwrap().unwrap(), "true");
-        assert_eq!(
-            n.exec("{let a=1000000000;let b=2000000000;let c=a+b}"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot add 1000000000 and 2000000000 as the result does not fit in an int".into()
-            ))
-        );
-        assert_eq!(n.eval("2.3-global").unwrap().unwrap(), "1.3");
-        assert_eq!(
-            n.eval("'a'-[]"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot subtract types string and array".into()
-            ))
-        );
         assert_eq!(n.eval("2.3>=1").unwrap().unwrap(), "true");
         assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
-        assert_eq!(
-            n.eval("'a'~1.2"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot concat types string and float".into()
-            ))
-        );
         assert_eq!(n.eval("1==global").unwrap().unwrap(), "true");
         assert_eq!(n.eval("1==3").unwrap().unwrap(), "false");
         assert_eq!(n.eval("1==1.0").unwrap().unwrap(), "true");
@@ -361,7 +295,6 @@ mod tests {
         global['a']='b'
         global[@a]=4
         global[@a]=6
-        global[[]]=1
         global[global]='global'
         "#,
         )
@@ -371,30 +304,10 @@ mod tests {
         assert_eq!(n.eval("global[true]").unwrap().unwrap(), "true");
         assert_eq!(n.eval("global['a']").unwrap().unwrap(), "'b'");
         assert_eq!(n.eval("global[@a]").unwrap().unwrap(), "6");
-        assert_eq!(
-            n.eval("global[[]]"),
-            Err(InterpretError::RuntimePanic(
-                "Key [] does not exist in map".into()
-            ))
-        );
         assert_eq!(n.eval("global[global]").unwrap().unwrap(), "'global'");
-        assert_eq!(
-            n.eval("1[2]"),
-            Err(InterpretError::RuntimePanic("Cannot index type int".into()))
-        );
-        assert_eq!(
-            n.eval("'a'[2]"),
-            Err(InterpretError::RuntimePanic(
-                "Cannot index type string".into()
-            ))
-        );
         n.exec("global=[null]").unwrap();
-        assert_eq!(n.eval("global[0]=5"), Ok(None));
+        assert_eq!(n.eval("global[0]=5").unwrap(), None);
         assert_eq!(n.eval("global[0]").unwrap().unwrap(), "5");
-        assert_eq!(
-            n.exec("8[0]=1"),
-            Err(InterpretError::RuntimePanic("Cannot index type int".into()))
-        );
         n.exec("if true{global=3}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "3");
         n.exec("if global==3{global=5}else{global=7}").unwrap();
@@ -490,5 +403,42 @@ mod tests {
             n.eval("list").unwrap().unwrap(),
             "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
         );
+    }
+    #[test]
+    fn error() {
+        let mut n = Neptune::new();
+        n.exec("n=1000;arr=[];global={[]:1}").unwrap();
+        for (code, expected_error) in [
+            ("glibal", "Cannot access uninitialized variable glibal"),
+            (
+                "n+2147483000",
+                "Cannot add 1000 and 2147483000 as the result does not fit in an int",
+            ),
+            ("null+1", "Cannot add types null and int"),
+            (
+                "-(-2147483647-(n/1000))",
+                "Cannot negate -2147483648 as the result cannot be stored in an int",
+            ),
+            ("-{}", "Cannot negate type map"),
+            ("arr[0]", "Array index out of range"),
+            ("arr[-1]", "Array index out of range"),
+            ("arr[0.0]", "Array indices must be int not float"),
+            (
+                "{let a=1000000000;let b=2000000000;let c=a+b}",
+                "Cannot add 1000000000 and 2000000000 as the result does not fit in an int",
+            ),
+            ("2.3-[]", "Cannot subtract types float and array"),
+            ("global[[]]", "Key [] does not exist in map"),
+            ("'a'-[]", "Cannot subtract types string and array"),
+            ("'a'~1.2", "Cannot concat types string and float"),
+            ("1[2]", "Cannot index type int"),
+        ] {
+            match n.exec(code).unwrap_err() {
+                InterpretError::CompileError(e) => panic!("{:?}", e),
+                InterpretError::RuntimePanic { error, .. } => {
+                    assert_eq!(error, expected_error);
+                }
+            }
+        }
     }
 }

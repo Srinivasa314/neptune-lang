@@ -1,70 +1,70 @@
 Bytecode for <script>
-0 LoadSmallInt 0
+1> 0 LoadSmallInt 0
 2 StoreGlobal 0
-4 LoadSmallInt 1
+2> 4 LoadSmallInt 1
 6 StoreR0 
 7 LoadSmallInt 10
 9 StoreR1 
 10 BeginForLoop 22 r0
-13 LoadSmallInt 7
+3> 13 LoadSmallInt 7
 15 Equal r0
 17 JumpIfFalseOrNull 4
-19 Jump 13
-21 LoadGlobal 0
+4> 19 Jump 13
+6> 21 LoadGlobal 0
 23 StoreR2 
 24 LoadR0 
 25 AddRegister r2
 27 StoreGlobal 0
-29 ForLoop 16 r0
-32 LoadSmallInt 1
+7> 29 ForLoop 16 r0
+8> 32 LoadSmallInt 1
 34 StoreR0 
 35 LoadSmallInt 10
 37 StoreR1 
 38 BeginForLoop 22 r0
-41 LoadSmallInt 7
+9> 41 LoadSmallInt 7
 43 Equal r0
 45 JumpIfFalseOrNull 4
-47 Jump 10
-49 LoadGlobal 0
+10> 47 Jump 10
+12> 49 LoadGlobal 0
 51 StoreR2 
 52 LoadR0 
 53 AddRegister r2
 55 StoreGlobal 0
-57 ForLoop 16 r0
-60 LoadSmallInt 0
+13> 57 ForLoop 16 r0
+14> 60 LoadSmallInt 0
 62 StoreR0 
-63 LoadSmallInt 10
+15> 63 LoadSmallInt 10
 65 LesserThan r0
 67 JumpIfFalseOrNull 26
-69 LoadGlobal 0
+16> 69 LoadGlobal 0
 71 AddInt 1
 73 StoreGlobal 0
-75 LoadSmallInt 7
+17> 75 LoadSmallInt 7
 77 Equal r0
 79 JumpIfFalseOrNull 4
-81 Jump 12
-83 LoadGlobal 0
+18> 81 Jump 12
+20> 83 LoadGlobal 0
 85 StoreR1 
 86 LoadR0 
 87 AddRegister r1
 89 StoreGlobal 0
-91 JumpBack 28
-93 LoadSmallInt 0
+21> 91 JumpBack 28
+22> 93 LoadSmallInt 0
 95 StoreR0 
-96 LoadSmallInt 10
+23> 96 LoadSmallInt 10
 98 LesserThan r0
 100 JumpIfFalseOrNull 26
-102 LoadGlobal 0
+24> 102 LoadGlobal 0
 104 AddInt 1
 106 StoreGlobal 0
-108 LoadSmallInt 7
+25> 108 LoadSmallInt 7
 110 Equal r0
 112 JumpIfFalseOrNull 4
-114 JumpBack 18
-116 LoadGlobal 0
+26> 114 JumpBack 18
+28> 116 LoadGlobal 0
 118 StoreR1 
 119 LoadR0 
 120 AddRegister r1
 122 StoreGlobal 0
-124 JumpBack 28
+29> 124 JumpBack 28
 126 Exit 

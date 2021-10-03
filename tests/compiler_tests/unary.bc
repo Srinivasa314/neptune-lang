@@ -1,12 +1,12 @@
 Bytecode for <script>
-0 LoadSmallInt -1
+1> 0 LoadSmallInt -1
 2 StoreR0 
-3 LoadConstant -1.2
+2> 3 LoadConstant -1.2
 5 StoreR1 
-6 LoadR1 
+3> 6 LoadR1 
 7 Negate 
 8 StoreR2 
-9 LoadR1 
+4> 9 LoadR1 
 10 AddRegister r0
 12 Negate 
 13 StoreR3 

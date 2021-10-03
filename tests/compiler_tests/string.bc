@@ -1,22 +1,22 @@
 Bytecode for <script>
-0 LoadConstant 'abc'
+2> 0 LoadConstant 'abc'
 2 StoreR0 
-3 LoadSmallInt 5
+3> 3 LoadSmallInt 5
 5 ToString 
 6 StoreR1 
-7 LoadConstant 'hello '
+4> 7 LoadConstant 'hello '
 9 StoreR3 
 10 LoadR0 
 11 ToString 
 12 ConcatRegister r3
 14 StoreR2 
-15 LoadR2 
+5> 15 LoadR2 
 16 ToString 
 17 StoreR4 
 18 LoadConstant '!'
 20 ConcatRegister r4
 22 StoreR3 
-23 LoadR0 
+6> 23 LoadR0 
 24 ToString 
 25 StoreR5 
 26 LoadR1 

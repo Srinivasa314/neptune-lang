@@ -32,7 +32,7 @@ impl<'vm> Compiler<'vm> {
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
-        b.write0(Op::Exit, 0);
+        b.bytecode.write_u8(Op::Exit.repr);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -64,7 +64,7 @@ impl<'vm> Compiler<'vm> {
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
-                if let Err(e) = b.store_in_accumulator(er, 0) {
+                if let Err(e) = b.store_in_accumulator(er, 1) {
                     b.error(e)
                 }
             }
@@ -72,7 +72,7 @@ impl<'vm> Compiler<'vm> {
         }
         b.bytecode.shrink();
         b.bytecode.set_max_registers(b.max_registers);
-        b.write0(Op::Exit, 0);
+        b.bytecode.write_u8(Op::Exit.repr);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)

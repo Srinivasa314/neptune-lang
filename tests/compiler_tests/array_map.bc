@@ -1,21 +1,21 @@
 Bytecode for <script>
-0 EmptyArray 
+2> 0 EmptyArray 
 1 StoreR0 
-2 NewArray 1 r1
+3> 2 NewArray 1 r1
 5 LoadSmallInt 5
 7 StoreArrayUnchecked r1 0
-10 NewArray 3 r2
+4> 10 NewArray 3 r2
 13 LoadR0 
 14 StoreArrayUnchecked r2 0
 17 LoadConstant 'hello'
 19 StoreArrayUnchecked r2 1
 22 LoadR1 
 23 StoreArrayUnchecked r2 2
-26 LoadSmallInt 1
+5> 26 LoadSmallInt 1
 28 StoreR3 
-29 LoadR3 
+6> 29 LoadR3 
 30 StoreSubscript r2 r3
-33 NewArray 1 r5
+7> 33 NewArray 1 r5
 36 LoadSmallInt 1
 38 StoreArrayUnchecked r5 0
 41 LoadR5 
@@ -23,20 +23,20 @@ Bytecode for <script>
 43 LoadSmallInt 0
 45 LoadSubscript r5
 47 StoreR4 
-48 LoadSmallInt 2
+8> 48 LoadSmallInt 2
 50 LoadSubscript r2
 52 StoreR5 
-53 EmptyMap 
+11> 53 EmptyMap 
 54 StoreR6 
-55 NewMap 1 r7
+12> 55 NewMap 1 r7
 58 LoadSmallInt 1
 60 StoreR8 
 61 LoadSmallInt 2
 63 StoreSubscript r7 r8
-66 NewMap 1 r8
+13> 66 NewMap 1 r8
 69 LoadNull 
 70 StoreSubscript r8 r6
-73 NewMap 2 r9
+14> 73 NewMap 2 r9
 76 LoadConstant 'bob'
 78 StoreR10 
 79 LoadSmallInt 43
@@ -45,10 +45,10 @@ Bytecode for <script>
 86 StoreR10 
 87 LoadSmallInt 23
 89 StoreSubscript r9 r10
-92 LoadR6 
+15> 92 LoadR6 
 93 LoadSubscript r8
 95 StoreSubscript r9 r7
-98 NewMap 1 r10
+16> 98 NewMap 1 r10
 101 LoadSmallInt 5
 103 StoreSubscript r10 r6
 106 LoadR10 

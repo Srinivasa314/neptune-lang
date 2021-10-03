@@ -1,17 +1,17 @@
 Bytecode for <script>
-0 LoadSmallInt 1
+1> 0 LoadSmallInt 1
 2 StoreR0 
 3 LoadSmallInt 10
 5 StoreR1 
 6 BeginForLoop 6 r0
-9 ForLoop 0 r0
-12 LoadSmallInt 0
+3> 9 ForLoop 0 r0
+4> 12 LoadSmallInt 0
 14 StoreR0 
-15 LoadSmallInt 10
+5> 15 LoadSmallInt 10
 17 LesserThan r0
 19 JumpIfFalseOrNull 8
-21 LoadR0 
+6> 21 LoadR0 
 22 AddInt 1
 24 StoreR0 
-25 JumpBack 10
+7> 25 JumpBack 10
 27 Exit 

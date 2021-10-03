@@ -1,6 +1,6 @@
+#include "checked_arithmetic.cc"
 #include "neptune-vm.h"
 #include "object.h"
-#include "checked_arithmetic.cc"
 #include <sstream>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -56,9 +56,8 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
-    stack_top = stack.get();                                                   \
-    num_frames = 0;                                                            \
-    return VMResult{VMStatus::Error, std::move(str)};                          \
+    auto stack_trace = panic(ip - 1, f);                                       \
+    return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
   } while (0)
 
 namespace neptune_vm {
@@ -156,7 +155,8 @@ VMResult VM::run(FunctionInfo *f) {
 end:
   std::ostringstream os;
   os << accumulator;
-  return VMResult{VMStatus::Success, std::move(os.str())};
+  return VMResult{VMStatus::Success, std::move(os.str()),
+                  std::move(std::string{})};
 }
 #undef READ
 
@@ -401,5 +401,37 @@ void VM::blacken(Object *o) {
   default:
     break;
   }
+}
+
+static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
+  uint32_t instruction = ip - f->bytecode.data();
+  uint32_t start = 0;
+  uint32_t end = f->lines.size() - 1;
+  for (;;) {
+    uint32_t mid = (start + end) / 2;
+    LineInfo *line = &f->lines[mid];
+    if (instruction < line->offset) {
+      end = mid - 1;
+    } else if (mid == f->lines.size() - 1 ||
+               instruction < f->lines[mid + 1].offset) {
+      return line->line;
+    } else {
+      start = mid + 1;
+    }
+  }
+}
+
+std::string VM::panic(const uint8_t *ip, FunctionInfo *f) {
+  std::ostringstream os;
+  for (;;) {
+    os << "at " << f->name << " (line " << get_line_number(f, ip) << ")\n";
+    if (num_frames == 0)
+      break;
+    f = frames[num_frames - 1].f;
+    ip = frames[num_frames - 1].ip - 1;
+    num_frames--;
+  }
+  stack_top = stack.get();
+  return os.str();
 }
 } // namespace neptune_vm

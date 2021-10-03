@@ -24,12 +24,8 @@ public:
   std::vector<LineInfo> lines;
   uint16_t max_registers;
   uint8_t arity;
-
-public:
-  friend class FunctionInfoWriter;
   FunctionInfo(StringSlice name_, uint8_t arity_)
       : name(name_.data, name_.len), arity(arity_) {}
-  friend std::ostream &operator<<(std::ostream &os, const FunctionInfo &f);
 };
 
 class FunctionInfoWriter {
