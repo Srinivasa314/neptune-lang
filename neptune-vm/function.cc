@@ -497,7 +497,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
   }
   for (auto i : f.constants) {
     if (i.is_object() && i.as_object()->is<FunctionInfo>()) {
-      os << '\n' << *i.as_object()->as<FunctionInfo>();
+      os << '\n';
+      disassemble(os, *i.as_object()->as<FunctionInfo>());
     }
   }
 }
