@@ -11,7 +11,6 @@ pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
     current: Token<'src>,
     previous: Token<'src>,
     errors: Vec<CompileError>,
-    try_expr: bool, //Should it prefer parsing expressions rather than statements
 }
 
 #[derive(TryFromPrimitive, Clone, Copy)]
@@ -185,8 +184,8 @@ pub enum Statement {
     For {
         begin_line: u32,
         iter: String,
-        start: Expr,
-        end: Expr,
+        start: Box<Expr>,
+        end: Box<Expr>,
         block: Vec<Statement>,
         end_line: u32,
     },
@@ -210,21 +209,20 @@ pub enum Statement {
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
-    pub fn new(tokens: Tokens, try_expr: bool) -> Self {
+    pub fn new(tokens: Tokens) -> Self {
         Self {
             tokens,
             current: Token::uninit_token(),
             previous: Token::uninit_token(),
             errors: vec![],
-            try_expr,
         }
     }
 
-    pub fn parse(mut self) -> (Vec<Statement>, Vec<CompileError>) {
+    pub fn parse(mut self, try_expr: bool) -> (Vec<Statement>, Vec<CompileError>) {
         self.advance();
         let mut statements = vec![];
         while self.current.token_type != TokenType::Eof {
-            if let Some(stmt) = self.statement(true) {
+            if let Some(stmt) = self.statement(true, try_expr) {
                 statements.push(stmt);
             }
         }
@@ -360,8 +358,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Null => Some(self.literal()),
             TokenType::Or => None,
             TokenType::Return => None,
-            TokenType::Super => Some(todo!()),
-            TokenType::This => Some(todo!()),
+            TokenType::Super => todo!(),
+            TokenType::This => todo!(),
             TokenType::True => Some(self.literal()),
             TokenType::Let => None,
             TokenType::While => None,
@@ -638,17 +636,17 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Statement::Expr(e))
     }
 
-    fn statement(&mut self, needs_sep: bool) -> Option<Statement> {
+    fn statement(&mut self, needs_sep: bool, try_expr: bool) -> Option<Statement> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
                 self.var_declaration(true)
             } else if self.match_token(TokenType::Const) {
                 self.var_declaration(false)
             } else if self.match_token(TokenType::LeftBrace) {
-                if self.try_expr {
-                    self.map().map(|e| Statement::Expr(e))
+                if try_expr {
+                    self.map().map(Statement::Expr)
                 } else {
-                    self.block().map(|s| Statement::Block(s))
+                    self.block().map(Statement::Block)
                 }
             } else if self.match_token(TokenType::If) {
                 self.if_statement()
@@ -751,7 +749,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 });
             } else if self.match_token(TokenType::RightBrace) {
                 break;
-            } else if let Some(stmt) = self.statement(false) {
+            } else if let Some(stmt) = self.statement(false, false) {
                 statements.push(stmt);
                 if !matches!(
                     self.current.token_type,
@@ -778,7 +776,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let mut else_line = 0;
         let else_stmt = if self.match_token(TokenType::Else) {
             else_line = self.previous.line;
-            let s = self.statement(false);
+            let s = self.statement(false, false);
             if let Some(s) = s {
                 if matches!(s, Statement::If { .. } | Statement::Block(_)) {
                     Some(s)
@@ -798,7 +796,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Statement::If {
             condition,
             block,
-            else_stmt: else_stmt.map(|s| Box::new(s)),
+            else_stmt: else_stmt.map(Box::new),
             else_line,
         })
     }
@@ -837,8 +835,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Statement::For {
             begin_line,
             iter,
-            start,
-            end,
+            start: Box::new(start),
+            end: Box::new(end),
             block,
             end_line,
         })
@@ -857,11 +855,8 @@ mod tests {
             let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
             let s = Scanner::new(&s);
             let tokens = s.scan_tokens();
-            let mut parser = Parser::new(tokens.into_iter(), false);
-            if test == "test_map_eval" {
-                parser.try_expr = true;
-            }
-            let (stmts, errors) = parser.parse();
+            let parser = Parser::new(tokens.into_iter());
+            let (stmts, errors) = parser.parse(test == "test_map_eval");
             assert!(errors.is_empty());
             if std::env::var("GENERATE_TESTS").is_ok() {
                 std::fs::write(
@@ -885,8 +880,8 @@ mod tests {
             let s = std::fs::read_to_string(format!("tests/parser_tests/{}.np", test)).unwrap();
             let s = Scanner::new(&s);
             let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter(), false);
-            let (_, errors) = parser.parse();
+            let parser = Parser::new(tokens.into_iter());
+            let (_, errors) = parser.parse(false);
             if std::env::var("GENERATE_TESTS").is_ok() {
                 std::fs::write(
                     format!("tests/parser_tests/{}.json", test),

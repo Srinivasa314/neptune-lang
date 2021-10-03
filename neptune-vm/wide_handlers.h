@@ -53,8 +53,8 @@ handler(MultiplyRegister, BINARY_OP_REGISTER(multiply, SafeMultiply, *););
 handler(DivideRegister, BINARY_OP_REGISTER(divide, SafeDivide, /););
 handler(ModRegister, {
   auto reg = READ(utype);
-  int res;
   if (accumulator.is_int() && bp[reg].is_int()) {
+    int res;
     if (unlikely(!SafeModulus(bp[reg].as_int(), accumulator.as_int(), res)))
       PANIC("Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
                           << " as the result does not fit in an int");
@@ -215,14 +215,14 @@ handler(StrictNotEqual,
 
 handler(Jump, {
   auto offset = READ(utype);
-  ip += (offset - (1 + sizeof(utype)));
+  ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
 });
 
 handler(JumpIfFalseOrNull, {
   auto offset = READ(utype);
   // This is because clang thinks that this is extremely unlikely
   if (IF_CLANG(likely)(accumulator.is_null_or_false())) {
-    ip += (offset - (1 + sizeof(utype)));
+    ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
   }
 });
 
@@ -230,28 +230,28 @@ handler(JumpIfNotFalseOrNull, {
   auto offset = READ(utype);
   // This is because clang thinks that this is extremely unlikely
   if (IF_CLANG(likely)(!accumulator.is_null_or_false())) {
-    ip += (offset - (1 + sizeof(utype)));
+    ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
   }
 });
 
 handler(JumpConstant, {
-  auto offset = constants[READ(utype)].as_int();
-  ip += (offset - (1 + sizeof(utype)));
+  auto offset = static_cast<uint32_t>(constants[READ(utype)].as_int());
+  ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
 });
 
 handler(JumpIfFalseOrNullConstant, {
   // This is because clang thinks that this is extremely unlikely
-  auto offset = constants[READ(utype)].as_int();
+  auto offset = static_cast<uint32_t>(constants[READ(utype)].as_int());
   if (IF_CLANG(likely)(accumulator.is_null_or_false())) {
-    ip += (offset - (1 + sizeof(utype)));
+    ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
   }
 });
 
 handler(JumpIfNotFalseOrNullConstant, {
   // This is because clang thinks that this is extremely unlikely
-  auto offset = constants[READ(utype)].as_int();
+  auto offset = static_cast<uint32_t>(constants[READ(utype)].as_int());
   if (IF_CLANG(likely)(!accumulator.is_null_or_false())) {
-    ip += (offset - (1 + sizeof(utype)));
+    ip += (offset - (1 + sizeof(utype) + header_size<utype>()));
   }
 });
 
@@ -261,7 +261,7 @@ handler(BeginForLoop, {
   auto end = iter + 1;
   if (likely(bp[iter].is_int() && bp[end].is_int())) {
     if (bp[iter].as_int() >= bp[end].as_int()) {
-      ip += (offset - (1 + 2 * sizeof(utype)));
+      ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
     PANIC("Expected int and int for the start and end of for loop got "
@@ -270,12 +270,12 @@ handler(BeginForLoop, {
   }
 });
 handler(BeginForLoopConstant, {
-  auto offset = constants[READ(utype)].as_int();
+  auto offset = static_cast<uint32_t>(constants[READ(utype)].as_int());
   auto iter = READ(utype);
   auto end = iter + 1;
   if (likely(bp[iter].is_int() && bp[end].is_int())) {
     if (bp[iter].as_int() >= bp[end].as_int()) {
-      ip += (offset - (1 + 2 * sizeof(utype)));
+      ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
     PANIC("Expected int and int for the start and end of for loop got "

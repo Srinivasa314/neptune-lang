@@ -4,5 +4,6 @@
     "equal_as_expr",
     "other_err",
     "concat_int",
-    "invalid_for"
+    "invalid_for",
+    "too_many_constants_locals"
 ]

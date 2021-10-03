@@ -11,7 +11,7 @@
               << std::endl;                                                    \
     exit(1);                                                                   \
   } while (0)
-#elif defined(__GNUC__) // gcc or clang
+#elif defined(__GNUC__) || defined(__clang__) // gcc or clang
 #define unreachable() __builtin_unreachable()
 #elif defined(_MSC_VER) // MSVC
 #define unreachable() __assume(false)
@@ -19,7 +19,7 @@
 #define unreachable() abort()
 #endif
 
-#ifdef __GNUC__
+#ifdef defined(__GNUC__) || defined(__clang__)
 #define ALWAYS_INLINE inline __attribute__((__always_inline__))
 #elif defined(_MSC_VER)
 #define ALWAYS_INLINE __forceinline
@@ -54,13 +54,21 @@ static T checked_read(const uint8_t *&ip, const uint8_t *end) {
   return ret;
 }
 
+// Size of Wide/Extrawide header if it exists
+template <typename T> static size_t header_size() {
+  if (sizeof(T) == 1)
+    return 0;
+  else
+    return 1;
+}
+
 #define TODO()                                                                 \
   do {                                                                         \
     std::cout << "TODO at: " << __FILE__ << ":" << __LINE__ << std::endl;      \
     exit(1);                                                                   \
   } while (0)
 
-#ifdef __GNUC__
+#ifdef defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 #else

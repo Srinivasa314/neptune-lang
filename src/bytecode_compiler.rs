@@ -81,16 +81,12 @@ impl<'vm> Compiler<'vm> {
         }
     }
 }
-struct Local {
-    name: String,
-    mutable: bool,
-}
 
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
     bytecode: FunctionInfoWriter<'vm>,
-    locals: Vec<Local>,
-    regcounts: Vec<u16>,
+    locals: Vec<HashMap<String, Local>>,
+    regcount: u16,
     max_registers: u16,
     op_positions: Vec<usize>,
     loops: Vec<Loop>,
@@ -114,12 +110,18 @@ enum Loop {
     },
 }
 
+#[derive(Clone)]
+struct Local {
+    reg: u16,
+    mutable: bool,
+}
+
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType, arity: u8) -> Self {
         Self {
             bytecode: c.vm.new_function_info(name.into(), arity),
-            locals: vec![],
-            regcounts: vec![0],
+            locals: vec![HashMap::default()],
+            regcount: 0,
             compiler: Some(c),
             max_registers: 0,
             op_positions: vec![],
@@ -128,31 +130,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn regcount(&self) -> u16 {
-        self.regcounts.last().cloned().unwrap()
-    }
-
-    fn regcount_mut(&mut self) -> &mut u16 {
-        self.regcounts.last_mut().unwrap()
-    }
-
     fn push_register(&mut self, line: u32) -> CompileResult<u16> {
-        if self.regcount() == u16::MAX {
+        if self.regcount == u16::MAX {
             Err(CompileError {
                 message: "Cannot have more than 65535 locals and temporaries".into(),
                 line,
             })
         } else {
-            *self.regcount_mut() += 1;
-            if self.regcount() > self.max_registers {
-                self.max_registers = self.regcount();
+            self.regcount += 1;
+            if self.regcount > self.max_registers {
+                self.max_registers = self.regcount;
             }
-            Ok(self.regcount() - 1)
+            Ok(self.regcount - 1)
         }
     }
 
     fn pop_register(&mut self) {
-        *self.regcount_mut() -= 1;
+        self.regcount -= 1;
     }
 
     fn get_global(&self, name: &str) -> Option<u32> {
@@ -182,11 +176,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.bytecode.write_u8(u);
         } else if let Ok(u) = u16::try_from(u) {
             self.write0(Op::Wide, line);
-            self.bytecode.write_op(op, line);
+            self.bytecode.write_u8(op.repr);
             self.bytecode.write_u16(u);
         } else {
             self.write0(Op::ExtraWide, line);
-            self.bytecode.write_op(op, line);
+            self.bytecode.write_u8(op.repr);
             self.bytecode.write_u32(u);
         }
     }
@@ -200,7 +194,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             _ => {
                 self.write0(Op::Wide, line);
-                self.bytecode.write_op(op, line);
+                self.bytecode.write_u8(op.repr);
                 self.bytecode.write_u16(u1);
                 self.bytecode.write_u16(u2)
             }
@@ -212,7 +206,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Ok(u1) => self.write2(op, u1, u2, line),
             Err(_) => {
                 self.write0(Op::ExtraWide, line);
-                self.bytecode.write_op(op, line);
+                self.bytecode.write_u8(op.repr);
                 self.bytecode.write_u32(u1);
                 self.bytecode.write_u32(u2 as u32);
             }
@@ -307,7 +301,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn reserve_int(&mut self, line: u32) -> CompileResult<u16> {
-        self.bytecode.int_constant(0).map_err(|_| CompileError {
+        self.bytecode.reserve_constant().map_err(|_| CompileError {
             line,
             message: "Cannot have more than 65535 constants per function".into(),
         })
@@ -315,20 +309,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn load_int(&mut self, i: i32, line: u32) -> CompileResult<()> {
         match i {
-            0..=255 => Ok(self.write1(Op::LoadSmallInt, i as u32, line)),
-            -256..=-1 => Ok(self.write1(Op::LoadSmallInt, i as i8 as u8 as u32, line)),
+            0..=255 => self.write1(Op::LoadSmallInt, i as u32, line),
+            -256..=-1 => self.write1(Op::LoadSmallInt, i as i8 as u8 as u32, line),
             _ => {
                 let c = self.bytecode.int_constant(i);
-                self.load_const(c, line)
+                self.load_const(c, line)?;
             }
         }
+        Ok(())
     }
 
     fn new_local(&mut self, line: u32, name: String, mutable: bool) -> CompileResult<u16> {
-        let u = self.locals.len() as u16;
-        self.push_register(line)?;
-        self.locals.push(Local { name, mutable });
-        Ok(u)
+        let reg = self.push_register(line)?;
+        self.locals
+            .last_mut()
+            .unwrap()
+            .insert(name, Local { mutable, reg });
+        Ok(reg)
     }
 }
 
@@ -481,10 +478,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Ok(())
     }
 
-    fn resolve_local(&self, name: &str) -> Option<u16> {
-        for (index, local) in self.locals.iter().enumerate().rev() {
-            if local.name == name {
-                return Some(index as u16);
+    fn resolve_local(&self, name: &str) -> Option<Local> {
+        for locals in self.locals.iter().rev() {
+            if let Some(local) = locals.get(name) {
+                return Some(local.clone());
             }
         }
         None
@@ -505,19 +502,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         line: u32,
         mutable: bool,
     ) -> CompileResult<()> {
-        // Shadowing cannot be done within the same block
-        let last_scope = if self.regcounts.len() != 1 {
-            self.regcounts[self.regcounts.len() - 2]
-        } else {
-            0
-        };
-        let this_block = self.regcount();
-        if self.locals[((last_scope) as usize)..(this_block as usize)]
-            .iter()
-            .any(|local| local.name == name)
-        {
+        if self.locals.last().unwrap().contains_key(name) {
             return Err(CompileError {
-                message: format!("Cannot redeclare variable {}", name),
+                message: format!("Cannot redeclare variable {} in the same scope", name),
                 line,
             });
         }
@@ -695,8 +682,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     end_line,
                 } => {
                     let start = self.evaluate_expr(start)?;
-                    let count = self.regcount();
-                    self.regcounts.push(count);
+                    self.locals.push(HashMap::default());
                     let iter_reg = self.new_local(*begin_line, iter.clone(), false)?;
                     self.store_in_specific_register(start, iter_reg, *begin_line)?;
                     let end = self.evaluate_expr(end)?;
@@ -734,8 +720,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         _ => unreachable!(),
                     }
-                    self.regcounts.pop();
-                    self.locals.truncate(self.regcount() as usize);
+                    let last_block = self.locals.pop().unwrap();
+                    self.regcount -= last_block.len() as u16;
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,
@@ -798,13 +784,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn block(&mut self, stmts: &[Statement]) {
-        let count = self.regcount();
-        self.regcounts.push(count);
+        self.locals.push(HashMap::default());
         for stmt in stmts {
             self.evaluate_statement(stmt);
         }
-        self.regcounts.pop();
-        self.locals.truncate(self.regcount() as usize);
+        let last_block = self.locals.pop().unwrap();
+        self.regcount -= last_block.len() as u16;
     }
 
     fn break_stmt(&mut self, line: u32) -> CompileResult<()> {
@@ -965,7 +950,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 _ => unreachable!(),
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
-                Some(index) => Ok(ExprResult::Register(index)),
+                Some(local) => Ok(ExprResult::Register(local.reg)),
                 None => {
                     let global = self
                         .get_global(name)
@@ -975,7 +960,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             },
             Expr::String { inner, line } => {
-                if inner.len() == 0 {
+                if inner.is_empty() {
                     let str = self.bytecode.string_constant("".into());
                     self.load_const(str, *line)?;
                 } else {
@@ -1108,7 +1093,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 function,
                 arguments,
             } => {
-                let start = self.regcount();
+                let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
                         message: "Cannot have more than 25 arguments".to_string(),
@@ -1202,14 +1187,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.pop_register();
         }
         match right {
-            ExprResult::Int(_) => {
-                return Err(CompileError {
-                    message:
-                        "Can only perform concat operation on strings. Consider using interpolation"
-                            .into(),
-                    line,
-                })
-            }
+            ExprResult::Int(_) => Err(CompileError {
+                message:
+                    "Can only perform concat operation on strings. Consider using interpolation"
+                        .into(),
+                line,
+            }),
             right => {
                 self.store_in_accumulator(right, line)?;
                 self.write1(Op::ConcatRegister, reg as u32, line);
@@ -1241,15 +1224,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             return Ok(());
         }
         if let Expr::Variable { name, line } = left {
-            if let Some(dest) = self.resolve_local(name) {
-                if !self.locals[dest as usize].mutable {
+            if let Some(local) = self.resolve_local(name) {
+                if !local.mutable {
                     return Err(CompileError {
                         message: format!("Cannot modify constant {}", name),
                         line: *line,
                     });
                 }
-                let expr_res = self.evaluate_expr_with_dest(right, Some(dest))?;
-                self.store_in_specific_register(expr_res, dest, *line)
+                let expr_res = self.evaluate_expr_with_dest(right, Some(local.reg))?;
+                self.store_in_specific_register(expr_res, local.reg, *line)
             } else {
                 let global = self
                     .get_global(name)
@@ -1327,8 +1310,8 @@ mod tests {
             let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
             let s = Scanner::new(&s);
             let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter(), false);
-            let (stmts, errors) = parser.parse();
+            let parser = Parser::new(tokens.into_iter());
+            let (stmts, errors) = parser.parse(false);
             assert!(errors.is_empty(), "{:?}", errors);
             let vm = new_vm();
             let mut globals = HashMap::default();
@@ -1356,8 +1339,8 @@ mod tests {
             let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
             let s = Scanner::new(&s);
             let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter(), false);
-            let (stmts, errors) = parser.parse();
+            let parser = Parser::new(tokens.into_iter());
+            let (stmts, errors) = parser.parse(false);
             assert!(errors.is_empty());
             let vm = new_vm();
             let mut globals = HashMap::default();

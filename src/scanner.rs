@@ -1,5 +1,5 @@
 // This file contains the scanner which does lexing and automatic statement separator insertion
-
+use phf::phf_map;
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -81,32 +81,31 @@ pub enum TokenType {
     Eof,
 }
 
+static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
+    "and" => TokenType::And,
+    "break" => TokenType::Break,
+    "continue" => TokenType::Continue,
+    "const" => TokenType::Const,
+    "else" => TokenType::Else,
+    "false" => TokenType::False,
+    "for" => TokenType::For,
+    "fun" => TokenType::Fun,
+    "if" => TokenType::If,
+    "in" => TokenType::In,
+    "null" => TokenType::Null,
+    "or" => TokenType::Or,
+    "return" => TokenType::Return,
+    "super" => TokenType::Super,
+    "this" => TokenType::This,
+    "true" => TokenType::True,
+    "let" => TokenType::Let,
+    "while" => TokenType::While,
+    "to" => TokenType::To,
+};
+
 //Returns corresponding keyword tokens for string
 fn get_keyword(s: &str) -> Option<TokenType> {
-    match s {
-        "and" => Some(TokenType::And),
-        "break" => Some(TokenType::Break),
-        "class" => Some(TokenType::Class),
-        "continue" => Some(TokenType::Continue),
-        "const" => Some(TokenType::Const),
-        "else" => Some(TokenType::Else),
-        "extends" => Some(TokenType::Extends),
-        "false" => Some(TokenType::False),
-        "for" => Some(TokenType::For),
-        "fun" => Some(TokenType::Fun),
-        "if" => Some(TokenType::If),
-        "in" => Some(TokenType::In),
-        "null" => Some(TokenType::Null),
-        "or" => Some(TokenType::Or),
-        "return" => Some(TokenType::Return),
-        "super" => Some(TokenType::Super),
-        "this" => Some(TokenType::This),
-        "true" => Some(TokenType::True),
-        "let" => Some(TokenType::Let),
-        "while" => Some(TokenType::While),
-        "to" => Some(TokenType::To),
-        _ => None,
-    }
+    KEYWORDS.get(s).cloned()
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -670,80 +669,6 @@ fn isalnum(c: u8) -> bool {
     isalpha(c) || isdigit(c)
 }
 
-// Checks whether brackets are balanced
-pub fn are_brackets_balanced(s: &str) -> bool {
-    fn string(
-        index: &mut usize,
-        s: &str,
-        delim: u8,
-        depths: &mut Vec<u32>,
-        delims: &mut Vec<u8>,
-    ) -> bool {
-        *index += 1; //Consume start of string
-        while *index < s.len() {
-            match s.as_bytes()[*index] {
-                b'\\' => {
-                    // is \ the last character
-                    if *index + 1 >= s.len() {
-                        return false;
-                    } else {
-                        *index += 1;
-                        if s.as_bytes()[*index] == b'(' {
-                            *index -= 1;
-                            depths.push(0);
-                            break;
-                        }
-                    }
-                }
-                x if x == delim => {
-                    delims.pop();
-                    break;
-                } //Break;Do not consume end of string as index+=1 is done below
-                _ => {}
-            }
-            *index += 1
-        }
-        *index != s.len()
-    }
-
-    let mut depths = vec![0u32];
-    let mut delims = vec![];
-    let mut index = 0;
-    while index < s.len() {
-        match s.as_bytes()[index] {
-            b'(' => *depths.last_mut().unwrap() += 1,
-            b')' => {
-                *depths.last_mut().unwrap() -= 1;
-                if *depths.last().unwrap() == 0 && depths.len() > 1 {
-                    depths.pop();
-                    if !string(
-                        &mut index,
-                        s,
-                        *delims.last().unwrap(),
-                        &mut depths,
-                        &mut &mut delims,
-                    ) {
-                        return false;
-                    }
-                }
-            }
-            b'{' => *depths.last_mut().unwrap() += 1,
-            b'}' => *depths.last_mut().unwrap() -= 1,
-            b'[' => *depths.last_mut().unwrap() += 1,
-            b']' => *depths.last_mut().unwrap() -= 1,
-            c @ b'"' | c @ b'\'' => {
-                delims.push(c);
-                if !string(&mut index, s, c, &mut depths, &mut delims) {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    depths.len() == 1 && depths[0] == 0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -818,16 +743,6 @@ mod tests {
                     error
                 )
             }
-        }
-    }
-
-    #[test]
-    fn test_brackets_balanced() {
-        for s in ["'\"", "(", "'\\({)'", "'\\", "'srcbc", "'\\u", "\"\\()\\\""] {
-            assert!(!are_brackets_balanced(s), "{}", s)
-        }
-        for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'", "a", "[]"] {
-            assert!(are_brackets_balanced(s), "{}", s)
         }
     }
 }

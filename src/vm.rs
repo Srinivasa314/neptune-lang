@@ -51,8 +51,9 @@ unsafe impl<'a> ExternType for StringSlice<'a> {
 
 #[repr(C)]
 pub struct FunctionInfoWriter<'vm> {
-    handle: *const c_void,
-    vm: *const c_void,
+    handle: *mut c_void,
+    vm: *mut c_void,
+    constants: *mut c_void,
     _marker: PhantomData<&'vm ()>,
 }
 
@@ -67,6 +68,7 @@ impl<'vm> Drop for FunctionInfoWriter<'vm> {
     }
 }
 
+#[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
 mod ffi {
     #[repr(u8)]
@@ -184,6 +186,7 @@ mod ffi {
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
+        fn reserve_constant(self: &mut FunctionInfoWriter) -> Result<u16>;
         fn float_constant(self: &mut FunctionInfoWriter, f: f64) -> Result<u16>;
         fn string_constant<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,

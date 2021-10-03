@@ -1,0 +1,10 @@
+[package]
+name = "neptune-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+dirs = "3.0.2"
+neptune-lang = { path = "../" }   
+rustyline = "9.0.0"
+rustyline-derive = "0.5.0"

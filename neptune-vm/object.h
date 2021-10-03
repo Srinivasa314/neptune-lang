@@ -80,13 +80,15 @@ public:
   static constexpr Type type = Type::Array;
 };
 
+template <typename T>
+using ValueMap = tsl::robin_map<Value, T, ValueHasher, ValueStrictEquality,
+                                std::allocator<std::pair<Value, Value>>, true>;
+
 class Map : public Object {
 public:
   Map() = default;
   explicit Map(size_t size);
-  tsl::robin_map<Value, Value, ValueHasher, ValueStrictEquality,
-                 std::allocator<std::pair<Value, Value>>, true>
-      inner;
+  ValueMap<Value> inner;
   static constexpr Type type = Type::Map;
 };
 } // namespace neptune_vm

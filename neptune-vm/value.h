@@ -91,7 +91,7 @@ struct ValueHasher {
 };
 
 struct ValueStrictEquality {
-  bool operator()(Value v1, Value v2) const;
+  bool operator()(Value a, Value b) const;
 };
 
 class ValueFormatter {
@@ -100,7 +100,7 @@ class ValueFormatter {
 
 public:
   ValueFormatter(std::ostream &os_, uint32_t _depth) : os(os_), depth(_depth) {}
-  ValueFormatter(std::ostream &os_) : os(os_), depth(0) {}
+  explicit ValueFormatter(std::ostream &os_) : os(os_), depth(0) {}
   friend void operator<<(ValueFormatter vf, Object *obj);
   friend void operator<<(ValueFormatter vf, Value v);
   ValueFormatter inc_depth() { return ValueFormatter(os, depth + 1); }

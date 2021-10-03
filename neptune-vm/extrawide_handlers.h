@@ -50,7 +50,7 @@ handler(ModInt, {
 
 handler(JumpBack, {
   auto offset = READ(utype);
-  ip -= (offset + 1 + sizeof(utype));
+  ip -= (offset + 1 + sizeof(utype) + header_size<utype>());
 });
 
 handler(ForLoop, {
@@ -59,6 +59,6 @@ handler(ForLoop, {
   auto end = iter + 1;
   bp[iter].inc();
   if (bp[iter].as_int() < bp[end].as_int()) {
-    ip -= (offset + 1 + 2 * sizeof(utype));
+    ip -= (offset + 1 + 2 * sizeof(utype) + header_size<utype>());
   }
 });

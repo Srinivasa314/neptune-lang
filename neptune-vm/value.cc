@@ -320,7 +320,7 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
     return a.as_int() == b.as_int();
   } else if (a.is_float() && b.is_float()) {
     uint64_t u1, u2;
-    double d1 = a.as_float(), d2 = a.as_float();
+    double d1 = a.as_float(), d2 = b.as_float();
     memcpy(&u1, &d1, sizeof(u1));
     memcpy(&u2, &d2, sizeof(u2));
     return u1 == u2;

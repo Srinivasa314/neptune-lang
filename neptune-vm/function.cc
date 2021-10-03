@@ -28,15 +28,24 @@ uint16_t FunctionInfoWriter::constant(Value v) {
   if (hf->object->constants.size() == MAX_CONSTANTS) {
     throw std::overflow_error("Cannot store more than 65535 constants");
   } else {
-    auto pos =
-        std::find_if(hf->object->constants.begin(), hf->object->constants.end(),
-                     [=](Value v2) { return ValueStrictEquality{}(v, v2); });
-    if (pos != hf->object->constants.end()) {
-      return static_cast<uint16_t>(pos - hf->object->constants.begin());
+    auto pos = constants->find(v);
+    if (pos != constants->end()) {
+      return pos->second;
     } else {
       hf->object->constants.push_back(v);
-      return static_cast<uint16_t>(hf->object->constants.size() - 1);
+      uint16_t pos = hf->object->constants.size() - 1;
+      (*constants)[v] = pos;
+      return pos;
     }
+  }
+}
+
+uint16_t FunctionInfoWriter::reserve_constant() {
+  if (hf->object->constants.size() == MAX_CONSTANTS) {
+    throw std::overflow_error("Cannot store more than 65535 constants");
+  } else {
+    hf->object->constants.push_back(Value::null());
+    return static_cast<uint16_t>(hf->object->constants.size() - 1);
   }
 }
 
@@ -74,7 +83,10 @@ void FunctionInfoWriter::pop_last_op(size_t last_op_pos) {
   }
 }
 
-void FunctionInfoWriter::release() { vm->release(hf); }
+void FunctionInfoWriter::release() {
+  vm->release(hf);
+  constants.reset();
+}
 
 std::unique_ptr<VMResult> FunctionInfoWriter::run() {
   return std::unique_ptr<VMResult>(new VMResult(vm->run(hf->object)));
@@ -110,7 +122,7 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
     assert_in_range(op_position + 1, len);
     if (jump_offset < 256) {
       bytecode[op_position] -= PATCH_OFFSET;
-      bytecode[op_position + 1] = jump_offset;
+      bytecode[op_position + 1] = static_cast<uint8_t>(jump_offset);
     } else {
       hf->object->constants[bytecode[op_position + 1]] =
           Value(static_cast<int32_t>(jump_offset));
@@ -137,11 +149,11 @@ std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
 #define REG(type) "r" << READ(type)
 
 namespace numerical_chars {
-std::ostream &operator<<(std::ostream &os, int8_t i) {
+static std::ostream &operator<<(std::ostream &os, int8_t i) {
   return os << static_cast<int>(i);
 }
 
-std::ostream &operator<<(std::ostream &os, uint8_t i) {
+static std::ostream &operator<<(std::ostream &os, uint8_t i) {
   return os << static_cast<unsigned int>(i);
 }
 } // namespace numerical_chars

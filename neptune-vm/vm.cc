@@ -1,6 +1,6 @@
 #include "neptune-vm.h"
 #include "object.h"
-#include <SafeInt/SafeInt.hpp>
+#include "checked_arithmetic.cc"
 #include <sstream>
 
 #if defined(__GNUC__) || defined(__clang__)
