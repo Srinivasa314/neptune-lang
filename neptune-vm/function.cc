@@ -500,7 +500,6 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       os << '\n' << *i.as_object()->as<FunctionInfo>();
     }
   }
-  return os;
 }
 #undef CASE
 #undef READ

@@ -1,44 +1,21 @@
 Bytecode for <script>
-0 LoadConstant [function factorial]
+1> 0 LoadConstant [function factorial]
 2 StoreGlobal 0
-4 LoadConstant [function f]
+7> 4 LoadConstant [function f]
 6 StoreGlobal 1
-8 LoadConstant [function g]
+8> 8 LoadConstant [function g]
 10 StoreGlobal 2
-12 LoadSmallInt 3
+11> 12 LoadSmallInt 3
 14 StoreR0 
 15 LoadGlobal 0
 17 Call1Argument r0
-19 LoadGlobal 1
+12> 19 LoadGlobal 1
 21 Call0Argument r0
-23 LoadConstant [function three]
+13> 23 LoadConstant [function three]
 25 StoreGlobal 3
 27 Exit 
 
-Bytecode for factorial
-0 LoadSmallInt 0
-2 Equal r0
-4 JumpIfFalseOrNull 4
-6 LoadR0 
-7 Return 
-8 LoadSmallInt 1
-10 StoreR1 
-11 LoadR0 
-12 SubtractInt 1
-14 StoreR2 
-15 LoadGlobal 0
-17 Call1Argument r2
-19 MultiplyRegister r1
-21 Return 
-
-Bytecode for f
-0 LoadNull 
-1 Return 
-
-Bytecode for g
-0 LoadNull 
-1 Return 
-
-Bytecode for three
-0 LoadNull 
-1 Return 
+[function factorial]
+[function f]
+[function g]
+[function three]
