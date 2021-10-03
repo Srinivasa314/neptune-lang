@@ -13,5 +13,8 @@
     "if",
     "loop",
     "test_break_continue",
-    "patch_jump"
+    "patch_jump",
+    "function",
+    "empty_string",
+    "and_or_not"
 ]

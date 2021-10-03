@@ -24,7 +24,11 @@
     "line": 6
   },
   {
-    "message": "~= is not an expression",
+    "message": "%= is not an expression",
     "line": 7
+  },
+  {
+    "message": "~= is not an expression",
+    "line": 8
   }
 ]

@@ -1,0 +1,180 @@
+[
+  {
+    "Function": {
+      "line": 1,
+      "last_line": 6,
+      "name": "factorial",
+      "arguments": [
+        "n"
+      ],
+      "body": [
+        {
+          "If": {
+            "condition": {
+              "Binary": {
+                "line": 2,
+                "left": {
+                  "Variable": {
+                    "line": 2,
+                    "name": "n"
+                  }
+                },
+                "op": "EqualEqual",
+                "right": {
+                  "Literal": {
+                    "line": 2,
+                    "inner": {
+                      "IntLiteral": 0
+                    }
+                  }
+                }
+              }
+            },
+            "block": [
+              {
+                "Return": {
+                  "line": 3,
+                  "expr": {
+                    "Variable": {
+                      "line": 3,
+                      "name": "n"
+                    }
+                  }
+                }
+              }
+            ],
+            "else_stmt": null,
+            "else_line": 0
+          }
+        },
+        {
+          "Return": {
+            "line": 5,
+            "expr": {
+              "Binary": {
+                "line": 5,
+                "left": {
+                  "Literal": {
+                    "line": 5,
+                    "inner": {
+                      "IntLiteral": 1
+                    }
+                  }
+                },
+                "op": "Star",
+                "right": {
+                  "Call": {
+                    "line": 5,
+                    "function": {
+                      "Variable": {
+                        "line": 5,
+                        "name": "factorial"
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "Binary": {
+                          "line": 5,
+                          "left": {
+                            "Variable": {
+                              "line": 5,
+                              "name": "n"
+                            }
+                          },
+                          "op": "Minus",
+                          "right": {
+                            "Literal": {
+                              "line": 5,
+                              "inner": {
+                                "IntLiteral": 1
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "Function": {
+      "line": 7,
+      "last_line": 7,
+      "name": "f",
+      "arguments": [],
+      "body": []
+    }
+  },
+  {
+    "Function": {
+      "line": 8,
+      "last_line": 10,
+      "name": "g",
+      "arguments": [],
+      "body": [
+        {
+          "Return": {
+            "line": 9,
+            "expr": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "Expr": {
+      "Call": {
+        "line": 11,
+        "function": {
+          "Variable": {
+            "line": 11,
+            "name": "factorial"
+          }
+        },
+        "arguments": [
+          {
+            "Literal": {
+              "line": 11,
+              "inner": {
+                "IntLiteral": 3
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Expr": {
+      "Call": {
+        "line": 12,
+        "function": {
+          "Variable": {
+            "line": 12,
+            "name": "f"
+          }
+        },
+        "arguments": []
+      }
+    }
+  },
+  {
+    "Function": {
+      "line": 13,
+      "last_line": 13,
+      "name": "three",
+      "arguments": [
+        "a",
+        "b",
+        "c"
+      ],
+      "body": []
+    }
+  }
+]
