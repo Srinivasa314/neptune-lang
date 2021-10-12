@@ -89,6 +89,7 @@
   OP(JumpIfFalseOrNullConstant)                                                \
   OP(JumpIfNotFalseOrNullConstant)                                             \
   OP(BeginForLoopConstant)                                                     \
+  OP(Print)                                                                    \
   OP(Return)                                                                   \
   OP(Exit)
 

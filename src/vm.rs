@@ -161,6 +161,7 @@ mod ffi {
         JumpIfFalseOrNullConstant,
         JumpIfNotFalseOrNullConstant,
         BeginForLoopConstant,
+        Print,
         Return,
         Exit,
     }
@@ -181,7 +182,7 @@ mod ffi {
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
-        unsafe fn run(self: &mut FunctionInfoWriter) -> UniquePtr<VMResult>;
+        unsafe fn run(self: &mut FunctionInfoWriter, eval: bool) -> UniquePtr<VMResult>;
         fn to_cxx_string(self: &FunctionInfoWriter) -> UniquePtr<CxxString>;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
@@ -287,7 +288,7 @@ mod tests {
         assert_eq!(n.eval("-0.0===0.0").unwrap().unwrap(), "false");
         assert_eq!(n.eval("1===1.0").unwrap().unwrap(), "false");
         n.exec(
-            r#"global={};
+            r#"global={}
         global[1]=2
         global[1.0]=3.0
         global[true]=true
@@ -315,19 +316,19 @@ mod tests {
         n.exec("if global==0{global=10}else if global==5{global=11}else{global=12}")
             .unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "11");
-        n.exec("global=0\nfor i in 1 to 10{global+=i}").unwrap();
+        n.exec("global=0\nfor i in 1..10{global+=i}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "45");
-        n.exec("global=0\nfor i in 1 to 10{for j in 1 to 10{global+=1}}")
+        n.exec("global=0\nfor i in 1..10{for j in 1..10{global+=1}}")
             .unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "81");
-        n.exec("global=0\nfor i in 1 to 1{global+=1}").unwrap();
+        n.exec("global=0\nfor i in 1..1{global+=1}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "0");
-        n.exec("global=0\nfor i in 1 to -1{global+=1}").unwrap();
+        n.exec("global=0\nfor i in 1..-1{global+=1}").unwrap();
         assert_eq!(n.eval("global").unwrap().unwrap(), "0");
         n.exec(
             r#"
                 global=0
-                for i in 1 to 10{
+                for i in 1..10{
                     if i==7{
                         break
                     }
@@ -340,7 +341,7 @@ mod tests {
         n.exec(
             r#"
                 global=0
-                for i in 1 to 10{
+                for i in 1..10{
                     if i==7{
                         continue
                     }
@@ -393,7 +394,7 @@ mod tests {
         n.exec(
             r"
         list=null
-        for i in 0 to 50 {
+        for i in 0..50 {
             list={@next:list}
         }
         ",
@@ -420,6 +421,38 @@ mod tests {
         assert_eq!(n.eval("![]").unwrap().unwrap(), "false");
         assert_eq!(n.eval("1 and 2").unwrap().unwrap(), "2");
         assert_eq!(n.eval("1 or 2").unwrap().unwrap(), "1");
+        match n
+            .exec(
+                r"fun f(a,b){
+            return a/b
+            }
+            fun g(a){f(a,0)}
+            g(1)
+            ",
+            )
+            .unwrap_err()
+        {
+            InterpretError::CompileError(e) => panic!("{:?}", e),
+            InterpretError::RuntimePanic { stack_trace, .. } => {
+                assert_eq!(
+                    stack_trace,
+                    "at f (line 2)\nat g (line 4)\nat <script> (line 5)\n"
+                )
+            }
+        }
+        match n
+            .exec(
+                r"let x=0
+                let y=1/x
+            ",
+            )
+            .unwrap_err()
+        {
+            InterpretError::CompileError(e) => panic!("{:?}", e),
+            InterpretError::RuntimePanic { stack_trace, .. } => {
+                assert_eq!(stack_trace, "at <script> (line 2)\n")
+            }
+        }
     }
     #[test]
     fn error() {
@@ -449,6 +482,10 @@ mod tests {
             ("'a'-[]", "Cannot subtract types string and array"),
             ("'a'~1.2", "Cannot concat types string and float"),
             ("1[2]", "Cannot index type int"),
+            (
+                "for i in 'a'..1{}",
+                "Expected int and int for the start and end of for loop got string and int instead",
+            ),
         ] {
             match n.exec(code).unwrap_err() {
                 InterpretError::CompileError(e) => panic!("{:?}", e),

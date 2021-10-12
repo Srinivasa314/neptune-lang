@@ -56,7 +56,7 @@ handler(JumpBack, {
 handler(ForLoop, {
   auto offset = READ(utype);
   auto iter = READ(utype);
-  auto end = iter + 1;
+  uint16_t end = iter + 1;
   bp[iter].inc();
   if (bp[iter].as_int() < bp[end].as_int()) {
     ip -= (offset + 1 + 2 * sizeof(utype) + header_size<utype>());

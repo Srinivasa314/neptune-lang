@@ -112,7 +112,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
       vf.os << "[ ... ]";
     } else {
       auto new_vf = vf.inc_depth();
-      auto o = obj->as<Array>()->inner;
+      auto &o = obj->as<Array>()->inner;
       auto it = o.begin();
       if (it != o.end()) {
         vf.os << "[ ";
@@ -135,7 +135,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
       vf.os << "{ ... }";
     } else {
       auto new_vf = vf.inc_depth();
-      auto o = obj->as<Map>()->inner;
+      auto &o = obj->as<Map>()->inner;
       auto it = o.begin();
       if (it != o.end()) {
         vf.os << "{ ";

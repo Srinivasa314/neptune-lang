@@ -720,6 +720,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         _ => unreachable!(),
                     }
+                    self.loops.pop();
                     let last_block = self.locals.pop().unwrap();
                     self.regcount -= last_block.len() as u16;
                 }
@@ -732,6 +733,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     body,
                     last_line,
                 } => {
+                    if self.bctype != BytecodeType::Script || self.locals.len() != 1 {
+                        return Err(CompileError {
+                            message: "Global functions must be declared at the topmost scope"
+                                .into(),
+                            line: *line,
+                        });
+                    }
                     if arguments.len() >= 25 {
                         return Err(CompileError {
                             message: "Cannot have more than 25 arguments".to_string(),
@@ -753,7 +761,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         bc.write0(Op::Return, *last_line);
                     }
                     self.compiler = Some(bc.compiler.take().unwrap());
-                    dbg!(&bc.bytecode);
                     let c = self.bytecode.fun_constant(bc.bytecode);
                     self.load_const(c, *line)?;
                     let g = self
@@ -775,6 +782,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.write0(Op::LoadNull, *line);
                     }
                     self.write0(Op::Return, *line);
+                }
+                Statement::Print(e) => {
+                    let expr_res = self.evaluate_expr(e)?;
+                    self.store_in_accumulator(expr_res, e.line())?;
+                    self.write0(Op::Print, e.line());
                 }
             };
             Ok(())
@@ -977,8 +989,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     if inner.len() > 1 {
                         let reg = self.push_register(*line)?;
-                        self.write_op_store_register(reg, *line);
                         for i in &inner[1..] {
+                            self.write_op_store_register(reg, *line);
                             match i {
                                 Substring::String(s) => {
                                     if !s.is_empty() {
@@ -1341,7 +1353,6 @@ mod tests {
             let tokens = s.scan_tokens();
             let parser = Parser::new(tokens.into_iter());
             let (stmts, errors) = parser.parse(false);
-            dbg!(&errors, &test);
             assert!(errors.is_empty());
             let vm = new_vm();
             let mut globals = HashMap::default();

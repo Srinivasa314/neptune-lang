@@ -91,24 +91,17 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 #define CALLOP(n)                                                              \
   if (likely(accumulator.is_object())) {                                       \
     if (likely(accumulator.as_object()->is<FunctionInfo>())) {                 \
-      auto new_f = accumulator.as_object()->as<FunctionInfo>();                \
-      auto arity = new_f->arity;                                               \
+      auto f = accumulator.as_object()->as<FunctionInfo>();                    \
+      auto arity = f->arity;                                                   \
       if (unlikely(arity != n))                                                \
-        PANIC("Function " << new_f->name << " takes "                          \
+        PANIC("Function " << f->name << " takes "                              \
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(n) << " were given");       \
       if (num_frames == MAX_FRAMES)                                            \
         PANIC("Recursion depth exceeded");                                     \
-      frames[num_frames++] = Frame{bp, f, ip};                                 \
-      f = new_f;                                                               \
+      frames[num_frames - 1].ip = ip;                                          \
       bp += offset;                                                            \
-      stack_top = bp + f->max_registers;                                       \
-      constants = f->constants.data();                                         \
-      ip = f->bytecode.data();                                                 \
-      if (stack_top > stack_end)                                               \
-        PANIC("Stack overflow");                                               \
-      for (size_t i = arity; i < f->max_registers; i++)                        \
-        bp[i] = Value::empty();                                                \
+      CALL(n);                                                                 \
     } else {                                                                   \
       PANIC(accumulator.type_string() << " is not callable");                  \
     }                                                                          \
@@ -258,7 +251,7 @@ handler(JumpIfNotFalseOrNullConstant, {
 handler(BeginForLoop, {
   auto offset = READ(utype);
   auto iter = READ(utype);
-  auto end = iter + 1;
+  uint16_t end = iter + 1;
   if (likely(bp[iter].is_int() && bp[end].is_int())) {
     if (bp[iter].as_int() >= bp[end].as_int()) {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
@@ -272,7 +265,7 @@ handler(BeginForLoop, {
 handler(BeginForLoopConstant, {
   auto offset = static_cast<uint32_t>(constants[READ(utype)].as_int());
   auto iter = READ(utype);
-  auto end = iter + 1;
+  uint16_t end = iter + 1;
   if (likely(bp[iter].is_int() && bp[end].is_int())) {
     if (bp[iter].as_int() >= bp[end].as_int()) {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));

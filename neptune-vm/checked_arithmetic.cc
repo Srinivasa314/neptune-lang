@@ -30,7 +30,7 @@ static ALWAYS_INLINE bool SafeModulus(int32_t a, int32_t b, int32_t &result) {
     result = 0;
     return true;
   }
-  result = a / b;
+  result = a % b;
   return true;
 }
 

@@ -30,6 +30,7 @@ pub type CompileResult<T> = Result<T, CompileError>;
 pub struct Neptune {
     vm: UniquePtr<VM>,
     globals: HashMap<String, u32>,
+    print_bytecode: bool,
 }
 
 impl Neptune {
@@ -37,7 +38,12 @@ impl Neptune {
         Self {
             vm: new_vm(),
             globals: HashMap::default(),
+            print_bytecode: false,
         }
+    }
+
+    pub fn print_bytecode(&mut self, b: bool) {
+        self.print_bytecode = b;
     }
 
     pub fn exec(&mut self, source: &str) -> Result<(), InterpretError> {
@@ -52,7 +58,11 @@ impl Neptune {
             errors.append(e);
         }
         if errors.is_empty() {
-            let vm_result = unsafe { dbg!(fw.unwrap()).run() };
+            let mut fw = fw.unwrap();
+            if self.print_bytecode {
+                println!("{:?}", fw);
+            }
+            let vm_result = unsafe { fw.run(false) };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::RuntimePanic {
@@ -86,7 +96,11 @@ impl Neptune {
             errors.append(e);
         }
         if errors.is_empty() {
-            let vm_result = unsafe { dbg!(fw.unwrap()).run() };
+            let mut fw = fw.unwrap();
+            if self.print_bytecode {
+                println!("{:?}", fw);
+            }
+            let vm_result = unsafe { fw.run(true) };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(if is_expr {
                     Some(vm_result.get_result().to_string())

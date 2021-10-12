@@ -88,8 +88,8 @@ void FunctionInfoWriter::release() {
   constants.reset();
 }
 
-std::unique_ptr<VMResult> FunctionInfoWriter::run() {
-  return std::unique_ptr<VMResult>(new VMResult(vm->run(hf->object)));
+std::unique_ptr<VMResult> FunctionInfoWriter::run(bool eval) {
+  return std::unique_ptr<VMResult>(new VMResult(vm->run(hf->object, eval)));
 }
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
@@ -497,7 +497,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
   }
   for (auto i : f.constants) {
     if (i.is_object() && i.as_object()->is<FunctionInfo>()) {
-      os << '\n' << *i.as_object()->as<FunctionInfo>();
+      os << '\n';
+      disassemble(os, *i.as_object()->as<FunctionInfo>());
     }
   }
 }

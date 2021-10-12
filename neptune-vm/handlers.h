@@ -57,12 +57,19 @@ handler(Not, {
 handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
+handler(Print, {
+  auto s = static_cast<StringSlice>(
+      *(to_string(accumulator).as_object()->as<String>()));
+  std::cout.write(s.data, s.len);
+  std::cout << std::endl;
+});
 handler(Return, {
-  auto frame = frames[num_frames - 1];
   num_frames--;
+  auto frame = frames[num_frames - 1];
   bp = frame.bp;
   ip = frame.ip;
-  constants = frame.f->constants.data();
+  auto f = frame.f;
+  constants = f->constants.data();
   stack_top = bp + f->max_registers;
 });
 handler(Exit, {

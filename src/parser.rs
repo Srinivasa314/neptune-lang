@@ -91,7 +91,8 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::TildeEqual => Precedence::Assignment,
         TokenType::EqualEqualEqual => Precedence::Comparison,
         TokenType::BangEqualEqual => Precedence::Comparison,
-        TokenType::To => Precedence::None,
+        TokenType::DotDot => Precedence::None,
+        TokenType::Print => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -206,6 +207,7 @@ pub enum Statement {
         line: u32,
         expr: Option<Expr>,
     },
+    Print(Expr),
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -375,7 +377,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => None,
             TokenType::EqualEqualEqual => None,
             TokenType::BangEqualEqual => None,
-            TokenType::To => None,
+            TokenType::DotDot => None,
+            TokenType::Print => None,
         }
     }
 
@@ -386,7 +389,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::LeftSquareBracket => self.subscript(left),
             TokenType::RightSquareBracket => unreachable!(),
             TokenType::LeftBrace => unreachable!(),
-            TokenType::RightBrace => unreachable!(),
+            TokenType::RightBrace => todo!(),
             TokenType::Comma => unreachable!(),
             TokenType::Dot => todo!(),
             TokenType::Minus => self.binary(left),
@@ -441,7 +444,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => self.binary(left),
             TokenType::EqualEqualEqual => self.binary(left),
             TokenType::BangEqualEqual => self.binary(left),
-            TokenType::To => unreachable!(),
+            TokenType::DotDot => unreachable!(),
+            TokenType::Print => unreachable!(),
         }
     }
 
@@ -666,6 +670,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.function()
             } else if self.match_token(TokenType::Return) {
                 self.return_stmt()
+            } else if self.match_token(TokenType::Print) {
+                Ok(Statement::Print(self.expression()?))
             } else {
                 self.expression_statement()
             }?;
@@ -823,7 +829,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let iter = self.previous.inner.to_string();
         self.consume(TokenType::In, "Expect in after loop variable".into())?;
         let start = self.expression()?;
-        self.consume(TokenType::To, "Expect to".into())?;
+        self.consume(TokenType::DotDot, "Expect ..".into())?;
         let end = self.expression()?;
         self.ignore_newline();
         self.consume(

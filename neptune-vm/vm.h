@@ -49,7 +49,7 @@ class VM {
 
 public:
   Value to_string(Value val);
-  VMResult run(FunctionInfo *f);
+  VMResult run(FunctionInfo *f, bool eval);
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
   template <typename O> O *manage(O *t);
@@ -60,7 +60,7 @@ public:
   void collect();
   void blacken(Object *o);
   void grey(Object *o);
-  std::string panic(const uint8_t *ip, FunctionInfo *f);
+  std::string panic(const uint8_t *ip);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), bytes_allocated(0), first_obj(nullptr),

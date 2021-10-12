@@ -8,17 +8,18 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() -> Result<(), std::io::Error> {
     let mut n = Neptune::new();
-    match std::env::args().nth(1) {
+    let mut file = None;
+    for arg in std::env::args().skip(1) {
+        if arg == "--print-bytecode" {
+            n.print_bytecode(true);
+        } else {
+            file = Some(arg)
+        }
+    }
+    match file {
         Some(file) => match n.exec(&std::fs::read_to_string(file)?) {
             Ok(()) => {}
-            Err(InterpretError::CompileError(c)) => {
-                for error in c {
-                    eprintln!("line {}: {}", error.line, error.message)
-                }
-            }
-            Err(InterpretError::RuntimePanic(r)) => {
-                eprintln!("Runtime Error: {}", r)
-            }
+            Err(e) => report_error(e),
         },
         None => repl(&mut n),
     }
@@ -61,14 +62,7 @@ fn repl(n: &mut Neptune) {
                         println!("{}", val);
                     }
                     Ok(None) => {}
-                    Err(InterpretError::CompileError(c)) => {
-                        for error in c {
-                            eprintln!("line {}: {}", error.line, error.message)
-                        }
-                    }
-                    Err(InterpretError::RuntimePanic(r)) => {
-                        eprintln!("Runtime Error: {}", r)
-                    }
+                    Err(e) => report_error(e),
                 };
                 rl.add_history_entry(lines);
             }
@@ -158,6 +152,20 @@ pub fn are_brackets_balanced(s: &str) -> bool {
         index += 1;
     }
     depths.len() == 1 && depths[0] == 0
+}
+
+fn report_error(i: InterpretError) {
+    match i {
+        InterpretError::CompileError(c) => {
+            for error in c {
+                eprintln!("line {}: {}", error.line, error.message)
+            }
+        }
+        InterpretError::RuntimePanic { error, stack_trace } => {
+            eprintln!("Runtime Error: {}", error);
+            eprintln!("{}", stack_trace);
+        }
+    }
 }
 
 #[cfg(test)]

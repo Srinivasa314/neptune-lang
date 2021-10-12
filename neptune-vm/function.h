@@ -8,7 +8,7 @@
 namespace neptune_vm {
 template <typename O> class Handle;
 class VM;
-class VMResult;
+struct VMResult;
 
 struct LineInfo {
   uint32_t offset;
@@ -58,7 +58,7 @@ public:
   size_t size() const;
   uint16_t int_constant(int32_t i);
   uint16_t reserve_constant();
-  std::unique_ptr<VMResult> run();
+  std::unique_ptr<VMResult> run(bool eval);
   std::unique_ptr<std::string> to_cxx_string() const;
 };
 } // namespace neptune_vm

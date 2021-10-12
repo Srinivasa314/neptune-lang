@@ -56,12 +56,24 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
-    auto stack_trace = panic(ip - 1, f);                                       \
+    auto stack_trace = panic(ip);                                              \
     return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
   } while (0)
 
+#define CALL(n)                                                                \
+  do {                                                                         \
+    constants = f->constants.data();                                           \
+    stack_top = bp + f->max_registers;                                         \
+    if (stack_top > stack.get() + STACK_SIZE)                                  \
+      PANIC("Stack overflow");                                                 \
+    ip = f->bytecode.data();                                                   \
+    for (size_t i = n; i < f->max_registers; i++)                              \
+      bp[i] = Value::empty();                                                  \
+    frames[num_frames++] = Frame{bp, f, ip};                                   \
+  } while (0)
+
 namespace neptune_vm {
-VMResult VM::run(FunctionInfo *f) {
+VMResult VM::run(FunctionInfo *f, bool eval) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -78,14 +90,9 @@ VMResult VM::run(FunctionInfo *f) {
   Value accumulator = Value::null();
   Value *bp = &stack[0];
   auto globals = this->globals.begin();
-  Value *constants = f->constants.data();
-  const uint8_t *ip = f->bytecode.data();
-  Value *stack_end = stack.get() + STACK_SIZE;
-  stack_top = bp + f->max_registers;
-  if (stack_top > stack_end)
-    PANIC("Stack overflow");
-  for (size_t i = 0; i < f->max_registers; i++)
-    bp[i] = Value::empty();
+  Value *constants;
+  const uint8_t *ip;
+  CALL(0);
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -153,10 +160,13 @@ VMResult VM::run(FunctionInfo *f) {
 #endif
   }
 end:
-  std::ostringstream os;
-  os << accumulator;
-  return VMResult{VMStatus::Success, std::move(os.str()),
-                  std::move(std::string{})};
+  if (eval) {
+    std::ostringstream os;
+    os << accumulator;
+    return VMResult{VMStatus::Success, os.str(), ""};
+  } else {
+    return VMResult{VMStatus::Success, "", ""};
+  }
 }
 #undef READ
 
@@ -421,14 +431,13 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
   }
 }
 
-std::string VM::panic(const uint8_t *ip, FunctionInfo *f) {
+std::string VM::panic(const uint8_t *ip) {
   std::ostringstream os;
-  for (;;) {
-    os << "at " << f->name << " (line " << get_line_number(f, ip) << ")\n";
-    if (num_frames == 0)
-      break;
-    f = frames[num_frames - 1].f;
-    ip = frames[num_frames - 1].ip - 1;
+  frames[num_frames - 1].ip = ip;
+  while (num_frames != 0) {
+    auto frame = frames[num_frames - 1];
+    os << "at " << frame.f->name << " (line "
+       << get_line_number(frame.f, frame.ip - 1) << ")\n";
     num_frames--;
   }
   stack_top = stack.get();

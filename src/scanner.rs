@@ -23,6 +23,7 @@ pub enum TokenType {
     RightBrace,
     Comma,
     Dot,
+    DotDot,
     Minus,
     Mod,
     ModEqual,
@@ -74,7 +75,7 @@ pub enum TokenType {
     True,
     Let,
     While,
-    To,
+    Print,
     //Other types
     Interpolation, // It stores
     Error(String),
@@ -100,7 +101,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "true" => TokenType::True,
     "let" => TokenType::Let,
     "while" => TokenType::While,
-    "to" => TokenType::To,
+    "print"=>TokenType::Print,
 };
 
 //Returns corresponding keyword tokens for string
@@ -190,7 +191,7 @@ impl<'src> Scanner<'src> {
                 self.brackets.pop();
             }
             b',' => self.add_token(TokenType::Comma),
-            b'.' => self.add_token(TokenType::Dot),
+            b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
             b'-' => self.add_token_if_match(b'=', TokenType::MinusEqual, TokenType::Minus),
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),
