@@ -46,7 +46,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Star => Precedence::Multiplicative,
         TokenType::Mod => Precedence::Multiplicative,
         TokenType::Colon => Precedence::None,
-        TokenType::Bang => Precedence::None,
+        TokenType::Bang => Precedence::Unary,
         TokenType::BangEqual => Precedence::Comparison,
         TokenType::Equal => Precedence::Assignment,
         TokenType::EqualEqual => Precedence::Comparison,
@@ -70,7 +70,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::For => Precedence::None,
         TokenType::Fun => Precedence::None,
         TokenType::If => Precedence::None,
-        TokenType::In => Precedence::Comparison,
+        TokenType::In => Precedence::None,
         TokenType::Null => Precedence::None,
         TokenType::Or => Precedence::Or,
         TokenType::Return => Precedence::None,
@@ -93,6 +93,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::BangEqualEqual => Precedence::Comparison,
         TokenType::DotDot => Precedence::None,
         TokenType::Print => Precedence::None,
+        TokenType::Pipe => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -143,6 +144,18 @@ pub enum Expr {
         function: Box<Expr>,
         arguments: Vec<Expr>,
     },
+    Closure {
+        line: u32,
+        last_line: u32,
+        args: Vec<String>,
+        body: ClosureBody,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClosureBody {
+    Block(Vec<Statement>),
+    Expr(Box<Expr>),
 }
 
 impl Expr {
@@ -157,11 +170,12 @@ impl Expr {
             Expr::Subscript { line, .. } => *line,
             Expr::Map { line, .. } => *line,
             Expr::Call { line, .. } => *line,
+            Expr::Closure { line, .. } => *line,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
     VarDeclaration {
@@ -379,6 +393,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::BangEqualEqual => None,
             TokenType::DotDot => None,
             TokenType::Print => None,
+            TokenType::Pipe => Some(self.closure()),
         }
     }
 
@@ -446,6 +461,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::BangEqualEqual => self.binary(left),
             TokenType::DotDot => unreachable!(),
             TokenType::Print => unreachable!(),
+            TokenType::Pipe => unreachable!(),
         }
     }
 
@@ -846,6 +862,42 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             block,
             end_line,
         })
+    }
+
+    fn closure(&mut self) -> CompileResult<Expr> {
+        let line = self.previous.line;
+        let mut args: Vec<String> = vec![];
+        loop {
+            if self.current.token_type == TokenType::Pipe {
+                self.advance();
+                break;
+            }
+            self.consume(TokenType::Identifier, "Expect argument name".into())?;
+            args.push(self.previous.inner.to_string());
+            if self.match_token(TokenType::Pipe) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after argument".into())?;
+        }
+        if self.match_token(TokenType::LeftBrace) {
+            let block = self.block()?;
+            let last_line = self.previous.line;
+            Ok(Expr::Closure {
+                line,
+                args,
+                body: ClosureBody::Block(block),
+                last_line,
+            })
+        } else {
+            let expr = self.expression()?;
+            let last_line = self.previous.line;
+            Ok(Expr::Closure {
+                line,
+                args,
+                body: ClosureBody::Expr(Box::new(expr)),
+                last_line,
+            })
+        }
     }
 }
 

@@ -48,6 +48,7 @@ pub enum TokenType {
     TildeEqual,
     EqualEqualEqual,
     BangEqualEqual,
+    Pipe,
     // Literals.
     Identifier,
     String(String),
@@ -304,6 +305,7 @@ impl<'src> Scanner<'src> {
             b'"' => self.string(b'"'),
             b'\'' => self.string(b'\''),
             b'~' => self.add_token_if_match(b'=', TokenType::TildeEqual, TokenType::Tilde),
+            b'|' => self.add_token(TokenType::Pipe),
             c => {
                 if isdigit(c) {
                     self.number(c);

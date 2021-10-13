@@ -1,5 +1,6 @@
 use cxx::Exception;
 
+use crate::parser::ClosureBody;
 use crate::parser::Statement;
 use crate::parser::Substring;
 use crate::vm::FunctionInfoWriter;
@@ -97,6 +98,7 @@ struct BytecodeCompiler<'c, 'vm> {
 enum BytecodeType {
     Script,
     Function,
+    Closure,
 }
 
 enum Loop {
@@ -1133,6 +1135,46 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
+                Ok(ExprResult::Accumulator)
+            }
+            Expr::Closure {
+                line,
+                args,
+                body,
+                last_line,
+            } => {
+                if args.len() >= 25 {
+                    return Err(CompileError {
+                        message: "Cannot have more than 25 arguments".to_string(),
+                        line: *line,
+                    });
+                }
+                let mut bc = BytecodeCompiler::new(
+                    self.compiler.take().unwrap(),
+                    "<closure>",
+                    BytecodeType::Closure,
+                    args.len() as u8,
+                );
+                for arg in args {
+                    bc.new_local(*line, arg.clone(), true)?;
+                }
+                match body {
+                    ClosureBody::Block(body) => {
+                        bc.evaluate_statments(body);
+                        if !matches!(body.last(), Some(Statement::Return { .. })) {
+                            bc.write0(Op::LoadNull, *last_line);
+                            bc.write0(Op::Return, *last_line);
+                        }
+                    }
+                    ClosureBody::Expr(body) => {
+                        let expr_res = bc.evaluate_expr(body)?;
+                        bc.store_in_accumulator(expr_res, *line)?;
+                        bc.write0(Op::Return, *line);
+                    }
+                }
+                self.compiler = Some(bc.compiler.take().unwrap());
+                let c = self.bytecode.fun_constant(bc.bytecode);
+                self.load_const(c, *line)?;
                 Ok(ExprResult::Accumulator)
             }
         }
