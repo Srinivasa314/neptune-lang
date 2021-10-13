@@ -85,6 +85,7 @@ impl<'vm> Compiler<'vm> {
 
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
+    parent: Option<Box<BytecodeCompiler<'c, 'vm>>>,
     bytecode: FunctionInfoWriter<'vm>,
     locals: Vec<HashMap<String, Local>>,
     regcount: u16,
@@ -129,6 +130,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             op_positions: vec![],
             loops: vec![],
             bctype,
+            parent: None,
         }
     }
 
@@ -1149,30 +1151,35 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     });
                 }
-                let mut bc = BytecodeCompiler::new(
+                let bc = BytecodeCompiler::new(
                     self.compiler.take().unwrap(),
                     "<closure>",
                     BytecodeType::Closure,
                     args.len() as u8,
                 );
+                let mut parent = std::mem::replace(self, bc);
+                self.compiler = parent.compiler.take();
+                self.parent = Some(Box::new(parent));
                 for arg in args {
-                    bc.new_local(*line, arg.clone(), true)?;
+                    self.new_local(*line, arg.clone(), true)?;
                 }
                 match body {
                     ClosureBody::Block(body) => {
-                        bc.evaluate_statments(body);
+                        self.evaluate_statments(body);
                         if !matches!(body.last(), Some(Statement::Return { .. })) {
-                            bc.write0(Op::LoadNull, *last_line);
-                            bc.write0(Op::Return, *last_line);
+                            self.write0(Op::LoadNull, *last_line);
+                            self.write0(Op::Return, *last_line);
                         }
                     }
                     ClosureBody::Expr(body) => {
-                        let expr_res = bc.evaluate_expr(body)?;
-                        bc.store_in_accumulator(expr_res, *line)?;
-                        bc.write0(Op::Return, *line);
+                        let expr_res = self.evaluate_expr(body)?;
+                        self.store_in_accumulator(expr_res, *line)?;
+                        self.write0(Op::Return, *line);
                     }
                 }
-                self.compiler = Some(bc.compiler.take().unwrap());
+                let parent = *self.parent.take().unwrap();
+                let mut bc = std::mem::replace(self, parent);
+                self.compiler = bc.compiler.take();
                 let c = self.bytecode.fun_constant(bc.bytecode);
                 self.load_const(c, *line)?;
                 Ok(ExprResult::Accumulator)
