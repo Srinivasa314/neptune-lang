@@ -62,18 +62,18 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define CALL(n)                                                                \
   do {                                                                         \
-    constants = f->constants.data();                                           \
-    stack_top = bp + f->max_registers;                                         \
+    constants = f->function_info->constants.data();                            \
+    stack_top = bp + f->function_info->max_registers;                          \
     if (stack_top > stack.get() + STACK_SIZE)                                  \
       PANIC("Stack overflow");                                                 \
-    ip = f->bytecode.data();                                                   \
-    for (size_t i = n; i < f->max_registers; i++)                              \
+    ip = f->function_info->bytecode.data();                                    \
+    for (size_t i = n; i < f->function_info->max_registers; i++)               \
       bp[i] = Value::empty();                                                  \
     frames[num_frames++] = Frame{bp, f, ip};                                   \
   } while (0)
 
 namespace neptune_vm {
-VMResult VM::run(FunctionInfo *f, bool eval) {
+VMResult VM::run(Function *f, bool eval) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -91,7 +91,8 @@ VMResult VM::run(FunctionInfo *f, bool eval) {
   Value *bp = &stack[0];
   auto globals = this->globals.begin();
   Value *constants;
-  const uint8_t *ip;
+  const uint8_t *ip = nullptr;
+  static_assert(STACK_SIZE > 65536);
   CALL(0);
 
   INTERPRET_LOOP {
@@ -255,6 +256,8 @@ void VM::release(Object *o) {
     delete o->as<Map>();
   } else if (o->is<FunctionInfo>()) {
     delete o->as<FunctionInfo>();
+  } else if (o->is<Function>()) {
+    delete o->as<Function>();
   }
 }
 
@@ -408,6 +411,10 @@ void VM::blacken(Object *o) {
   case Type::Symbol:
     bytes_allocated += sizeof(Symbol);
     break;
+  case Type::Function:
+    bytes_allocated += sizeof(Function);
+    grey(o->as<Function>()->function_info);
+    break;
   default:
     break;
   }
@@ -436,8 +443,8 @@ std::string VM::panic(const uint8_t *ip) {
   frames[num_frames - 1].ip = ip;
   while (num_frames != 0) {
     auto frame = frames[num_frames - 1];
-    os << "at " << frame.f->name << " (line "
-       << get_line_number(frame.f, frame.ip - 1) << ")\n";
+    os << "at " << frame.f->function_info->name << " (line "
+       << get_line_number(frame.f->function_info, frame.ip - 1) << ")\n";
     num_frames--;
   }
   stack_top = stack.get();

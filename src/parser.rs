@@ -184,12 +184,15 @@ pub enum Statement {
         mutable: bool,
         line: u32,
     },
-    Block(Vec<Statement>),
+    Block {
+        block: Vec<Statement>,
+        end_line: u32,
+    },
     If {
         condition: Expr,
         block: Vec<Statement>,
         else_stmt: Option<Box<Statement>>,
-        else_line: u32,
+        if_end: u32,
     },
     While {
         condition: Expr,
@@ -666,7 +669,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 if try_expr {
                     self.map().map(Statement::Expr)
                 } else {
-                    self.block().map(Statement::Block)
+                    self.block().map(|block| Statement::Block {
+                        block,
+                        end_line: self.previous.line,
+                    })
                 }
             } else if self.match_token(TokenType::If) {
                 self.if_statement()
@@ -795,17 +801,16 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             "Expect { after condition in if statement".into(),
         )?;
         let block = self.block()?;
-        let mut else_line = 0;
+        let if_end = self.previous.line;
         let else_stmt = if self.match_token(TokenType::Else) {
-            else_line = self.previous.line;
             let s = self.statement(false, false);
             if let Some(s) = s {
-                if matches!(s, Statement::If { .. } | Statement::Block(_)) {
+                if matches!(s, Statement::If { .. } | Statement::Block { .. }) {
                     Some(s)
                 } else {
                     self.errors.push(CompileError {
                         message: "Can only have if statement or block after else".into(),
-                        line: else_line,
+                        line: if_end,
                     });
                     None
                 }
@@ -819,7 +824,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             condition,
             block,
             else_stmt: else_stmt.map(Box::new),
-            else_line,
+            if_end,
         })
     }
 

@@ -12,7 +12,7 @@ constexpr bool DEBUG_GC = false;
 namespace neptune_vm {
 struct Frame {
   Value *bp;
-  FunctionInfo *f;
+  Function *f;
   const uint8_t *ip;
 };
 
@@ -49,7 +49,7 @@ class VM {
 
 public:
   Value to_string(Value val);
-  VMResult run(FunctionInfo *f, bool eval);
+  VMResult run(Function *f, bool eval);
   void add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
   template <typename O> O *manage(O *t);

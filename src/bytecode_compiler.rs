@@ -93,6 +93,7 @@ struct BytecodeCompiler<'c, 'vm> {
     op_positions: Vec<usize>,
     loops: Vec<Loop>,
     bctype: BytecodeType,
+    upvalues: Vec<UpValue>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -117,6 +118,13 @@ enum Loop {
 struct Local {
     reg: u16,
     mutable: bool,
+    is_captured: bool,
+}
+
+struct UpValue {
+    index: u16,
+    is_local: bool,
+    mutable: bool,
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
@@ -131,6 +139,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             loops: vec![],
             bctype,
             parent: None,
+            upvalues: vec![],
         }
     }
 
@@ -325,10 +334,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn new_local(&mut self, line: u32, name: String, mutable: bool) -> CompileResult<u16> {
         let reg = self.push_register(line)?;
-        self.locals
-            .last_mut()
-            .unwrap()
-            .insert(name, Local { mutable, reg });
+        self.locals.last_mut().unwrap().insert(
+            name,
+            Local {
+                mutable,
+                reg,
+                is_captured: false,
+            },
+        );
         Ok(reg)
     }
 }
@@ -482,13 +495,63 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Ok(())
     }
 
-    fn resolve_local(&self, name: &str) -> Option<Local> {
-        for locals in self.locals.iter().rev() {
-            if let Some(local) = locals.get(name) {
-                return Some(local.clone());
+    fn resolve_local(&mut self, name: &str) -> Option<&mut Local> {
+        for locals in self.locals.iter_mut().rev() {
+            if let Some(local) = locals.get_mut(name) {
+                return Some(local);
             }
         }
         None
+    }
+
+    fn resolve_upvalue(&mut self, name: &str, line: u32) -> CompileResult<Option<u16>> {
+        match self.parent.as_mut() {
+            Some(parent) => match parent.resolve_local(name) {
+                Some(l) => {
+                    l.is_captured = true;
+                    let l = l.clone();
+                    let u = self.add_upvalue(l.reg, true, l.mutable, line)?;
+                    Ok(Some(u))
+                }
+                None => match parent.resolve_upvalue(name, line) {
+                    Ok(Some(u)) => {
+                        let mutable = parent.upvalues[u as usize].mutable;
+                        Ok(Some(self.add_upvalue(u, false, mutable, line)?))
+                    }
+                    Ok(None) => Ok(None),
+                    Err(e) => Err(e),
+                },
+            },
+            None => Ok(None),
+        }
+    }
+
+    fn add_upvalue(
+        &mut self,
+        index: u16,
+        is_local: bool,
+        mutable: bool,
+        line: u32,
+    ) -> CompileResult<u16> {
+        for (i, upvalue) in self.upvalues.iter().enumerate() {
+            if upvalue.index == index && upvalue.is_local == is_local {
+                return Ok(i as u16);
+            }
+        }
+        if self.upvalues.len() == 65536 {
+            Err(CompileError {
+                message: "Cannot have more than 65536 upvalues".into(),
+                line,
+            })
+        } else {
+            self.upvalues.push(UpValue {
+                index,
+                is_local,
+                mutable,
+            });
+            self.bytecode.add_upvalue(index, is_local);
+            Ok((self.upvalues.len() - 1) as u16)
+        }
     }
 
     fn evaluate_statments(&mut self, statements: &[Statement]) {
@@ -612,14 +675,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     self.var_declaration(name, expr, *line, *mutable)?;
                 }
-                Statement::Block(b) => {
-                    self.block(b);
+                Statement::Block { block, end_line } => {
+                    self.block(block, *end_line);
                 }
                 Statement::If {
                     condition,
                     block,
                     else_stmt,
-                    else_line,
+                    if_end,
                 } => {
                     let res = self.evaluate_expr(condition)?;
                     let line = condition.line();
@@ -627,20 +690,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let c = self.reserve_int(line)?;
                     let cond_check = self.bytecode.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
-                    self.block(block);
-                    let if_end = self.bytecode.size();
+                    self.block(block, *if_end);
+                    let if_end_pos = self.bytecode.size();
                     if let Some(else_stmt) = else_stmt {
-                        let c = self.reserve_int(*else_line)?;
-                        self.write1(Op::JumpConstant, c.into(), *else_line);
+                        let c = self.reserve_int(*if_end)?;
+                        self.write1(Op::JumpConstant, c.into(), *if_end);
                         let jump_end = self.bytecode.size();
                         self.bytecode
                             .patch_jump(cond_check, (jump_end - cond_check) as u32);
                         self.evaluate_statement(else_stmt);
                         let else_end = self.bytecode.size();
-                        self.bytecode.patch_jump(if_end, (else_end - if_end) as u32);
+                        self.bytecode
+                            .patch_jump(if_end_pos, (else_end - if_end_pos) as u32);
                     } else {
                         self.bytecode
-                            .patch_jump(cond_check, (if_end - cond_check) as u32);
+                            .patch_jump(cond_check, (if_end_pos - cond_check) as u32);
                     }
                 }
                 Statement::While {
@@ -657,7 +721,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let c = self.reserve_int(condition.line())?;
                     let loop_cond_check = self.bytecode.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
-                    self.block(block);
+                    self.block(block, *end_line);
                     let almost_loop_end = self.bytecode.size();
                     self.write1(
                         Op::JumpBack,
@@ -727,6 +791,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.loops.pop();
                     let last_block = self.locals.pop().unwrap();
                     self.regcount -= last_block.len() as u16;
+                    if last_block.values().any(|l| l.is_captured) {
+                        self.write1(Op::Close, self.regcount as u32, *end_line);
+                    }
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,
@@ -766,7 +833,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     self.compiler = Some(bc.compiler.take().unwrap());
                     let c = self.bytecode.fun_constant(bc.bytecode);
-                    self.load_const(c, *line)?;
+                    self.write1(
+                        Op::MakeFunction,
+                        c.map_err(|_| CompileError {
+                            line: *last_line,
+                            message: "Cannot have more than 65535 constants per function".into(),
+                        })? as u32,
+                        *last_line,
+                    );
                     let g = self
                         .get_global(name.as_str())
                         .unwrap_or_else(|| self.new_global(name.as_str()));
@@ -799,13 +873,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn block(&mut self, stmts: &[Statement]) {
+    fn block(&mut self, stmts: &[Statement], end_line: u32) {
         self.locals.push(HashMap::default());
         for stmt in stmts {
             self.evaluate_statement(stmt);
         }
         let last_block = self.locals.pop().unwrap();
         self.regcount -= last_block.len() as u16;
+        if last_block.values().any(|l| l.is_captured) {
+            self.write1(Op::Close, self.regcount as u32, end_line);
+        }
     }
 
     fn break_stmt(&mut self, line: u32) -> CompileResult<()> {
@@ -967,13 +1044,19 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
                 Some(local) => Ok(ExprResult::Register(local.reg)),
-                None => {
-                    let global = self
-                        .get_global(name)
-                        .unwrap_or_else(|| self.new_global(name));
-                    self.write1(Op::LoadGlobal, global, *line);
-                    Ok(ExprResult::Accumulator)
-                }
+                None => match self.resolve_upvalue(name, *line)? {
+                    Some(upval) => {
+                        self.write1(Op::LoadUpvalue, upval as u32, *line);
+                        Ok(ExprResult::Accumulator)
+                    }
+                    None => {
+                        let global = self
+                            .get_global(name)
+                            .unwrap_or_else(|| self.new_global(name));
+                        self.write1(Op::LoadGlobal, global, *line);
+                        Ok(ExprResult::Accumulator)
+                    }
+                },
             },
             Expr::String { inner, line } => {
                 if inner.is_empty() {
@@ -1157,8 +1240,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     BytecodeType::Closure,
                     args.len() as u8,
                 );
-                let mut parent = std::mem::replace(self, bc);
-                self.compiler = parent.compiler.take();
+                let parent = std::mem::replace(self, bc);
                 self.parent = Some(Box::new(parent));
                 for arg in args {
                     self.new_local(*line, arg.clone(), true)?;
@@ -1181,7 +1263,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let mut bc = std::mem::replace(self, parent);
                 self.compiler = bc.compiler.take();
                 let c = self.bytecode.fun_constant(bc.bytecode);
-                self.load_const(c, *line)?;
+                self.write1(
+                    Op::MakeFunction,
+                    c.map_err(|_| CompileError {
+                        line: *last_line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })? as u32,
+                    *last_line,
+                );
                 Ok(ExprResult::Accumulator)
             }
         }
@@ -1285,15 +1374,26 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             return Ok(());
         }
         if let Expr::Variable { name, line } = left {
-            if let Some(local) = self.resolve_local(name) {
+            if let Some(local) = self.resolve_local(name).cloned() {
+                let expr_res = self.evaluate_expr_with_dest(right, Some(local.reg))?;
                 if !local.mutable {
                     return Err(CompileError {
                         message: format!("Cannot modify constant {}", name),
                         line: *line,
                     });
                 }
-                let expr_res = self.evaluate_expr_with_dest(right, Some(local.reg))?;
                 self.store_in_specific_register(expr_res, local.reg, *line)
+            } else if let Some(upval) = self.resolve_upvalue(name, *line)? {
+                let res = self.evaluate_expr(right)?;
+                if !self.upvalues[upval as usize].mutable {
+                    return Err(CompileError {
+                        message: format!("Cannot modify constant {}", name),
+                        line: *line,
+                    });
+                }
+                self.store_in_accumulator(res, *line)?;
+                self.write1(Op::StoreUpvalue, upval as u32, *line);
+                Ok(())
             } else {
                 let global = self
                     .get_global(name)

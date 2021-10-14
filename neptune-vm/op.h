@@ -45,6 +45,8 @@
   OP(Move)                                                                     \
   OP(LoadGlobal)                                                               \
   OP(StoreGlobal)                                                              \
+  OP(LoadUpvalue)                                                              \
+  OP(StoreUpvalue)                                                             \
   OP(LoadSubscript)                                                            \
   OP(StoreArrayUnchecked)                                                      \
   OP(StoreSubscript)                                                           \
@@ -79,6 +81,7 @@
   OP(NewMap)                                                                   \
   OP(EmptyArray)                                                               \
   OP(EmptyMap)                                                                 \
+  OP(MakeFunction)                                                             \
   OP(ForLoop)                                                                  \
   OP(Jump)                                                                     \
   OP(JumpIfFalseOrNull)                                                        \
@@ -89,6 +92,7 @@
   OP(JumpIfFalseOrNullConstant)                                                \
   OP(JumpIfNotFalseOrNullConstant)                                             \
   OP(BeginForLoopConstant)                                                     \
+  OP(Close)                                                                    \
   OP(Print)                                                                    \
   OP(Return)                                                                   \
   OP(Exit)

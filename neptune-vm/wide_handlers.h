@@ -90,11 +90,11 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
 #define CALLOP(n)                                                              \
   if (likely(accumulator.is_object())) {                                       \
-    if (likely(accumulator.as_object()->is<FunctionInfo>())) {                 \
-      auto f = accumulator.as_object()->as<FunctionInfo>();                    \
-      auto arity = f->arity;                                                   \
+    if (likely(accumulator.as_object()->is<Function>())) {                     \
+      auto f = accumulator.as_object()->as<Function>();                        \
+      auto arity = f->function_info->arity;                                    \
       if (unlikely(arity != n))                                                \
-        PANIC("Function " << f->name << " takes "                              \
+        PANIC("Function " << f->function_info->name << " takes "               \
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(n) << " were given");       \
       if (num_frames == MAX_FRAMES)                                            \
@@ -276,3 +276,13 @@ handler(BeginForLoopConstant, {
           << " instead");
   }
 });
+
+handler(MakeFunction, {
+  auto constant = constants[READ(utype)];
+  accumulator = Value(static_cast<Object *>(
+      manage(new Function(constant.as_object()->as<FunctionInfo>()))));
+});
+
+handler(LoadUpvalue, TODO(););
+handler(StoreUpvalue, TODO(););
+handler(Close, TODO(););

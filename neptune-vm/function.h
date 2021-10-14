@@ -15,6 +15,11 @@ struct LineInfo {
   uint32_t line;
 };
 
+struct UpvalueInfo {
+  uint16_t index;
+  bool is_local;
+};
+
 class FunctionInfo : public Object {
 public:
   static constexpr Type type = Type::FunctionInfo;
@@ -24,6 +29,7 @@ public:
   std::vector<LineInfo> lines;
   uint16_t max_registers;
   uint8_t arity;
+  std::vector<UpvalueInfo> upvalues;
   FunctionInfo(StringSlice name_, uint8_t arity_)
       : name(name_.data, name_.len), arity(arity_) {}
 };
@@ -60,5 +66,19 @@ public:
   uint16_t reserve_constant();
   std::unique_ptr<VMResult> run(bool eval);
   std::unique_ptr<std::string> to_cxx_string() const;
+  void add_upvalue(uint16_t index, bool is_local);
+};
+
+struct UpValue : public Object {
+  Value *location;
+};
+
+class Function : public Object {
+public:
+  static constexpr Type type = Type::Function;
+  FunctionInfo *function_info;
+  uint16_t num_upvalues;
+  UpValue *upvalues[];
+  Function(FunctionInfo *f) : function_info(f) {}
 };
 } // namespace neptune_vm

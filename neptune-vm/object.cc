@@ -58,6 +58,8 @@ const char *Object::type_string() const {
   case Type::Map:
     return "map";
   case Type::FunctionInfo:
+    return "<internal type functioninfo>";
+  case Type::Function:
     return "function";
   default:
     unreachable();
@@ -157,7 +159,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   }
   case Type::FunctionInfo:
-    vf.os << "[function " << obj->as<FunctionInfo>()->name << ']';
+    vf.os << "<functioninfo for " << obj->as<FunctionInfo>()->name << '>';
+    break;
+  case Type::Function:
+    vf.os << "<function " << obj->as<Function>()->function_info->name << '>';
     break;
   default:
     unreachable();

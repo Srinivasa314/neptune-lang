@@ -11,7 +11,7 @@
 "Hello \(name)!"
 "Hello\("\()")"
 "Hello \(
-    fun(a,b)a+b
+    |a,b|a+b
 )"
 "\n\\\r"
 "Hello \(name1)\(name2)"

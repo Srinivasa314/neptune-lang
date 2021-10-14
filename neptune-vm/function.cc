@@ -89,7 +89,8 @@ void FunctionInfoWriter::release() {
 }
 
 std::unique_ptr<VMResult> FunctionInfoWriter::run(bool eval) {
-  return std::unique_ptr<VMResult>(new VMResult(vm->run(hf->object, eval)));
+  auto function = vm->manage(new Function(hf->object));
+  return std::unique_ptr<VMResult>(new VMResult(vm->run(function, eval)));
 }
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
@@ -134,6 +135,10 @@ size_t FunctionInfoWriter::size() const { return hf->object->bytecode.size(); }
 
 uint16_t FunctionInfoWriter::int_constant(int32_t i) {
   return constant(Value(i));
+}
+
+void FunctionInfoWriter::add_upvalue(uint16_t index, bool is_local) {
+  hf->object->upvalues.push_back(UpvalueInfo{index, is_local});
 }
 
 #define CASE(x)                                                                \
@@ -271,7 +276,14 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(Call3Argument) << REG(uint16_t);
         break;
-
+        CASE(MakeFunction) << f.constants[READ(uint16_t)];
+        break;
+        CASE(LoadUpvalue) << READ(uint16_t);
+        break;
+        CASE(StoreUpvalue) << READ(uint16_t);
+        break;
+        CASE(Close) << READ(uint16_t);
+        break;
       default:
         os << "An op that doesnt have a wide variant is here!";
       }
@@ -412,6 +424,16 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(ForLoop) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
+      CASE(MakeFunction) << f.constants[READ(uint8_t)];
+      break;
+      CASE(LoadUpvalue) << READ(uint8_t);
+      break;
+      CASE(StoreUpvalue) << READ(uint8_t);
+      break;
+      CASE(Close) << READ(uint8_t);
+      break;
+      CASE(Print);
+      break;
       CASE(Return);
       break;
       CASE(Exit);
@@ -494,6 +516,12 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       os << "Invalid op here!";
     }
     os << '\n';
+  }
+  if (!f.upvalues.empty())
+    os << "Upvalues:\n";
+  for (auto upval : f.upvalues) {
+    os << (upval.is_local ? "Upvalue for local " : "Upvalue for upvalue ")
+       << upval.index << '\n';
   }
   for (auto i : f.constants) {
     if (i.is_object() && i.as_object()->is<FunctionInfo>()) {

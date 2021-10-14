@@ -117,6 +117,8 @@ mod ffi {
         Move,
         LoadGlobal,
         StoreGlobal,
+        LoadUpvalue,
+        StoreUpvalue,
         LoadSubscript,
         StoreArrayUnchecked,
         StoreSubscript,
@@ -151,6 +153,7 @@ mod ffi {
         NewMap,
         EmptyArray,
         EmptyMap,
+        MakeFunction,
         ForLoop,
         Jump,
         JumpIfFalseOrNull,
@@ -161,6 +164,7 @@ mod ffi {
         JumpIfFalseOrNullConstant,
         JumpIfNotFalseOrNullConstant,
         BeginForLoopConstant,
+        Close,
         Print,
         Return,
         Exit,
@@ -215,6 +219,7 @@ mod ffi {
         fn get_stack_trace<'a>(self: &'a VMResult) -> StringSlice<'a>;
         fn get_status(self: &VMResult) -> VMStatus;
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
+        fn add_upvalue(self: &mut FunctionInfoWriter, index: u16, is_local: bool);
         fn size(self: &FunctionInfoWriter) -> usize;
     }
 }
