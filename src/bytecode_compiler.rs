@@ -621,17 +621,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     else_stmt,
                     else_line,
                 } => {
-                    let res = self.evaluate_expr(condition)?;
+                    let res = self.evaluate_expr(condition);
                     let line = condition.line();
-                    self.store_in_accumulator(res, line)?;
-                    let c = self.reserve_int(line)?;
+                    if let Ok(res) = res {
+                        if let Err(e) = self.store_in_accumulator(res, line) {
+                            self.error(e);
+                        }
+                    }
+                    let c = self.reserve_int(line);
                     let cond_check = self.bytecode.size();
-                    self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
+                    if let Ok(c) = c {
+                        self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
+                    }
                     self.block(block);
                     let if_end = self.bytecode.size();
                     if let Some(else_stmt) = else_stmt {
-                        let c = self.reserve_int(*else_line)?;
-                        self.write1(Op::JumpConstant, c.into(), *else_line);
+                        let c = self.reserve_int(*else_line);
+                        if let Ok(c) = c {
+                            self.write1(Op::JumpConstant, c.into(), *else_line);
+                        }
                         let jump_end = self.bytecode.size();
                         self.bytecode
                             .patch_jump(cond_check, (jump_end - cond_check) as u32);
@@ -653,10 +661,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         loop_start,
                         breaks: vec![],
                     });
-                    self.evaluate_expr(condition)?;
-                    let c = self.reserve_int(condition.line())?;
+                    if let Err(e) = self.evaluate_expr(condition) {
+                        self.error(e);
+                    }
+                    let c = self.reserve_int(condition.line());
                     let loop_cond_check = self.bytecode.size();
-                    self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
+                    if let Ok(c) = c {
+                        self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
+                    }
                     self.block(block);
                     let almost_loop_end = self.bytecode.size();
                     self.write1(
@@ -685,16 +697,41 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     begin_line,
                     end_line,
                 } => {
-                    let start = self.evaluate_expr(start)?;
+                    let start = self.evaluate_expr(start);
                     self.locals.push(HashMap::default());
-                    let iter_reg = self.new_local(*begin_line, iter.clone(), false)?;
-                    self.store_in_specific_register(start, iter_reg, *begin_line)?;
-                    let end = self.evaluate_expr(end)?;
-                    let end_reg = self.new_local(*begin_line, "$end".into(), false)?;
-                    self.store_in_specific_register(end, end_reg, *begin_line)?;
-                    let c = self.reserve_int(*begin_line)?;
+                    let iter_reg = self.new_local(*begin_line, iter.clone(), false);
+                    if let Ok(start) = start {
+                        if let Ok(iter_reg) = iter_reg {
+                            if let Err(e) =
+                                self.store_in_specific_register(start, iter_reg, *begin_line)
+                            {
+                                self.error(e);
+                            }
+                        }
+                    }
+                    let end = self.evaluate_expr(end);
+                    let end_reg = self.new_local(*begin_line, "$end".into(), false);
+                    if let Ok(end) = end {
+                        if let Ok(end_reg) = end_reg {
+                            if let Err(e) =
+                                self.store_in_specific_register(end, end_reg, *begin_line)
+                            {
+                                self.error(e);
+                            }
+                        }
+                    }
+                    let c = self.reserve_int(*begin_line);
                     let before_loop_prep = self.bytecode.size();
-                    self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, *begin_line);
+                    if let Ok(iter_reg) = iter_reg {
+                        if let Ok(c) = c {
+                            self.write2_u32(
+                                Op::BeginForLoopConstant,
+                                c as u32,
+                                iter_reg,
+                                *begin_line,
+                            );
+                        }
+                    }
                     let loop_start = self.bytecode.size();
                     self.loops.push(Loop::For {
                         breaks: vec![],
@@ -704,12 +741,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.evaluate_statement(stmt);
                     }
                     let loop_almost_end = self.bytecode.size();
-                    self.write2_u32(
-                        Op::ForLoop,
-                        (loop_almost_end - loop_start) as u32,
-                        iter_reg,
-                        *end_line,
-                    );
+                    if let Ok(iter_reg) = iter_reg {
+                        self.write2_u32(
+                            Op::ForLoop,
+                            (loop_almost_end - loop_start) as u32,
+                            iter_reg,
+                            *end_line,
+                        );
+                    }
                     let loop_end = self.bytecode.size();
                     self.bytecode
                         .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
@@ -1157,11 +1196,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     BytecodeType::Closure,
                     args.len() as u8,
                 );
-                let mut parent = std::mem::replace(self, bc);
-                self.compiler = parent.compiler.take();
+                let parent = std::mem::replace(self, bc);
                 self.parent = Some(Box::new(parent));
                 for arg in args {
-                    self.new_local(*line, arg.clone(), true)?;
+                    if let Err(e) = self.new_local(*line, arg.clone(), true) {
+                        self.error(e);
+                    }
                 }
                 match body {
                     ClosureBody::Block(body) => {
@@ -1172,8 +1212,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                     }
                     ClosureBody::Expr(body) => {
-                        let expr_res = self.evaluate_expr(body)?;
-                        self.store_in_accumulator(expr_res, *line)?;
+                        match self.evaluate_expr(body) {
+                            Ok(res) => {
+                                if let Err(e) = self.store_in_accumulator(res, *line) {
+                                    self.error(e)
+                                }
+                            }
+                            Err(e) => self.error(e),
+                        }
                         self.write0(Op::Return, *line);
                     }
                 }
