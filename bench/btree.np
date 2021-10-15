@@ -1,0 +1,40 @@
+fun make_tree(depth){
+    if depth==0 {
+        return [null,null]
+    }
+    depth -= 1
+    return [make_tree(depth), make_tree(depth)]
+}
+
+fun check_tree(node){
+    let left=node[0]
+    let right=node[1]
+    if left{
+        return 1 + check_tree(left) + check_tree(right)
+    }
+    return 1
+}
+
+let min_depth = 4
+let max_depth = 18
+let stretch_depth = max_depth + 1
+print 'stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(stretch_depth)))'
+
+let long_lived_tree = make_tree(max_depth)
+
+let iterations = 262144//2**18
+
+let depth=min_depth
+
+while depth < stretch_depth{
+    let check = 0
+    for i in 0..iterations{
+        check += check_tree(make_tree(depth))
+    }
+
+    print '\(iterations)\t trees of depth \(depth)\t check:\(check)'
+    iterations /= 4
+    depth+=2
+}
+
+print 'long lived tree of depth \(max_depth) \t check \(check_tree(long_lived_tree))'
