@@ -268,7 +268,7 @@ void VM::release(Object *o) {
   } else if (o->is<FunctionInfo>()) {
     delete o->as<FunctionInfo>();
   } else if (o->is<Function>()) {
-    delete o->as<Function>();
+    free(o);
   } else if (o->is<UpValue>()) {
     delete o->as<UpValue>();
   }
@@ -351,7 +351,7 @@ void VM::collect() {
     current_handle = current_handle->next;
   }
   for (auto t : temp_roots)
-    grey_value(t);
+    grey(t);
   for (auto i = stack.get(); i < stack_top; i++) {
     if (!i->is_empty() && i->is_object())
       grey(i->as_object());
@@ -431,7 +431,7 @@ void VM::blacken(Object *o) {
     bytes_allocated += size(o->as<Symbol>());
     break;
   case Type::Function:
-    bytes_allocated += sizeof(Function);
+    bytes_allocated += size(o->as<Function>());
     grey(o->as<Function>()->function_info);
     for (size_t i = 0; i < o->as<Function>()->num_upvalues; i++) {
       grey(o->as<Function>()->upvalues[i]);

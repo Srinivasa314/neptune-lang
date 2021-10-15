@@ -5,6 +5,9 @@
 namespace neptune_vm {
 template <> size_t size(String *s) { return sizeof(String) + s->len; }
 template <> size_t size(Symbol *s) { return sizeof(Symbol) + s->len; }
+template <> size_t size(Function *f) {
+  return sizeof(Function) + f->num_upvalues * sizeof(UpValue *);
+}
 
 String *String::from_string_slice(StringSlice s) {
   String *p = static_cast<String *>(malloc(sizeof(String) + s.len));

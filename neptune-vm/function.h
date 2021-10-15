@@ -75,7 +75,6 @@ struct UpValue : public Object {
   Value closed;
   static constexpr Type type = Type::UpValue;
 
-public:
   UpValue(Value *v = nullptr)
       : location(v), next(nullptr), closed(Value::empty()) {}
 };

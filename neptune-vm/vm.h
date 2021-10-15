@@ -37,7 +37,7 @@ class VM {
   std::unique_ptr<Frame[]> frames;
   size_t num_frames;
   UpValue *open_upvalues;
-  std::vector<Value> temp_roots;
+  std::vector<Object *> temp_roots;
   mutable std::vector<Value> globals;
   mutable std::vector<std::string> global_names;
   size_t bytes_allocated;

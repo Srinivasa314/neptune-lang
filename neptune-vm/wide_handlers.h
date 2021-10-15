@@ -281,12 +281,12 @@ handler(MakeFunction, {
   auto constant = constants[READ(utype)];
   auto info = constant.as_object()->as<FunctionInfo>();
   auto function = (Function *)malloc(sizeof(Function) +
-                                     sizeof(UpValue) * info->upvalues.size());
+                                     sizeof(UpValue*) * info->upvalues.size());
   function->function_info = info;
   if (function == nullptr)
     throw std::bad_alloc();
   function->num_upvalues = 0;
-  temp_roots.push_back(Value(static_cast<Object *>(manage(function))));
+  temp_roots.push_back(static_cast<Object *>(manage(function)));
   for (auto upvalue : info->upvalues) {
     if (upvalue.is_local) {
       auto loc = &bp[upvalue.index];
