@@ -6,7 +6,7 @@ constexpr size_t MAX_FRAMES = 1024;
 constexpr size_t STACK_SIZE = 128 * 1024;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
 constexpr size_t INITIAL_HEAP_SIZE = 10 * 1024 * 1024;
-constexpr bool STRESS_GC = true;
+constexpr bool STRESS_GC = false;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
