@@ -71,6 +71,13 @@ public:
 
 struct UpValue : public Object {
   Value *location;
+  UpValue *next;
+  Value closed;
+  static constexpr Type type = Type::UpValue;
+
+public:
+  UpValue(Value *v = nullptr)
+      : location(v), next(nullptr), closed(Value::empty()) {}
 };
 
 class Function : public Object {

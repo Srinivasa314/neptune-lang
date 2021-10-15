@@ -6,7 +6,13 @@
 #include <tsl/robin_map.h>
 #include <vector>
 
+#define UNUSED(x) (void)(x)
+
 namespace neptune_vm {
+template <typename T> size_t size(T *t) {
+  UNUSED(t);
+  return sizeof(T);
+}
 struct StringSlice {
   const char *data;
   size_t len;
@@ -17,7 +23,8 @@ enum class Type : uint8_t {
   Array,
   Map,
   FunctionInfo,
-  Function
+  Function,
+  UpValue
 };
 
 class Object {
@@ -36,6 +43,7 @@ public:
 class String : public Object {
   size_t len;
   char data[];
+  template <typename T> friend size_t size(T *t);
 
 public:
   static constexpr Type type = Type::String;
@@ -44,17 +52,22 @@ public:
   String *concat(String *s);
 };
 
+template <> size_t size(String *s);
+
 class Symbol : public Object {
   size_t len;
   uint32_t hash;
   char data[];
   friend class VM;
   friend struct StringHasher;
+  template <typename T> friend size_t size(T *t);
 
 public:
   static constexpr Type type = Type::Symbol;
   explicit operator StringSlice() const;
 };
+
+template <> size_t size(Symbol *s);
 
 struct StringEquality {
   using is_transparent = void;

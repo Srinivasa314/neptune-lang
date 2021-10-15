@@ -90,6 +90,7 @@ void FunctionInfoWriter::release() {
 
 std::unique_ptr<VMResult> FunctionInfoWriter::run(bool eval) {
   auto function = vm->manage(new Function(hf->object));
+  function->num_upvalues = 0;
   return std::unique_ptr<VMResult>(new VMResult(vm->run(function, eval)));
 }
 

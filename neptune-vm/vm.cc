@@ -60,10 +60,21 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
   } while (0)
 
+#define CLOSE(n)                                                               \
+  {                                                                            \
+    auto last = &bp[n];                                                        \
+    while (open_upvalues != nullptr && open_upvalues->location >= last) {      \
+      open_upvalues->closed = *open_upvalues->location;                        \
+      open_upvalues->location = &open_upvalues->closed;                        \
+      open_upvalues = open_upvalues->next;                                     \
+    }                                                                          \
+  }
+
 #define CALL(n)                                                                \
   do {                                                                         \
     constants = f->function_info->constants.data();                            \
     stack_top = bp + f->function_info->max_registers;                          \
+    upvalues = f->upvalues;                                                    \
     if (stack_top > stack.get() + STACK_SIZE)                                  \
       PANIC("Stack overflow");                                                 \
     ip = f->function_info->bytecode.data();                                    \
@@ -93,8 +104,8 @@ VMResult VM::run(Function *f, bool eval) {
   Value *constants;
   const uint8_t *ip = nullptr;
   static_assert(STACK_SIZE > 65536);
+  UpValue **upvalues = nullptr;
   CALL(0);
-
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
     HANDLER(ExtraWide) : DISPATCH_EXTRAWIDE();
@@ -191,7 +202,7 @@ template <typename O> O *VM::manage(O *t) {
     collect();
   static_assert(std::is_base_of<Object, O>::value,
                 "O must be a descendant of Object");
-  bytes_allocated += sizeof(O);
+  bytes_allocated += size(t);
   auto o = reinterpret_cast<Object *>(t);
   o->type = O::type;
   o->is_dark = false;
@@ -210,7 +221,7 @@ template <typename O> Handle<O> *VM::make_handle(O *object) {
   else
     return reinterpret_cast<Handle<O> *>(
         handles = new Handle<Object>(nullptr, static_cast<Object *>(object),
-                                     handles->next));
+                                     handles));
 }
 
 template <typename O> void VM::release(Handle<O> *handle) {
@@ -258,6 +269,8 @@ void VM::release(Object *o) {
     delete o->as<FunctionInfo>();
   } else if (o->is<Function>()) {
     delete o->as<Function>();
+  } else if (o->is<UpValue>()) {
+    delete o->as<UpValue>();
   }
 }
 
@@ -337,13 +350,14 @@ void VM::collect() {
     grey(current_handle->object);
     current_handle = current_handle->next;
   }
+  for (auto t : temp_roots)
+    grey_value(t);
   for (auto i = stack.get(); i < stack_top; i++) {
     if (!i->is_empty() && i->is_object())
       grey(i->as_object());
   }
   for (auto i : globals) {
-    if (!i.is_empty() && i.is_object())
-      grey(i.as_object());
+    grey_value(i);
   }
   for (auto frame = frames.get(); frame < frames.get() + num_frames; frame++) {
     grey(frame->f);
@@ -380,6 +394,11 @@ void VM::grey(Object *o) {
   greyobjects.push_back(o);
 }
 
+void VM::grey_value(Value v) {
+  if (!v.is_empty() && v.is_object())
+    grey(v.as_object());
+}
+
 void VM::blacken(Object *o) {
   switch (o->type) {
   case Type::Array:
@@ -406,14 +425,21 @@ void VM::blacken(Object *o) {
     bytes_allocated += sizeof(FunctionInfo);
     break;
   case Type::String:
-    bytes_allocated += sizeof(String);
+    bytes_allocated += size(o->as<String>());
     break;
   case Type::Symbol:
-    bytes_allocated += sizeof(Symbol);
+    bytes_allocated += size(o->as<Symbol>());
     break;
   case Type::Function:
     bytes_allocated += sizeof(Function);
     grey(o->as<Function>()->function_info);
+    for (size_t i = 0; i < o->as<Function>()->num_upvalues; i++) {
+      grey(o->as<Function>()->upvalues[i]);
+    }
+    break;
+  case Type::UpValue:
+    bytes_allocated += sizeof(UpValue);
+    grey_value(o->as<UpValue>()->closed);
     break;
   default:
     break;

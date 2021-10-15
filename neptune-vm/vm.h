@@ -6,7 +6,7 @@ constexpr size_t MAX_FRAMES = 1024;
 constexpr size_t STACK_SIZE = 128 * 1024;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
 constexpr size_t INITIAL_HEAP_SIZE = 10 * 1024 * 1024;
-constexpr bool STRESS_GC = false;
+constexpr bool STRESS_GC = true;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
@@ -36,6 +36,8 @@ class VM {
   std::unique_ptr<Value[]> stack;
   std::unique_ptr<Frame[]> frames;
   size_t num_frames;
+  UpValue *open_upvalues;
+  std::vector<Value> temp_roots;
   mutable std::vector<Value> globals;
   mutable std::vector<std::string> global_names;
   size_t bytes_allocated;
@@ -60,11 +62,12 @@ public:
   void collect();
   void blacken(Object *o);
   void grey(Object *o);
+  void grey_value(Value v);
   std::string panic(const uint8_t *ip);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
-        num_frames(0), bytes_allocated(0), first_obj(nullptr),
-        threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
+        num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
+        first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
         stack_top(stack.get()) {}
   ~VM();
 };

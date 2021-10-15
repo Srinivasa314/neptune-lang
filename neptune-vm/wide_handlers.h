@@ -279,10 +279,44 @@ handler(BeginForLoopConstant, {
 
 handler(MakeFunction, {
   auto constant = constants[READ(utype)];
-  accumulator = Value(static_cast<Object *>(
-      manage(new Function(constant.as_object()->as<FunctionInfo>()))));
+  auto info = constant.as_object()->as<FunctionInfo>();
+  auto function = (Function *)malloc(sizeof(Function) +
+                                     sizeof(UpValue) * info->upvalues.size());
+  function->function_info = info;
+  if (function == nullptr)
+    throw std::bad_alloc();
+  function->num_upvalues = 0;
+  temp_roots.push_back(Value(static_cast<Object *>(manage(function))));
+  for (auto upvalue : info->upvalues) {
+    if (upvalue.is_local) {
+      auto loc = &bp[upvalue.index];
+      UpValue *prev = nullptr;
+      UpValue *upval;
+      auto curr = open_upvalues;
+      while (curr != nullptr && curr->location > loc) {
+        prev = curr;
+        curr = curr->next;
+      }
+      if (curr != nullptr && curr->location == loc) {
+        upval = curr;
+      } else {
+        upval = manage(new UpValue(loc));
+        upval->next = curr;
+        if (open_upvalues == nullptr) {
+          open_upvalues = upval;
+        } else {
+          prev->next = upval;
+        }
+      }
+      function->upvalues[function->num_upvalues++] = upval;
+    } else {
+      function->upvalues[function->num_upvalues++] = upvalues[upvalue.index];
+    }
+  }
+  accumulator = Value(static_cast<Object *>(function));
+  temp_roots.pop_back();
 });
 
-handler(LoadUpvalue, TODO(););
-handler(StoreUpvalue, TODO(););
-handler(Close, TODO(););
+handler(LoadUpvalue, accumulator = *upvalues[READ(utype)]->location;);
+handler(StoreUpvalue, *upvalues[READ(utype)]->location = accumulator;);
+handler(Close, CLOSE(READ(utype)));

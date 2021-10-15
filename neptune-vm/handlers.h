@@ -64,6 +64,7 @@ handler(Print, {
   std::cout << std::endl;
 });
 handler(Return, {
+  CLOSE(0);
   num_frames--;
   auto frame = frames[num_frames - 1];
   bp = frame.bp;

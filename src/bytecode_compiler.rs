@@ -804,6 +804,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     for stmt in block {
                         self.evaluate_statement(stmt);
                     }
+                    let last_block = self.locals.last().unwrap();
+                    if last_block.values().any(|l| l.is_captured) {
+                        self.write1(Op::Close, (self.regcount - 2) as u32, *end_line);
+                    }
                     let loop_almost_end = self.bytecode.size();
                     if let Ok(iter_reg) = iter_reg {
                         self.write2_u32(
@@ -830,9 +834,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.loops.pop();
                     let last_block = self.locals.pop().unwrap();
                     self.regcount -= last_block.len() as u16;
-                    if last_block.values().any(|l| l.is_captured) {
-                        self.write1(Op::Close, self.regcount as u32, *end_line);
-                    }
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,

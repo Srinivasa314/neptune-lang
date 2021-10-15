@@ -3,6 +3,9 @@
 #include <new>
 
 namespace neptune_vm {
+template <> size_t size(String *s) { return sizeof(String) + s->len; }
+template <> size_t size(Symbol *s) { return sizeof(Symbol) + s->len; }
+
 String *String::from_string_slice(StringSlice s) {
   String *p = static_cast<String *>(malloc(sizeof(String) + s.len));
   if (p == nullptr) {
@@ -61,6 +64,8 @@ const char *Object::type_string() const {
     return "<internal type functioninfo>";
   case Type::Function:
     return "function";
+  case Type::UpValue:
+    return "<internal type upvalue>";
   default:
     unreachable();
   }
@@ -163,6 +168,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::Function:
     vf.os << "<function " << obj->as<Function>()->function_info->name << '>';
+    break;
+  case Type::UpValue:
+    vf.os << "<upvalue>";
     break;
   default:
     unreachable();
