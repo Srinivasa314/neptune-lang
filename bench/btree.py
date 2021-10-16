@@ -4,6 +4,7 @@
 # modified by Heinrich Acker
 # 2to3
 # *reset*
+# slightly modified
 
 import sys
 

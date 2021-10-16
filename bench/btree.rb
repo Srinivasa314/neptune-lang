@@ -5,7 +5,7 @@
 # Modified by Wesley Moxam
 # Modified by Scott Leggett
 # *reset*
-
+# slightly modified
 def item_check(left, right)
     if left
         1 + item_check(*left) + item_check(*right)

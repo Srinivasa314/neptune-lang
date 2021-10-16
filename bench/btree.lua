@@ -2,7 +2,7 @@
 -- https://salsa.debian.org/benchmarksgame-team/benchmarksgame/
 -- contributed by Mike Pall
 -- *reset*
-
+-- slightly modified
 local function BottomUpTree(depth)
   if depth > 0 then
     depth = depth - 1
