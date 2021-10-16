@@ -686,12 +686,18 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     let res = self.evaluate_expr(condition);
                     let line = condition.line();
+                    if let Err(ref e) = res {
+                        self.error(e.clone());
+                    }
                     if let Ok(res) = res {
                         if let Err(e) = self.store_in_accumulator(res, line) {
                             self.error(e);
                         }
                     }
                     let c = self.reserve_int(line);
+                    if let Err(ref e) = c {
+                        self.error(e.clone());
+                    }
                     let cond_check = self.bytecode.size();
                     if let Ok(c) = c {
                         self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
@@ -700,6 +706,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let if_end_pos = self.bytecode.size();
                     if let Some(else_stmt) = else_stmt {
                         let c = self.reserve_int(*if_end);
+                        if let Err(ref e) = c {
+                            self.error(e.clone());
+                        }
                         if let Ok(c) = c {
                             self.write1(Op::JumpConstant, c.into(), *if_end);
                         }
@@ -729,6 +738,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.error(e);
                     }
                     let c = self.reserve_int(condition.line());
+                    if let Err(ref e) = c {
+                        self.error(e.clone());
+                    }
                     let loop_cond_check = self.bytecode.size();
                     if let Ok(c) = c {
                         self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
@@ -762,8 +774,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     end_line,
                 } => {
                     let start = self.evaluate_expr(start);
+                    if let Err(ref e) = start {
+                        self.error(e.clone());
+                    }
                     self.locals.push(HashMap::default());
                     let iter_reg = self.new_local(*begin_line, iter.clone(), false);
+                    if let Err(ref e) = iter_reg {
+                        self.error(e.clone());
+                    }
                     if let Ok(start) = start {
                         if let Ok(iter_reg) = iter_reg {
                             if let Err(e) =
@@ -774,7 +792,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                     }
                     let end = self.evaluate_expr(end);
+                    if let Err(ref e) = end {
+                        self.error(e.clone());
+                    }
                     let end_reg = self.new_local(*begin_line, "$end".into(), false);
+                    if let Err(ref e) = end_reg {
+                        self.error(e.clone());
+                    }
                     if let Ok(end) = end {
                         if let Ok(end_reg) = end_reg {
                             if let Err(e) =
@@ -785,6 +809,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                     }
                     let c = self.reserve_int(*begin_line);
+                    if let Err(ref e) = c {
+                        self.error(e.clone());
+                    }
                     let before_loop_prep = self.bytecode.size();
                     if let Ok(iter_reg) = iter_reg {
                         if let Ok(c) = c {

@@ -13,7 +13,7 @@ mod parser;
 mod scanner;
 mod vm;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CompileError {
     pub message: String,
     pub line: u32,
