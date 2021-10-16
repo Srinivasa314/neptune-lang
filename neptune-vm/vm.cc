@@ -53,6 +53,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define READ(type) read<type>(ip)
 #define PANIC(fmt)                                                             \
   do {                                                                         \
+    CLOSE(0);                                                                  \
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \

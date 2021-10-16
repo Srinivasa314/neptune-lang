@@ -74,6 +74,7 @@ handler(Return, {
   stack_top = bp + f->function_info->max_registers;
 });
 handler(Exit, {
+  CLOSE(0);
   num_frames = 0;
   stack_top = stack.get();
   goto end;
