@@ -281,7 +281,7 @@ handler(MakeFunction, {
   auto constant = constants[READ(utype)];
   auto info = constant.as_object()->as<FunctionInfo>();
   auto function = (Function *)malloc(sizeof(Function) +
-                                     sizeof(UpValue*) * info->upvalues.size());
+                                     sizeof(UpValue *) * info->upvalues.size());
   function->function_info = info;
   if (function == nullptr)
     throw std::bad_alloc();
@@ -319,4 +319,4 @@ handler(MakeFunction, {
 
 handler(LoadUpvalue, accumulator = *upvalues[READ(utype)]->location;);
 handler(StoreUpvalue, *upvalues[READ(utype)]->location = accumulator;);
-handler(Close, CLOSE(READ(utype)));
+handler(Close, CLOSE(READ(utype)););

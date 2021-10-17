@@ -51,8 +51,11 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #endif
 
 #define READ(type) read<type>(ip)
+#define CLOSE(n) close(&bp[n])
+
 #define PANIC(fmt)                                                             \
   do {                                                                         \
+    bp = &stack[0];                                                            \
     CLOSE(0);                                                                  \
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
@@ -60,16 +63,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     auto stack_trace = panic(ip);                                              \
     return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
   } while (0)
-
-#define CLOSE(n)                                                               \
-  {                                                                            \
-    auto last = &bp[n];                                                        \
-    while (open_upvalues != nullptr && open_upvalues->location >= last) {      \
-      open_upvalues->closed = *open_upvalues->location;                        \
-      open_upvalues->location = &open_upvalues->closed;                        \
-      open_upvalues = open_upvalues->next;                                     \
-    }                                                                          \
-  }
 
 #define CALL(n)                                                                \
   do {                                                                         \
@@ -182,7 +175,13 @@ end:
   }
 }
 #undef READ
-
+void VM::close(Value *last) {
+  while (open_upvalues != nullptr && open_upvalues->location >= last) {
+    open_upvalues->closed = *open_upvalues->location;
+    open_upvalues->location = &open_upvalues->closed;
+    open_upvalues = open_upvalues->next;
+  }
+}
 void VM::add_global(StringSlice name) const {
   globals.push_back(Value::empty());
   global_names.push_back(std::string(name.data, name.len));
