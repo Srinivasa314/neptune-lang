@@ -94,6 +94,9 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::DotDot => Precedence::None,
         TokenType::Print => Precedence::None,
         TokenType::Pipe => Precedence::None,
+        TokenType::Try => Precedence::None,
+        TokenType::Catch => Precedence::None,
+        TokenType::Panic => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -225,6 +228,14 @@ pub enum Statement {
         expr: Option<Expr>,
     },
     Print(Expr),
+    Panic(Expr),
+    TryCatch {
+        try_block: Vec<Statement>,
+        try_end: u32,
+        error_var: String,
+        catch_block: Vec<Statement>,
+        catch_end: u32,
+    },
 }
 
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
@@ -397,6 +408,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::DotDot => None,
             TokenType::Print => None,
             TokenType::Pipe => Some(self.closure()),
+            TokenType::Try => None,
+            TokenType::Catch => None,
+            TokenType::Panic => None,
         }
     }
 
@@ -465,6 +479,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::DotDot => unreachable!(),
             TokenType::Print => unreachable!(),
             TokenType::Pipe => unreachable!(),
+            TokenType::Try => unreachable!(),
+            TokenType::Catch => unreachable!(),
+            TokenType::Panic => unreachable!(),
         }
     }
 
@@ -694,6 +711,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.return_stmt()
             } else if self.match_token(TokenType::Print) {
                 Ok(Statement::Print(self.expression()?))
+            } else if self.match_token(TokenType::Panic) {
+                Ok(Statement::Panic(self.expression()?))
+            } else if self.match_token(TokenType::Try) {
+                self.try_catch()
             } else {
                 self.expression_statement()
             }?;
@@ -903,6 +924,30 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 last_line,
             })
         }
+    }
+
+    fn try_catch(&mut self) -> CompileResult<Statement> {
+        self.consume(TokenType::LeftBrace, "Expect block after try".into())?;
+        let try_block = self.block()?;
+        self.ignore_newline();
+        let try_end = self.previous.line;
+        self.consume(TokenType::Catch, "Expect catch after try block".into())?;
+        self.consume(
+            TokenType::Identifier,
+            "Expect identifier after catch".into(),
+        )?;
+        let error_var = self.previous.inner.to_string();
+        self.consume(TokenType::LeftBrace, "Expect block after catch".into())?;
+        self.ignore_newline();
+        let catch_block = self.block()?;
+        let catch_end = self.previous.line;
+        Ok(Statement::TryCatch {
+            try_block,
+            try_end,
+            error_var,
+            catch_block,
+            catch_end,
+        })
     }
 }
 

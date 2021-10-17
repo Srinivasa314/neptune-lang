@@ -55,11 +55,11 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define PANIC(fmt)                                                             \
   do {                                                                         \
-    bp = &stack[0];                                                            \
-    CLOSE(0);                                                                  \
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
     auto str = stream.str();                                                   \
+    bp = &stack[0];                                                            \
+    CLOSE(0);                                                                  \
     auto stack_trace = panic(ip);                                              \
     return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
   } while (0)

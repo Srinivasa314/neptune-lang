@@ -73,6 +73,7 @@ handler(Return, {
   constants = f->function_info->constants.data();
   stack_top = bp + f->function_info->max_registers;
 });
+handler(Panic, PANIC(accumulator););
 handler(Exit, {
   CLOSE(0);
   num_frames = 0;

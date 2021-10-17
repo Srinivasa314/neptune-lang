@@ -167,6 +167,7 @@ mod ffi {
         Close,
         Print,
         Return,
+        Panic,
         Exit,
     }
 

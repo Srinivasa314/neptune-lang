@@ -95,6 +95,7 @@
   OP(Close)                                                                    \
   OP(Print)                                                                    \
   OP(Return)                                                                   \
+  OP(Panic)                                                                    \
   OP(Exit)
 
 #define OP(x) x,

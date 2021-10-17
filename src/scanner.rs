@@ -77,6 +77,9 @@ pub enum TokenType {
     Let,
     While,
     Print,
+    Try,
+    Catch,
+    Panic,
     //Other types
     Interpolation, // It stores
     Error(String),
@@ -103,6 +106,9 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "let" => TokenType::Let,
     "while" => TokenType::While,
     "print"=>TokenType::Print,
+    "try"=>TokenType::Try,
+    "panic"=>TokenType::Panic,
+    "catch"=>TokenType::Catch,
 };
 
 //Returns corresponding keyword tokens for string
