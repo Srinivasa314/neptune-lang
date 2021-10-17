@@ -1,0 +1,95 @@
+Bytecode for <script>
+11> 0 MakeFunction <functioninfo for f>
+1> 2 StoreGlobal 0
+12> 4 MakeFunction <functioninfo for <closure>>
+6 StoreR0 
+19> 7 MakeFunction <functioninfo for f3>
+14> 9 StoreGlobal 1
+26> 11 MakeFunction <functioninfo for f4>
+21> 13 StoreGlobal 3
+15 Exit 
+
+Bytecode for f
+2> 0 LoadSmallInt 9
+2 StoreR0 
+3> 3 LoadSmallInt 1
+5 StoreR1 
+10> 6 MakeFunction <functioninfo for <closure>>
+4> 8 StoreR2 
+11> 9 LoadNull 
+10 Return 
+
+Bytecode for <closure>
+5> 0 LoadUpvalue 0
+2 AddInt 1
+4 StoreUpvalue 0
+9> 6 MakeFunction <functioninfo for <closure>>
+6> 8 StoreR0 
+10> 9 LoadNull 
+10 Return 
+Upvalues:
+Upvalue for local 0
+Upvalue for local 1
+
+Bytecode for <closure>
+7> 0 LoadUpvalue 0
+2 AddInt 1
+4 StoreUpvalue 0
+8> 6 LoadUpvalue 1
+8 AddInt 1
+10 StoreUpvalue 1
+9> 12 LoadNull 
+13 Return 
+Upvalues:
+Upvalue for upvalue 0
+Upvalue for upvalue 1
+
+Bytecode for <closure>
+12> 0 LoadR1 
+1 AddRegister r0
+3 Return 
+
+Bytecode for f3
+16> 0 LoadSmallInt 9
+2 StoreR0 
+17> 3 MakeFunction <functioninfo for <closure>>
+5 StoreR1 
+18> 6 Close 0
+19> 8 LoadNull 
+9 Return 
+
+Bytecode for <closure>
+17> 0 LoadUpvalue 0
+2 Return 
+Upvalues:
+Upvalue for local 0
+
+Bytecode for f4
+22> 0 NewArray 3 r0
+3 LoadSmallInt 1
+5 StoreArrayUnchecked r0 0
+8 LoadSmallInt 2
+10 StoreArrayUnchecked r0 1
+13 LoadSmallInt 3
+15 StoreArrayUnchecked r0 2
+18 LoadR0 
+19 StoreGlobal 2
+23> 21 LoadSmallInt 0
+23 StoreR0 
+24 LoadSmallInt 3
+26 StoreR1 
+27 BeginForLoop 16 r0
+24> 30 LoadGlobal 2
+32 StoreR2 
+33 MakeFunction <functioninfo for <closure>>
+35 StoreSubscript r2 r0
+25> 38 Close 0
+40 ForLoop 10 r0
+26> 43 LoadNull 
+44 Return 
+
+Bytecode for <closure>
+24> 0 LoadUpvalue 0
+2 Return 
+Upvalues:
+Upvalue for local 0

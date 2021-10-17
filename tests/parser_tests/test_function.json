@@ -44,7 +44,7 @@
               }
             ],
             "else_stmt": null,
-            "else_line": 0
+            "if_end": 4
           }
         },
         {

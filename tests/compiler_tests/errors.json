@@ -8,5 +8,8 @@
     "too_many_constants_locals",
     "continue_outside_loop",
     "break_outside_loop",
-    "return_outside_function"
+    "return_outside_function",
+    "local_function",
+    "invalid_condition",
+    "modify_constant"
 ]

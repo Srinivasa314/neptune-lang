@@ -1,5 +1,8 @@
 [
   {
-    "Block": []
+    "Block": {
+      "block": [],
+      "end_line": 1
+    }
   }
 ]

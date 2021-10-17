@@ -458,6 +458,33 @@ mod tests {
                 assert_eq!(stack_trace, "at <script> (line 2)\n")
             }
         }
+        n.exec(
+            r#"
+            fun f(){
+                let a=10
+                let b=10
+                f=||a
+                if false{
+                    f=||b
+                }
+            }
+            f()
+        "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("f()").unwrap().unwrap(), "10");
+        n.exec(
+            r#"
+            a=[null,null,null]
+            for i in 0..3{
+                a[i]=||i;
+            }
+        "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("a[0]()").unwrap().unwrap(), "0");
+        assert_eq!(n.eval("a[1]()").unwrap().unwrap(), "1");
+        assert_eq!(n.eval("a[2]()").unwrap().unwrap(), "2");
     }
     #[test]
     fn error() {

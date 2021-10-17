@@ -1,49 +1,52 @@
 [
   {
-    "Block": [
-      {
-        "VarDeclaration": {
-          "name": "a",
-          "expr": {
-            "Binary": {
-              "line": 2,
-              "left": {
-                "Binary": {
-                  "line": 2,
-                  "left": {
-                    "Literal": {
-                      "line": 2,
-                      "inner": {
-                        "IntLiteral": 1
+    "Block": {
+      "block": [
+        {
+          "VarDeclaration": {
+            "name": "a",
+            "expr": {
+              "Binary": {
+                "line": 2,
+                "left": {
+                  "Binary": {
+                    "line": 2,
+                    "left": {
+                      "Literal": {
+                        "line": 2,
+                        "inner": {
+                          "IntLiteral": 1
+                        }
                       }
-                    }
-                  },
-                  "op": "Star",
-                  "right": {
-                    "Literal": {
-                      "line": 2,
-                      "inner": {
-                        "IntLiteral": 2
+                    },
+                    "op": "Star",
+                    "right": {
+                      "Literal": {
+                        "line": 2,
+                        "inner": {
+                          "IntLiteral": 2
+                        }
                       }
                     }
                   }
-                }
-              },
-              "op": "Plus",
-              "right": {
-                "Literal": {
-                  "line": 2,
-                  "inner": {
-                    "IntLiteral": 3
+                },
+                "op": "Plus",
+                "right": {
+                  "Literal": {
+                    "line": 2,
+                    "inner": {
+                      "IntLiteral": 3
+                    }
                   }
                 }
               }
-            }
-          },
-          "mutable": true,
-          "line": 2
+            },
+            "mutable": true,
+            "line": 2
+          }
         }
-      }
-    ]
+      ],
+      "end_line": 3
+    }
   }
 ]
