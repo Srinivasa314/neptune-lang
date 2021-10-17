@@ -912,8 +912,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     self.block(try_block, *try_end);
                     let c = self.reserve_int(*try_end)?;
-                    self.write1(Op::JumpConstant, c.into(), *try_end);
                     let jump_pos = self.bytecode.size();
+                    self.write1(Op::JumpConstant, c.into(), *try_end);
                     self.locals.push(HashMap::default());
                     let error_reg = self.push_register(*try_end)?;
                     self.locals.last_mut().unwrap().insert(

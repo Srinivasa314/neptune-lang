@@ -437,6 +437,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(Return);
       break;
+      CASE(Panic);
+      break;
       CASE(Exit);
       break;
 
