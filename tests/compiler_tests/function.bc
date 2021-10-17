@@ -1,17 +1,17 @@
 Bytecode for <script>
-1> 0 LoadConstant [function factorial]
-2 StoreGlobal 0
-7> 4 LoadConstant [function f]
+6> 0 MakeFunction <functioninfo for factorial>
+1> 2 StoreGlobal 0
+7> 4 MakeFunction <functioninfo for f>
 6 StoreGlobal 1
-8> 8 LoadConstant [function g]
-10 StoreGlobal 2
+10> 8 MakeFunction <functioninfo for g>
+8> 10 StoreGlobal 2
 11> 12 LoadSmallInt 3
 14 StoreR0 
 15 LoadGlobal 0
 17 Call1Argument r0
 12> 19 LoadGlobal 1
 21 Call0Argument r0
-13> 23 LoadConstant [function three]
+13> 23 MakeFunction <functioninfo for three>
 25 StoreGlobal 3
 27 Exit 
 

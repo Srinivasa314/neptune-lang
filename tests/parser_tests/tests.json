@@ -11,5 +11,6 @@
     "test_loop",
     "test_break_continue",
     "test_function",
-    "test_and_or_not"
+    "test_and_or_not",
+    "test_closure"
 ]

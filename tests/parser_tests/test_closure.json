@@ -1,0 +1,355 @@
+[
+  {
+    "Function": {
+      "line": 1,
+      "last_line": 11,
+      "name": "f",
+      "arguments": [],
+      "body": [
+        {
+          "VarDeclaration": {
+            "name": "a",
+            "expr": {
+              "Literal": {
+                "line": 2,
+                "inner": {
+                  "IntLiteral": 9
+                }
+              }
+            },
+            "mutable": true,
+            "line": 2
+          }
+        },
+        {
+          "VarDeclaration": {
+            "name": "b",
+            "expr": {
+              "Literal": {
+                "line": 3,
+                "inner": {
+                  "IntLiteral": 1
+                }
+              }
+            },
+            "mutable": true,
+            "line": 3
+          }
+        },
+        {
+          "VarDeclaration": {
+            "name": "g",
+            "expr": {
+              "Closure": {
+                "line": 4,
+                "last_line": 10,
+                "args": [],
+                "body": {
+                  "Block": [
+                    {
+                      "Expr": {
+                        "Binary": {
+                          "line": 5,
+                          "left": {
+                            "Variable": {
+                              "line": 5,
+                              "name": "a"
+                            }
+                          },
+                          "op": "PlusEqual",
+                          "right": {
+                            "Literal": {
+                              "line": 5,
+                              "inner": {
+                                "IntLiteral": 1
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "VarDeclaration": {
+                        "name": "h",
+                        "expr": {
+                          "Closure": {
+                            "line": 6,
+                            "last_line": 9,
+                            "args": [],
+                            "body": {
+                              "Block": [
+                                {
+                                  "Expr": {
+                                    "Binary": {
+                                      "line": 7,
+                                      "left": {
+                                        "Variable": {
+                                          "line": 7,
+                                          "name": "a"
+                                        }
+                                      },
+                                      "op": "PlusEqual",
+                                      "right": {
+                                        "Literal": {
+                                          "line": 7,
+                                          "inner": {
+                                            "IntLiteral": 1
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "Expr": {
+                                    "Binary": {
+                                      "line": 8,
+                                      "left": {
+                                        "Variable": {
+                                          "line": 8,
+                                          "name": "b"
+                                        }
+                                      },
+                                      "op": "PlusEqual",
+                                      "right": {
+                                        "Literal": {
+                                          "line": 8,
+                                          "inner": {
+                                            "IntLiteral": 1
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "mutable": true,
+                        "line": 6
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "mutable": true,
+            "line": 4
+          }
+        }
+      ]
+    }
+  },
+  {
+    "VarDeclaration": {
+      "name": "f2",
+      "expr": {
+        "Closure": {
+          "line": 12,
+          "last_line": 12,
+          "args": [
+            "a",
+            "b"
+          ],
+          "body": {
+            "Expr": {
+              "Binary": {
+                "line": 12,
+                "left": {
+                  "Variable": {
+                    "line": 12,
+                    "name": "a"
+                  }
+                },
+                "op": "Plus",
+                "right": {
+                  "Variable": {
+                    "line": 12,
+                    "name": "b"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "mutable": true,
+      "line": 12
+    }
+  },
+  {
+    "Function": {
+      "line": 14,
+      "last_line": 19,
+      "name": "f3",
+      "arguments": [],
+      "body": [
+        {
+          "Block": {
+            "block": [
+              {
+                "VarDeclaration": {
+                  "name": "a",
+                  "expr": {
+                    "Literal": {
+                      "line": 16,
+                      "inner": {
+                        "IntLiteral": 9
+                      }
+                    }
+                  },
+                  "mutable": true,
+                  "line": 16
+                }
+              },
+              {
+                "VarDeclaration": {
+                  "name": "b",
+                  "expr": {
+                    "Closure": {
+                      "line": 17,
+                      "last_line": 17,
+                      "args": [],
+                      "body": {
+                        "Expr": {
+                          "Variable": {
+                            "line": 17,
+                            "name": "a"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "mutable": true,
+                  "line": 17
+                }
+              }
+            ],
+            "end_line": 18
+          }
+        }
+      ]
+    }
+  },
+  {
+    "Function": {
+      "line": 21,
+      "last_line": 26,
+      "name": "f4",
+      "arguments": [],
+      "body": [
+        {
+          "Expr": {
+            "Binary": {
+              "line": 22,
+              "left": {
+                "Variable": {
+                  "line": 22,
+                  "name": "a"
+                }
+              },
+              "op": "Equal",
+              "right": {
+                "Array": {
+                  "line": 22,
+                  "inner": [
+                    {
+                      "Literal": {
+                        "line": 22,
+                        "inner": {
+                          "IntLiteral": 1
+                        }
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "line": 22,
+                        "inner": {
+                          "IntLiteral": 2
+                        }
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "line": 22,
+                        "inner": {
+                          "IntLiteral": 3
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "For": {
+            "begin_line": 23,
+            "iter": "i",
+            "start": {
+              "Literal": {
+                "line": 23,
+                "inner": {
+                  "IntLiteral": 0
+                }
+              }
+            },
+            "end": {
+              "Literal": {
+                "line": 23,
+                "inner": {
+                  "IntLiteral": 3
+                }
+              }
+            },
+            "block": [
+              {
+                "Expr": {
+                  "Binary": {
+                    "line": 24,
+                    "left": {
+                      "Subscript": {
+                        "line": 24,
+                        "object": {
+                          "Variable": {
+                            "line": 24,
+                            "name": "a"
+                          }
+                        },
+                        "subscript": {
+                          "Variable": {
+                            "line": 24,
+                            "name": "i"
+                          }
+                        }
+                      }
+                    },
+                    "op": "Equal",
+                    "right": {
+                      "Closure": {
+                        "line": 24,
+                        "last_line": 24,
+                        "args": [],
+                        "body": {
+                          "Expr": {
+                            "Variable": {
+                              "line": 24,
+                              "name": "i"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "end_line": 25
+          }
+        }
+      ]
+    }
+  }
+]

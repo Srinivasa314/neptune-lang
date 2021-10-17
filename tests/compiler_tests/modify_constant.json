@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Cannot modify constant i",
+    "line": 2
+  },
+  {
+    "message": "Cannot modify constant a",
+    "line": 7
+  }
+]

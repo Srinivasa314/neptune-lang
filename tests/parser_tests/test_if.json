@@ -59,7 +59,7 @@
         }
       ],
       "else_stmt": null,
-      "else_line": 0
+      "if_end": 4
     }
   },
   {
@@ -95,7 +95,7 @@
         }
       ],
       "else_stmt": null,
-      "else_line": 0
+      "if_end": 9
     }
   },
   {
@@ -145,32 +145,35 @@
         }
       ],
       "else_stmt": {
-        "Block": [
-          {
-            "Expr": {
-              "Binary": {
-                "line": 14,
-                "left": {
-                  "Variable": {
-                    "line": 14,
-                    "name": "y"
-                  }
-                },
-                "op": "Equal",
-                "right": {
-                  "Literal": {
-                    "line": 14,
-                    "inner": {
-                      "IntLiteral": 5
+        "Block": {
+          "block": [
+            {
+              "Expr": {
+                "Binary": {
+                  "line": 14,
+                  "left": {
+                    "Variable": {
+                      "line": 14,
+                      "name": "y"
+                    }
+                  },
+                  "op": "Equal",
+                  "right": {
+                    "Literal": {
+                      "line": 14,
+                      "inner": {
+                        "IntLiteral": 5
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        ]
+          ],
+          "end_line": 15
+        }
       },
-      "else_line": 13
+      "if_end": 13
     }
   },
   {
@@ -266,35 +269,38 @@
             }
           ],
           "else_stmt": {
-            "Block": [
-              {
-                "Expr": {
-                  "Binary": {
-                    "line": 22,
-                    "left": {
-                      "Variable": {
-                        "line": 22,
-                        "name": "y"
-                      }
-                    },
-                    "op": "Equal",
-                    "right": {
-                      "Literal": {
-                        "line": 22,
-                        "inner": {
-                          "IntLiteral": 9
+            "Block": {
+              "block": [
+                {
+                  "Expr": {
+                    "Binary": {
+                      "line": 22,
+                      "left": {
+                        "Variable": {
+                          "line": 22,
+                          "name": "y"
+                        }
+                      },
+                      "op": "Equal",
+                      "right": {
+                        "Literal": {
+                          "line": 22,
+                          "inner": {
+                            "IntLiteral": 9
+                          }
                         }
                       }
                     }
                   }
                 }
-              }
-            ]
+              ],
+              "end_line": 23
+            }
           },
-          "else_line": 21
+          "if_end": 21
         }
       },
-      "else_line": 19
+      "if_end": 19
     }
   }
 ]
