@@ -63,6 +63,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
       auto f = frames[num_frames - 1].f;                                       \
       upvalues = f->upvalues;                                                  \
       constants = f->function_info->constants.data();                          \
+      DISPATCH();                                                              \
     } else                                                                     \
       return VMResult(VMStatus::Error, std::move(last_panic),                  \
                       std::move(stack_trace));                                 \

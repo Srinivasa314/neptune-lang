@@ -493,6 +493,31 @@ mod tests {
         assert_eq!(n.eval("a[0]()").unwrap().unwrap(), "0");
         assert_eq!(n.eval("a[1]()").unwrap().unwrap(), "1");
         assert_eq!(n.eval("a[2]()").unwrap().unwrap(), "2");
+        n.exec(
+            "
+        try{try{panic ''}catch e{a=10}}catch e{a=20}
+        ",
+        )
+        .unwrap();
+        assert_eq!(n.eval("a").unwrap().unwrap(), "10");
+        n.exec("try{let a=30;f=||a;panic ''}catch e{}").unwrap();
+        assert_eq!(n.eval("f()").unwrap().unwrap(), "30");
+        assert_eq!(n.eval("a").unwrap().unwrap(), "10");
+        n.exec(
+            r#"
+        fun f(){
+            let a=17
+            f=||a
+            panic ''
+        }
+        try{
+            f()
+        }
+        catch e{}
+        "#,
+        )
+        .unwrap();
+        assert_eq!(n.eval("f()").unwrap().unwrap(), "17");
     }
     #[test]
     fn error() {
@@ -530,7 +555,7 @@ mod tests {
             match n.exec(code).unwrap_err() {
                 InterpretError::CompileError(e) => panic!("{:?}", e),
                 InterpretError::RuntimePanic { error, .. } => {
-                    assert_eq!(error, expected_error);
+                    assert_eq!(error, format!("'{}'", expected_error));
                 }
             }
         }
