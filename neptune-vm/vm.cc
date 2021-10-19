@@ -57,11 +57,15 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
   do {                                                                         \
     std::ostringstream stream;                                                 \
     stream << fmt;                                                             \
-    auto str = stream.str();                                                   \
-    bp = &stack[0];                                                            \
-    CLOSE(0);                                                                  \
-    auto stack_trace = panic(ip);                                              \
-    return VMResult{VMStatus::Error, std::move(str), std::move(stack_trace)};  \
+    auto message = Value(manage(String::from(stream.str())));                  \
+    if ((ip = panic(ip, message)) != nullptr) {                                \
+      bp = frames[num_frames - 1].bp;                                          \
+      auto f = frames[num_frames - 1].f;                                       \
+      upvalues = f->upvalues;                                                  \
+      constants = f->function_info->constants.data();                          \
+    } else                                                                     \
+      return VMResult(VMStatus::Error, std::move(last_panic),                  \
+                      std::move(stack_trace));                                 \
   } while (0)
 
 #define CALL(n)                                                                \
@@ -92,6 +96,8 @@ VMResult VM::run(Function *f, bool eval) {
 #undef OP
   };
 #endif
+  stack_trace = "";
+  last_panic = "";
   Value accumulator = Value::null();
   Value *bp = &stack[0];
   auto globals = this->globals.begin();
@@ -169,9 +175,9 @@ end:
   if (eval) {
     std::ostringstream os;
     os << accumulator;
-    return VMResult{VMStatus::Success, os.str(), ""};
+    return VMResult(VMStatus::Success, os.str(), "");
   } else {
-    return VMResult{VMStatus::Success, "", ""};
+    return VMResult(VMStatus::Success, "", "");
   }
 }
 #undef READ
@@ -243,7 +249,7 @@ Symbol *VM::intern(StringSlice s) {
     }
     memcpy(sym->data, s.data, s.len);
     sym->len = s.len;
-    sym->hash = StringHasher{}(static_cast<StringSlice>(*sym));
+    sym->hash = StringHasher{}(*sym);
     manage(sym);
     symbols.insert(sym);
     return sym;
@@ -294,13 +300,12 @@ Value VM::to_string(Value val) {
   if (val.is_int()) {
     char buffer[12];
     size_t len = static_cast<size_t>(sprintf(buffer, "%d", val.as_int()));
-    return Value(manage(String::from_string_slice(StringSlice{buffer, len})));
+    return Value(manage(String::from(StringSlice{buffer, len})));
   } else if (val.is_float()) {
     auto f = val.as_float();
     if (std::isnan(f)) {
       const char *result = std::signbit(f) ? "-nan" : "nan";
-      return Value(manage(
-          String::from_string_slice(StringSlice{result, strlen(result)})));
+      return Value(manage(String::from(StringSlice{result, strlen(result)})));
     } else {
       char buffer[24];
       size_t len = static_cast<size_t>(sprintf(buffer, "%.14g", f));
@@ -309,30 +314,25 @@ Value VM::to_string(Value val) {
         buffer[len + 1] = '0';
         len += 2;
       }
-      return Value(manage(String::from_string_slice(StringSlice{buffer, len})));
+      return Value(manage(String::from(StringSlice{buffer, len})));
     }
   } else if (val.is_object()) {
     if (val.as_object()->is<String>()) {
       return val;
     } else if (val.as_object()->is<Symbol>()) {
-      return Value(manage(String::from_string_slice(
-          static_cast<StringSlice>(*val.as_object()->as<Symbol>()))));
+      return Value(manage(String::from(*val.as_object()->as<Symbol>())));
     } else {
       std::ostringstream os;
       os << val;
       auto s = os.str();
-      return Value(
-          manage(String::from_string_slice(StringSlice{s.data(), s.length()})));
+      return Value(manage(String::from(StringSlice{s.data(), s.length()})));
     }
   } else if (val.is_true()) {
-    return Value(
-        manage(String::from_string_slice(StringSlice{"true", strlen("true")})));
+    return Value(manage(String::from(StringSlice{"true", strlen("true")})));
   } else if (val.is_false()) {
-    return Value(manage(
-        String::from_string_slice(StringSlice{"false", strlen("false")})));
+    return Value(manage(String::from(StringSlice{"false", strlen("false")})));
   } else if (val.is_null()) {
-    return Value(
-        manage(String::from_string_slice(StringSlice{"null", strlen("null")})));
+    return Value(manage(String::from(StringSlice{"null", strlen("null")})));
   } else {
     unreachable();
   }
@@ -464,16 +464,41 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
   }
 }
 
-std::string VM::panic(const uint8_t *ip) {
+std::string VM::stack_trace_at() {
   std::ostringstream os;
-  frames[num_frames - 1].ip = ip;
-  while (num_frames != 0) {
-    auto frame = frames[num_frames - 1];
+  for (size_t i = num_frames; i-- > 0;) {
+    auto frame = frames[i];
     os << "at " << frame.f->function_info->name << " (line "
        << get_line_number(frame.f->function_info, frame.ip - 1) << ")\n";
-    num_frames--;
   }
-  stack_top = stack.get();
   return os.str();
+}
+
+const uint8_t *VM::panic(const uint8_t *ip, Value v) {
+  frames[num_frames - 1].ip = ip;
+  stack_trace = stack_trace_at();
+  do {
+    auto frame = frames[num_frames - 1];
+    auto bytecode = frame.f->function_info->bytecode.data();
+    auto handlers = frame.f->function_info->exception_handlers;
+    auto ip = frame.ip;
+    auto bp = frame.bp;
+    for (auto handler : handlers) {
+      if (ip > bytecode + handler.try_begin &&
+          ip <= bytecode + handler.try_end) {
+        CLOSE(handler.error_reg);
+        bp[handler.error_reg] = v;
+        stack_top = frame.f->function_info->max_registers + bp;
+        return bytecode + handler.catch_begin;
+      }
+    }
+    CLOSE(0);
+    num_frames--;
+  } while (num_frames != 0);
+  stack_top = stack.get();
+  std::ostringstream os;
+  os << v;
+  last_panic = os.str();
+  return nullptr;
 }
 } // namespace neptune_vm

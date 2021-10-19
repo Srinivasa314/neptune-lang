@@ -910,7 +910,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     catch_block,
                     catch_end,
                 } => {
+                    let try_start_pos = self.bytecode.size();
                     self.block(try_block, *try_end);
+                    let try_end_pos = self.bytecode.size();
                     let c = self.reserve_int(*try_end)?;
                     let jump_pos = self.bytecode.size();
                     self.write1(Op::JumpConstant, c.into(), *try_end);
@@ -924,6 +926,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             is_captured: false,
                         },
                     );
+                    let catch_start_pos = self.bytecode.size();
                     for stmt in catch_block {
                         self.evaluate_statement(stmt);
                     }
@@ -935,6 +938,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let catch_end_pos = self.bytecode.size();
                     self.bytecode
                         .patch_jump(jump_pos, (catch_end_pos - jump_pos) as u32);
+                    self.bytecode.add_exception_handler(
+                        try_start_pos as u32,
+                        try_end_pos as u32,
+                        error_reg,
+                        catch_start_pos as u32,
+                    );
                 }
             };
             Ok(())

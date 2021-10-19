@@ -47,8 +47,9 @@ class String : public Object {
 
 public:
   static constexpr Type type = Type::String;
-  static String *from_string_slice(StringSlice s);
-  explicit operator StringSlice() const;
+  static String *from(StringSlice s);
+  static String *from(const std::string &s);
+  operator StringSlice() const;
   String *concat(String *s);
 };
 
@@ -64,7 +65,7 @@ class Symbol : public Object {
 
 public:
   static constexpr Type type = Type::Symbol;
-  explicit operator StringSlice() const;
+  operator StringSlice() const;
 };
 
 template <> size_t size(Symbol *s);

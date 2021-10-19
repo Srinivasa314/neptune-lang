@@ -23,6 +23,9 @@ struct VMResult {
   std::string result;
   std::string stack_trace;
 
+  VMResult(VMStatus status_, std::string result_, std::string stack_trace_)
+      : status(status_), result(result_), stack_trace(stack_trace_) {}
+
   VMStatus get_status() const { return status; }
   StringSlice get_result() const {
     return StringSlice{result.data(), result.size()};
@@ -48,6 +51,8 @@ class VM {
   Handle<Object> *handles;
   Value *stack_top;
   std::vector<Object *> greyobjects;
+  std::string stack_trace;
+  std::string last_panic;
 
 public:
   Value to_string(Value val);
@@ -64,7 +69,8 @@ public:
   void grey(Object *o);
   void grey_value(Value v);
   void close(Value *last);
-  std::string panic(const uint8_t *ip);
+  std::string stack_trace_at();
+  const uint8_t *panic(const uint8_t *ip, Value v);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),

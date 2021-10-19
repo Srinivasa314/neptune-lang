@@ -9,7 +9,7 @@ template <> size_t size(Function *f) {
   return sizeof(Function) + f->num_upvalues * sizeof(UpValue *);
 }
 
-String *String::from_string_slice(StringSlice s) {
+String *String::from(StringSlice s) {
   String *p = static_cast<String *>(malloc(sizeof(String) + s.len));
   if (p == nullptr) {
     throw std::bad_alloc();
@@ -17,6 +17,9 @@ String *String::from_string_slice(StringSlice s) {
   memcpy(p->data, s.data, s.len);
   p->len = s.len;
   return p;
+}
+String *String::from(const std::string &s) {
+  return from(StringSlice{s.data(), s.length()});
 }
 String::operator StringSlice() const { return StringSlice{data, len}; }
 Symbol::operator StringSlice() const { return StringSlice{data, len}; }
@@ -109,7 +112,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
   // todo change this when more types are added
   switch (obj->type) {
   case Type::String:
-    vf.os << escaped_string(static_cast<StringSlice>(*obj->as<String>()));
+    vf.os << escaped_string(*obj->as<String>());
     break;
   case Type::Symbol: {
     vf.os << '@';

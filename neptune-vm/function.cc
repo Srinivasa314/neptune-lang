@@ -54,7 +54,7 @@ uint16_t FunctionInfoWriter::float_constant(double d) {
 }
 
 uint16_t FunctionInfoWriter::string_constant(StringSlice s) {
-  String *p = vm->manage(String::from_string_slice(s));
+  String *p = vm->manage(String::from(s));
   return constant(Value{static_cast<Object *>(p)});
 }
 
@@ -140,6 +140,14 @@ uint16_t FunctionInfoWriter::int_constant(int32_t i) {
 
 void FunctionInfoWriter::add_upvalue(uint16_t index, bool is_local) {
   hf->object->upvalues.push_back(UpvalueInfo{index, is_local});
+}
+
+void FunctionInfoWriter::add_exception_handler(uint32_t try_begin,
+                                               uint32_t try_end,
+                                               uint16_t error_reg,
+                                               uint32_t catch_begin) {
+  hf->object->exception_handlers.push_back(
+      ExceptionHandler{try_begin, try_end, error_reg, catch_begin});
 }
 
 #define CASE(x)                                                                \
@@ -525,6 +533,13 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
   for (auto upval : f.upvalues) {
     os << (upval.is_local ? "Upvalue for local " : "Upvalue for upvalue ")
        << upval.index << '\n';
+  }
+  if (!f.exception_handlers.empty())
+    os << "Exception handlers:\n";
+  for (auto handler : f.exception_handlers) {
+    os << "try block: " << handler.try_begin << '-' << handler.try_end
+       << "\ncatch block: " << handler.catch_begin
+       << "\nerror register: " << handler.error_reg << '\n';
   }
   for (auto i : f.constants) {
     if (i.is_object() && i.as_object()->is<FunctionInfo>()) {

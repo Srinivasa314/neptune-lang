@@ -20,6 +20,14 @@ struct UpvalueInfo {
   bool is_local;
 };
 
+struct ExceptionHandler {
+  uint32_t try_begin;
+  uint32_t try_end;
+  uint16_t error_reg; // used for closing upvalues of try block and storing
+                      // exception
+  uint32_t catch_begin;
+};
+
 class FunctionInfo : public Object {
 public:
   static constexpr Type type = Type::FunctionInfo;
@@ -30,6 +38,7 @@ public:
   uint16_t max_registers;
   uint8_t arity;
   std::vector<UpvalueInfo> upvalues;
+  std::vector<ExceptionHandler> exception_handlers;
   FunctionInfo(StringSlice name_, uint8_t arity_)
       : name(name_.data, name_.len), arity(arity_) {}
 };
@@ -67,6 +76,8 @@ public:
   std::unique_ptr<VMResult> run(bool eval);
   std::unique_ptr<std::string> to_cxx_string() const;
   void add_upvalue(uint16_t index, bool is_local);
+  void add_exception_handler(uint32_t try_begin, uint32_t try_end,
+                           uint16_t error_reg, uint32_t catch_begin);
 };
 
 struct UpValue : public Object {

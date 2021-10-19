@@ -73,7 +73,18 @@ handler(Return, {
   constants = f->function_info->constants.data();
   stack_top = bp + f->function_info->max_registers;
 });
-handler(Panic, PANIC(accumulator););
+
+handler(Panic, {
+  if ((ip = panic(ip, accumulator)) != nullptr) {
+    bp = frames[num_frames - 1].bp;
+    auto f = frames[num_frames - 1].f;
+    upvalues = f->upvalues;
+    constants = f->function_info->constants.data();
+  } else
+    return VMResult(VMStatus::Error, std::move(last_panic),
+                    std::move(stack_trace));
+});
+
 handler(Exit, {
   CLOSE(0);
   num_frames = 0;

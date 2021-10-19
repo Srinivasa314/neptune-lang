@@ -221,6 +221,13 @@ mod ffi {
         fn get_status(self: &VMResult) -> VMStatus;
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
         fn add_upvalue(self: &mut FunctionInfoWriter, index: u16, is_local: bool);
+        fn add_exception_handler(
+            self: &mut FunctionInfoWriter,
+            try_begin: u32,
+            try_end: u32,
+            error_reg: u16,
+            catch_begin: u32,
+        );
         fn size(self: &FunctionInfoWriter) -> usize;
     }
 }

@@ -272,7 +272,7 @@ uint32_t ValueHasher::operator()(Value v) const {
     if (o->is<Symbol>())
       return StringHasher{}(o->as<Symbol>());
     else if (o->is<String>())
-      return StringHasher{}(static_cast<StringSlice>(*o->as<String>()));
+      return StringHasher{}(*o->as<String>());
     else
       return intHash(v.inner);
   } else {
