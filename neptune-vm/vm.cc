@@ -464,7 +464,7 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
   }
 }
 
-std::string VM::stack_trace_at() {
+std::string VM::get_stack_trace() {
   std::ostringstream os;
   for (size_t i = num_frames; i-- > 0;) {
     auto frame = frames[i];
@@ -476,7 +476,7 @@ std::string VM::stack_trace_at() {
 
 const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   frames[num_frames - 1].ip = ip;
-  stack_trace = stack_trace_at();
+  stack_trace = get_stack_trace();
   do {
     auto frame = frames[num_frames - 1];
     auto bytecode = frame.f->function_info->bytecode.data();

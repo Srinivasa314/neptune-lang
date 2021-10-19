@@ -69,7 +69,7 @@ public:
   void grey(Object *o);
   void grey_value(Value v);
   void close(Value *last);
-  std::string stack_trace_at();
+  std::string get_stack_trace();
   const uint8_t *panic(const uint8_t *ip, Value v);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
