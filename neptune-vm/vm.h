@@ -53,11 +53,13 @@ class VM {
   std::vector<Object *> greyobjects;
   std::string stack_trace;
   std::string last_panic;
+  bool is_running;
+  Value return_value;
 
 public:
   Value to_string(Value val);
   VMResult run(Function *f, bool eval);
-  void add_global(StringSlice name) const;
+  uint32_t add_global(StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
   template <typename O> O *manage(O *t);
   template <typename O> Handle<O> *make_handle(O *object);
@@ -71,11 +73,15 @@ public:
   void close(Value *last);
   std::string get_stack_trace();
   const uint8_t *panic(const uint8_t *ip, Value v);
+  void declare_function(StringSlice name, uint8_t arity, uint16_t extra_slots,
+                        bool (*inner)(FunctionContext ctx, void *data),
+                        void *data = nullptr,
+                        void (*free_data)(void *data) = nullptr);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
-        stack_top(stack.get()) {}
+        stack_top(stack.get()), return_value(Value::null()) {}
   ~VM();
 };
 

@@ -90,7 +90,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
 #define CALLOP(n)                                                              \
   if (likely(accumulator.is_object())) {                                       \
-    if (likely(accumulator.as_object()->is<Function>())) {                     \
+    if (accumulator.as_object()->is<Function>()) {                             \
       auto f = accumulator.as_object()->as<Function>();                        \
       auto arity = f->function_info->arity;                                    \
       if (unlikely(arity != n))                                                \
@@ -102,6 +102,36 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
       frames[num_frames - 1].ip = ip;                                          \
       bp += offset;                                                            \
       CALL(n);                                                                 \
+    } else if (accumulator.as_object()->is<NativeFunction>()) {                \
+      auto f = accumulator.as_object()->as<NativeFunction>();                  \
+      auto arity = f->arity;                                                   \
+      if (unlikely(arity != n))                                                \
+        PANIC("Function " << f->name << " takes "                              \
+                          << static_cast<uint32_t>(arity) << " arguments but " \
+                          << static_cast<uint32_t>(n) << " were given");       \
+      bp += offset;                                                            \
+      if (bp + f->max_slots > stack.get() + STACK_SIZE)                        \
+        PANIC("Stack overflow");                                               \
+      stack_top = bp + f->max_slots;                                           \
+      for (auto v = bp + arity; v < bp + f->max_slots; v++)                    \
+        *v = Value::empty();                                                   \
+      temp_roots.push_back(f);                                                 \
+      auto ok = f->inner(FunctionContext{this, bp, f->max_slots}, f->data);    \
+      accumulator = return_value;                                              \
+      return_value = Value::null();                                            \
+      if (!ok) {                                                               \
+        if ((ip = panic(ip, accumulator)) != nullptr) {                        \
+          bp = frames[num_frames - 1].bp;                                      \
+          auto f = frames[num_frames - 1].f;                                   \
+          upvalues = f->upvalues;                                              \
+          constants = f->function_info->constants.data();                      \
+        } else                                                                 \
+          return VMResult(VMStatus::Error, std::move(last_panic),              \
+                          stack_trace);                                        \
+      }                                                                        \
+      temp_roots.pop_back();                                                   \
+      bp -= offset;                                                            \
+      stack_top = bp + frames[num_frames - 1].f->function_info->max_registers; \
     } else {                                                                   \
       PANIC(accumulator.type_string() << " is not callable");                  \
     }                                                                          \

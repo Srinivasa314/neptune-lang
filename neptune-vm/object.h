@@ -24,7 +24,8 @@ enum class Type : uint8_t {
   Map,
   FunctionInfo,
   Function,
-  UpValue
+  UpValue,
+  NativeFunction
 };
 
 class Object {

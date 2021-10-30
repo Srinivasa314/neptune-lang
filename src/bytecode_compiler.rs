@@ -167,11 +167,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn new_global(&mut self, name: &str) -> u32 {
-        let comp = &mut self.compiler.as_mut().unwrap();
-        let len = comp.globals.len() as u32;
-        comp.globals.insert(name.to_string(), len);
-        comp.vm.add_global(name.into());
-        len
+        let comp = self.compiler.unwrap();
+        let g = comp.vm.add_global(name.into());
+        comp.globals.insert(name.to_string(), g);
+        g
     }
 
     fn error(&mut self, e: CompileError) {

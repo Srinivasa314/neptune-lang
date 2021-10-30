@@ -72,6 +72,8 @@ const char *Object::type_string() const {
     return "function";
   case Type::UpValue:
     return "<internal type upvalue>";
+  case Type::NativeFunction:
+    return "native function";
   default:
     unreachable();
   }
@@ -177,6 +179,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::UpValue:
     vf.os << "<upvalue>";
+    break;
+  case Type::NativeFunction:
+    vf.os << "<native function " << obj->as<NativeFunction>()->name << '>';
     break;
   default:
     unreachable();

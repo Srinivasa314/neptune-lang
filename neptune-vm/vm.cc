@@ -63,9 +63,11 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
       auto f = frames[num_frames - 1].f;                                       \
       upvalues = f->upvalues;                                                  \
       constants = f->function_info->constants.data();                          \
-    } else                                                                     \
+    } else {                                                                   \
+      is_running = false;                                                      \
       return VMResult(VMStatus::Error, std::move(last_panic),                  \
                       std::move(stack_trace));                                 \
+    }                                                                          \
   } while (0)
 
 #define CALL(n)                                                                \
@@ -83,6 +85,9 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 namespace neptune_vm {
 VMResult VM::run(Function *f, bool eval) {
+  if (is_running)
+    throw std::runtime_error("Cannot call run() while VM is already running");
+  is_running = true;
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -172,6 +177,7 @@ VMResult VM::run(Function *f, bool eval) {
 #endif
   }
 end:
+  is_running = false;
   if (eval) {
     std::ostringstream os;
     os << accumulator;
@@ -188,9 +194,10 @@ void VM::close(Value *last) {
     open_upvalues = open_upvalues->next;
   }
 }
-void VM::add_global(StringSlice name) const {
+uint32_t VM::add_global(StringSlice name) const {
   globals.push_back(Value::empty());
   global_names.push_back(std::string(name.data, name.len));
+  return globals.length() - 1;
 }
 
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
@@ -262,21 +269,37 @@ void VM::release(Object *o) {
   if (DEBUG_GC)
     std::cout << "Freeing: " << *o << std::endl;
   // todo change this when more types are added
-  if (o->is<String>())
+  switch (o->type) {
+  case Type::String:
     free(o);
-  else if (o->is<Symbol>()) {
+    break;
+  case Type::Symbol:
     symbols.erase(o->as<Symbol>());
     free(o);
-  } else if (o->is<Array>()) {
+    break;
+  case Type::Array:
     delete o->as<Array>();
-  } else if (o->is<Map>()) {
+    break;
+  case Type::Map:
     delete o->as<Map>();
-  } else if (o->is<FunctionInfo>()) {
+    break;
+  case Type::FunctionInfo:
     delete o->as<FunctionInfo>();
-  } else if (o->is<Function>()) {
+    break;
+  case Type::Function:
     free(o);
-  } else if (o->is<UpValue>()) {
+    break;
+  case Type::UpValue:
     delete o->as<UpValue>();
+    break;
+  case Type::NativeFunction: {
+    auto n = o->as<NativeFunction>();
+    if (n->free_data != nullptr)
+      n->free_data(n->data);
+    delete o;
+  } break;
+  default:
+    unreachable();
   }
 }
 
@@ -362,6 +385,7 @@ void VM::collect() {
   for (auto frame = frames.get(); frame < frames.get() + num_frames; frame++) {
     grey(frame->f);
   }
+  grey_value(return_value);
 
   // Blacken all objects
   while (!greyobjects.empty()) {
@@ -441,6 +465,9 @@ void VM::blacken(Object *o) {
     bytes_allocated += sizeof(UpValue);
     grey_value(o->as<UpValue>()->closed);
     break;
+  case Type::NativeFunction:
+    bytes_allocated += sizeof(NativeFunction);
+    break;
   default:
     break;
   }
@@ -466,6 +493,10 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
 
 std::string VM::get_stack_trace() {
   std::ostringstream os;
+  if (!temp_roots.empty() && temp_roots.back()->is<NativeFunction>()) {
+    os << "at " << temp_roots.back()->as<NativeFunction>()->name << '\n';
+    temp_roots.pop_back();
+  }
   for (size_t i = num_frames; i-- > 0;) {
     auto frame = frames[i];
     os << "at " << frame.f->function_info->name << " (line "
@@ -500,5 +531,21 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   os << v;
   last_panic = os.str();
   return nullptr;
+}
+
+void VM::declare_function(StringSlice name, uint8_t arity, uint16_t extra_slots,
+                          bool (*inner)(FunctionContext ctx, void *data),
+                          void *data = nullptr,
+                          void (*free_data)(void *data) = nullptr) {
+  auto n = new NativeFunction();
+  n->arity = arity;
+  n->max_slots = arity + extra_slots;
+  n->inner = inner;
+  n->data = data;
+  n->free_data = free_data;
+  n->name = std::string{name.data, name.len};
+  globals.push_back(Value(n));
+  global_names.push_back(std::string(name.data, name.len));
+  manage(n);
 }
 } // namespace neptune_vm

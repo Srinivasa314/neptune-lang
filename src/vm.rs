@@ -207,7 +207,7 @@ mod ffi {
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
-        fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>);
+        fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>) -> u32;
         fn new_function_info<'vm>(
             self: &'vm VM,
             name: StringSlice,
