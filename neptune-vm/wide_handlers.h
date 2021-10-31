@@ -123,7 +123,6 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
         if ((ip = panic(ip, accumulator)) != nullptr) {                        \
           bp = frames[num_frames - 1].bp;                                      \
           auto f = frames[num_frames - 1].f;                                   \
-          upvalues = f->upvalues;                                              \
           constants = f->function_info->constants.data();                      \
         } else                                                                 \
           return VMResult(VMStatus::Error, std::move(last_panic),              \
@@ -340,13 +339,18 @@ handler(MakeFunction, {
       }
       function->upvalues[function->num_upvalues++] = upval;
     } else {
-      function->upvalues[function->num_upvalues++] = upvalues[upvalue.index];
+      function->upvalues[function->num_upvalues++] =
+          frames[num_frames - 1].f->upvalues[upvalue.index];
     }
   }
   accumulator = Value(static_cast<Object *>(function));
   temp_roots.pop_back();
 });
 
-handler(LoadUpvalue, accumulator = *upvalues[READ(utype)]->location;);
-handler(StoreUpvalue, *upvalues[READ(utype)]->location = accumulator;);
+handler(
+    LoadUpvalue,
+    accumulator = *frames[num_frames - 1].f->upvalues[READ(utype)]->location;);
+handler(
+    StoreUpvalue,
+    *frames[num_frames - 1].f->upvalues[READ(utype)]->location = accumulator;);
 handler(Close, CLOSE(READ(utype)););

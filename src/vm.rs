@@ -68,6 +68,17 @@ impl<'vm> Drop for FunctionInfoWriter<'vm> {
     }
 }
 
+#[repr(C)]
+pub struct Global {
+    pub position: u32,
+    pub mutable: bool,
+}
+
+unsafe impl ExternType for Global {
+    type Id = type_id!("neptune_vm::Global");
+    type Kind = cxx::kind::Trivial;
+}
+
 #[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
 mod ffi {
@@ -180,6 +191,7 @@ mod ffi {
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
+        type Global = super::Global;
         type Op;
         type VMResult;
         type VMStatus;
@@ -207,7 +219,8 @@ mod ffi {
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
-        fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>) -> u32;
+        fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>, mutable_: bool) -> bool;
+        fn get_global<'vm, 's>(self: &'vm VM, name: StringSlice) -> Result<Global>;
         fn new_function_info<'vm>(
             self: &'vm VM,
             name: StringSlice,
@@ -240,7 +253,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut n = Neptune::new();
+        let n = Neptune::new();
         assert_eq!(n.eval("null").unwrap().unwrap(), "null");
         assert_eq!(n.eval("true").unwrap().unwrap(), "true");
         assert_eq!(n.eval("false").unwrap().unwrap(), "false");
@@ -521,7 +534,7 @@ mod tests {
     }
     #[test]
     fn error() {
-        let mut n = Neptune::new();
+        let n = Neptune::new();
         n.exec("n=1000;arr=[];global={[]:1}").unwrap();
         for (code, expected_error) in [
             ("glibal", "Cannot access uninitialized variable glibal"),

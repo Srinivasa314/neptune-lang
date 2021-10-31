@@ -1,7 +1,5 @@
 #include "checked_arithmetic.cc"
 #include "neptune-vm.h"
-#include "object.h"
-#include <sstream>
 
 #if defined(__GNUC__) || defined(__clang__)
 #define COMPUTED_GOTO
@@ -55,19 +53,14 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define PANIC(fmt)                                                             \
   do {                                                                         \
-    std::ostringstream stream;                                                 \
-    stream << fmt;                                                             \
-    auto message = Value(manage(String::from(stream.str())));                  \
-    if ((ip = panic(ip, message)) != nullptr) {                                \
+    panic_message << fmt;                                                      \
+    if ((ip = panic(ip)) != nullptr) {                                         \
       bp = frames[num_frames - 1].bp;                                          \
       auto f = frames[num_frames - 1].f;                                       \
-      upvalues = f->upvalues;                                                  \
       constants = f->function_info->constants.data();                          \
       DISPATCH();                                                              \
     } else {                                                                   \
-      is_running = false;                                                      \
-      return VMResult(VMStatus::Error, std::move(last_panic),                  \
-                      std::move(stack_trace));                                 \
+      goto panic_end;                                                          \
     }                                                                          \
   } while (0)
 
@@ -75,7 +68,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
   do {                                                                         \
     constants = f->function_info->constants.data();                            \
     stack_top = bp + f->function_info->max_registers;                          \
-    upvalues = f->upvalues;                                                    \
     if (stack_top > stack.get() + STACK_SIZE)                                  \
       PANIC("Stack overflow");                                                 \
     ip = f->function_info->bytecode.data();                                    \
@@ -109,8 +101,9 @@ VMResult VM::run(Function *f, bool eval) {
   auto globals = this->globals.begin();
   Value *constants;
   const uint8_t *ip = nullptr;
-  static_assert(STACK_SIZE > 65536);
-  UpValue **upvalues = nullptr;
+  static_assert(
+      STACK_SIZE > 65536,
+      "Stack size must be greater than the maximum number of registers");
   CALL(0);
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -186,6 +179,9 @@ end:
   } else {
     return VMResult(VMStatus::Success, "", "");
   }
+panic_end:
+  is_running = false;
+  return VMResult(VMStatus::Error, std::move(last_panic), stack_trace);
 }
 #undef READ
 void VM::close(Value *last) {
@@ -195,12 +191,22 @@ void VM::close(Value *last) {
     open_upvalues = open_upvalues->next;
   }
 }
-uint32_t VM::add_global(StringSlice name) const {
-  globals.push_back(Value::empty());
-  global_names.push_back(std::string(name.data, name.len));
-  return globals.length() - 1;
+bool VM::add_global(StringSlice name, bool mutable_) const {
+  if (!global_names
+           .insert({std::string(name.data, name.len),
+                    Global{static_cast<uint32_t>(globals.size()), mutable_}})
+           .second)
+    return false;
+  globals.push_back(Value::null());
+  return true;
 }
 
+Global VM::get_global(StringSlice name) const {
+  auto it = global_names.find(std::string(name.data, name.len));
+  if (it == global_names.end())
+    throw std::runtime_error("Global does not exist");
+  return it->second;
+}
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 
 FunctionInfoWriter VM::new_function_info(StringSlice name,
@@ -506,6 +512,12 @@ std::string VM::get_stack_trace() {
   return os.str();
 }
 
+const uint8_t *VM::panic(const uint8_t *ip) {
+  auto message = panic_message.str();
+  panic_message.str("");
+  return panic(ip, Value(manage(String::from(message))));
+}
+
 const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   frames[num_frames - 1].ip = ip;
   stack_trace = get_stack_trace();
@@ -534,10 +546,16 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   return nullptr;
 }
 
-void VM::declare_function(StringSlice name, uint8_t arity, uint16_t extra_slots,
-                          bool (*inner)(FunctionContext ctx, void *data),
-                          void *data = nullptr,
-                          void (*free_data)(void *data) = nullptr) {
+bool VM::declare_native_function(StringSlice name, uint8_t arity,
+                                 uint16_t extra_slots,
+                                 bool (*inner)(FunctionContext ctx, void *data),
+                                 void *data = nullptr,
+                                 void (*free_data)(void *data) = nullptr) {
+  if (!global_names
+           .insert({std::string(name.data, name.len),
+                    Global{static_cast<uint32_t>(globals.size()), false}})
+           .second)
+    return false;
   auto n = new NativeFunction();
   n->arity = arity;
   n->max_slots = arity + extra_slots;
@@ -546,7 +564,7 @@ void VM::declare_function(StringSlice name, uint8_t arity, uint16_t extra_slots,
   n->free_data = free_data;
   n->name = std::string{name.data, name.len};
   globals.push_back(Value(n));
-  global_names.push_back(std::string(name.data, name.len));
   manage(n);
+  return true;
 }
 } // namespace neptune_vm

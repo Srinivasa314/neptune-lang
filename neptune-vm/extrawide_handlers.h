@@ -1,12 +1,4 @@
-handler(LoadGlobal, {
-  auto g = READ(utype);
-  if (unlikely(globals[g].is_empty())) {
-    PANIC("Cannot access uninitialized variable " << global_names[g]);
-
-  } else {
-    accumulator = globals[g];
-  }
-});
+handler(LoadGlobal, accumulator = globals[READ(utype)];);
 handler(StoreGlobal, globals[READ(utype)] = accumulator;);
 
 #define BINARY_OP_INT(opname, intfn, op)                                       \

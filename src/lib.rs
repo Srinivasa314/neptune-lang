@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
@@ -29,7 +27,6 @@ pub type CompileResult<T> = Result<T, CompileError>;
 
 pub struct Neptune {
     vm: UniquePtr<VM>,
-    globals: HashMap<String, u32>,
     print_bytecode: bool,
 }
 
@@ -37,7 +34,6 @@ impl Neptune {
     pub fn new() -> Self {
         Self {
             vm: new_vm(),
-            globals: HashMap::default(),
             print_bytecode: false,
         }
     }
@@ -46,12 +42,12 @@ impl Neptune {
         self.print_bytecode = b;
     }
 
-    pub fn exec(&mut self, source: &str) -> Result<(), InterpretError> {
+    pub fn exec(&self, source: &str) -> Result<(), InterpretError> {
         let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
         let ast = parser.parse(false);
-        let compiler = Compiler::new(&self.vm, &mut self.globals);
+        let compiler = Compiler::new(&self.vm);
         let mut fw = compiler.exec(ast.0);
         let mut errors = ast.1;
         if let Err(e) = &mut fw {
@@ -77,12 +73,12 @@ impl Neptune {
         }
     }
 
-    pub fn eval(&mut self, source: &str) -> Result<Option<String>, InterpretError> {
+    pub fn eval(&self, source: &str) -> Result<Option<String>, InterpretError> {
         let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
         let ast = parser.parse(true);
-        let compiler = Compiler::new(&self.vm, &mut self.globals);
+        let compiler = Compiler::new(&self.vm);
         let is_expr;
         let mut fw = if let Some(expr) = Compiler::can_eval(&ast.0) {
             is_expr = true;

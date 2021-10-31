@@ -1,5 +1,7 @@
 #pragma once
 #include <memory>
+#include <sstream>
+#include <tsl/robin_map.h>
 #include <tsl/robin_set.h>
 
 constexpr size_t MAX_FRAMES = 1024;
@@ -35,14 +37,19 @@ struct VMResult {
   }
 };
 
+struct Global {
+  uint32_t position;
+  bool mutable_;
+};
+
 class VM {
   std::unique_ptr<Value[]> stack;
   std::unique_ptr<Frame[]> frames;
   size_t num_frames;
   UpValue *open_upvalues;
   std::vector<Object *> temp_roots;
+  mutable tsl::robin_map<std::string, Global> global_names;
   mutable std::vector<Value> globals;
-  mutable std::vector<std::string> global_names;
   size_t bytes_allocated;
   // Linked list of all objects
   Object *first_obj;
@@ -55,11 +62,13 @@ class VM {
   std::string last_panic;
   bool is_running;
   Value return_value;
+  std::ostringstream panic_message;
 
 public:
   Value to_string(Value val);
   VMResult run(Function *f, bool eval);
-  uint32_t add_global(StringSlice name) const;
+  bool add_global(StringSlice name, bool mutable_) const;
+  Global get_global(StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
   template <typename O> O *manage(O *t);
   template <typename O> Handle<O> *make_handle(O *object);
@@ -73,10 +82,11 @@ public:
   void close(Value *last);
   std::string get_stack_trace();
   const uint8_t *panic(const uint8_t *ip, Value v);
-  void declare_function(StringSlice name, uint8_t arity, uint16_t extra_slots,
-                        bool (*inner)(FunctionContext ctx, void *data),
-                        void *data = nullptr,
-                        void (*free_data)(void *data) = nullptr);
+  const uint8_t *panic(const uint8_t *ip);
+  bool declare_native_function(StringSlice name, uint8_t arity,
+                               uint16_t extra_slots,
+                               bool (*inner)(FunctionContext ctx, void *data),
+                               void *data, void (*free_data)(void *data));
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),

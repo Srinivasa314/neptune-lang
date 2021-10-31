@@ -4,6 +4,7 @@ use crate::parser::ClosureBody;
 use crate::parser::Statement;
 use crate::parser::Substring;
 use crate::vm::FunctionInfoWriter;
+use crate::vm::Global;
 use crate::vm::Op;
 use crate::vm::VM;
 use crate::CompileError;
@@ -13,24 +14,20 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 pub struct Compiler<'vm> {
-    globals: &'vm mut HashMap<String, u32>,
     errors: Vec<CompileError>,
     vm: &'vm VM,
 }
 
 impl<'vm> Compiler<'vm> {
-    pub fn new(vm: &'vm VM, globals: &'vm mut HashMap<String, u32>) -> Self {
-        Self {
-            vm,
-            globals,
-            errors: vec![],
-        }
+    pub fn new(vm: &'vm VM) -> Self {
+        Self { vm, errors: vec![] }
     }
 
     pub fn exec(
         mut self,
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
+        self.register_globals(&ast);
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
         b.bytecode.write_u8(Op::Exit.repr);
@@ -81,6 +78,35 @@ impl<'vm> Compiler<'vm> {
             Err(self.errors)
         }
     }
+
+    fn register_globals(&mut self, ast: &[Statement]) {
+        for statement in ast {
+            match statement {
+                Statement::VarDeclaration {
+                    name,
+                    mutable,
+                    line,
+                    ..
+                } => {
+                    if !self.vm.add_global(name.as_str().into(), *mutable) {
+                        self.errors.push(CompileError {
+                            message: format!("Cannot redeclare global {}", name),
+                            line: *line,
+                        })
+                    }
+                }
+                Statement::Function { name, line, .. } => {
+                    if !self.vm.add_global(name.as_str().into(), false) {
+                        self.errors.push(CompileError {
+                            message: format!("Cannot redeclare global {}", name),
+                            line: *line,
+                        })
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 struct BytecodeCompiler<'c, 'vm> {
@@ -100,7 +126,6 @@ struct BytecodeCompiler<'c, 'vm> {
 enum BytecodeType {
     Script,
     Function,
-    Closure,
 }
 
 enum Loop {
@@ -131,7 +156,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType, arity: u8) -> Self {
         Self {
             bytecode: c.vm.new_function_info(name.into(), arity),
-            locals: vec![HashMap::default()],
+            locals: if bctype == BytecodeType::Script {
+                vec![]
+            } else {
+                vec![HashMap::default()]
+            },
             regcount: 0,
             compiler: Some(c),
             max_registers: 0,
@@ -162,15 +191,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.regcount -= 1;
     }
 
-    fn get_global(&self, name: &str) -> Option<u32> {
-        self.compiler.as_ref().unwrap().globals.get(name).cloned()
-    }
-
-    fn new_global(&mut self, name: &str) -> u32 {
-        let comp = self.compiler.unwrap();
-        let g = comp.vm.add_global(name.into());
-        comp.globals.insert(name.to_string(), g);
-        g
+    fn get_global(&self, name: &str) -> Option<Global> {
+        self.compiler
+            .as_ref()
+            .unwrap()
+            .vm
+            .get_global(name.into())
+            .ok()
     }
 
     fn error(&mut self, e: CompileError) {
@@ -568,15 +595,22 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         line: u32,
         mutable: bool,
     ) -> CompileResult<()> {
-        if self.locals.last().unwrap().contains_key(name) {
-            return Err(CompileError {
-                message: format!("Cannot redeclare variable {} in the same scope", name),
-                line,
-            });
+        if self.bctype == BytecodeType::Script && self.locals.is_empty() {
+            let g = self.get_global(name).unwrap();
+            let res = self.evaluate_expr(expr)?;
+            self.store_in_accumulator(res, line)?;
+            self.write1(Op::StoreGlobal, g.position, line);
+        } else {
+            if self.locals.last().unwrap().contains_key(name) {
+                return Err(CompileError {
+                    message: format!("Cannot redeclare variable {} in the same scope", name),
+                    line,
+                });
+            }
+            let reg = self.new_local(line, name.into(), mutable)?;
+            let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
+            self.store_in_specific_register(res, reg, line)?;
         }
-        let reg = self.new_local(line, name.into(), mutable)?;
-        let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
-        self.store_in_specific_register(res, reg, line)?;
         Ok(())
     }
 
@@ -835,7 +869,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     body,
                     last_line,
                 } => {
-                    if self.bctype != BytecodeType::Script || self.locals.len() != 1 {
+                    if self.bctype != BytecodeType::Script || self.locals.len() != 0 {
                         return Err(CompileError {
                             message: "Global functions must be declared at the topmost scope"
                                 .into(),
@@ -872,10 +906,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         })? as u32,
                         *last_line,
                     );
-                    let g = self
-                        .get_global(name.as_str())
-                        .unwrap_or_else(|| self.new_global(name.as_str()));
-                    self.write1(Op::StoreGlobal, g, *line);
+                    let g = self.get_global(name.as_str()).unwrap();
+                    self.write1(Op::StoreGlobal, g.position, *line);
                 }
                 Statement::Return { line, expr } => {
                     if self.bctype == BytecodeType::Script {
@@ -1128,10 +1160,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         Ok(ExprResult::Accumulator)
                     }
                     None => {
-                        let global = self
-                            .get_global(name)
-                            .unwrap_or_else(|| self.new_global(name));
-                        self.write1(Op::LoadGlobal, global, *line);
+                        let global = self.get_global(name).ok_or_else(|| CompileError {
+                            message: format!("{} is not defined", name),
+                            line: *line,
+                        })?;
+                        self.write1(Op::LoadGlobal, global.position, *line);
                         Ok(ExprResult::Accumulator)
                     }
                 },
@@ -1315,7 +1348,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let bc = BytecodeCompiler::new(
                     self.compiler.take().unwrap(),
                     "<closure>",
-                    BytecodeType::Closure,
+                    BytecodeType::Function,
                     args.len() as u8,
                 );
                 let parent = std::mem::replace(self, bc);
@@ -1479,13 +1512,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 self.write1(Op::StoreUpvalue, upval as u32, *line);
                 Ok(())
             } else {
-                let global = self
-                    .get_global(name)
-                    .unwrap_or_else(|| self.new_global(name));
+                let global = self.get_global(name).ok_or_else(|| CompileError {
+                    message: format!("{} is not defined", name),
+                    line: *line,
+                })?;
                 let res = self.evaluate_expr(right)?;
                 self.store_in_accumulator(res, *line)?;
-                self.write1(Op::StoreGlobal, global, *line);
-                Ok(())
+                if !global.mutable {
+                    Err(CompileError {
+                        message: format!("Cannot modify constant {}", name),
+                        line: *line,
+                    })
+                } else {
+                    self.write1(Op::StoreGlobal, global.position, *line);
+                    Ok(())
+                }
             }
         } else {
             Err(CompileError {
@@ -1559,8 +1600,7 @@ mod tests {
             let (stmts, errors) = parser.parse(false);
             assert!(errors.is_empty(), "{:?}", errors);
             let vm = new_vm();
-            let mut globals = HashMap::default();
-            let compiler = Compiler::new(&vm, &mut globals);
+            let compiler = Compiler::new(&vm);
             let fw = compiler.exec(stmts).unwrap();
             if std::env::var("GENERATE_TESTS").is_ok() {
                 std::fs::write(
@@ -1588,8 +1628,7 @@ mod tests {
             let (stmts, errors) = parser.parse(false);
             assert!(errors.is_empty());
             let vm = new_vm();
-            let mut globals = HashMap::default();
-            let compiler = Compiler::new(&vm, &mut globals);
+            let compiler = Compiler::new(&vm);
             let errors = compiler.exec(stmts).unwrap_err();
             if std::env::var("GENERATE_TESTS").is_ok() {
                 std::fs::write(

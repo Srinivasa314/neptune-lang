@@ -78,10 +78,10 @@ handler(Panic, {
   if ((ip = panic(ip, accumulator)) != nullptr) {
     bp = frames[num_frames - 1].bp;
     auto f = frames[num_frames - 1].f;
-    upvalues = f->upvalues;
     constants = f->function_info->constants.data();
-  } else
-    return VMResult(VMStatus::Error, std::move(last_panic), stack_trace);
+  } else {
+    goto panic_end;
+  }
 });
 
 handler(Exit, {
