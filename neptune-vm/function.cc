@@ -441,8 +441,6 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(Close) << READ(uint8_t);
       break;
-      CASE(Print);
-      break;
       CASE(Return);
       break;
       CASE(Panic);
@@ -552,9 +550,4 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
 #undef READ
 #undef REG
 
-std::unique_ptr<std::string> FunctionInfoWriter::to_cxx_string() const {
-  std::ostringstream os;
-  disassemble(os, *this->hf->object);
-  return std::unique_ptr<std::string>(new std::string(os.str()));
-}
 } // namespace neptune_vm

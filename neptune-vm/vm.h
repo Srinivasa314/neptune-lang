@@ -12,6 +12,10 @@ constexpr bool STRESS_GC = false;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
+namespace native_builtins {
+bool print(FunctionContext ctx, void *data);
+bool dissasemble(FunctionContext ctx, void *data);
+} // namespace native_builtins
 struct Frame {
   Value *bp;
   Function *f;
@@ -61,10 +65,10 @@ class VM {
   std::string stack_trace;
   std::string last_panic;
   bool is_running;
-  Value return_value;
   std::ostringstream panic_message;
 
 public:
+  Value return_value;
   Value to_string(Value val);
   VMResult run(Function *f, bool eval);
   bool add_global(StringSlice name, bool mutable_) const;
@@ -91,7 +95,12 @@ public:
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
-        stack_top(stack.get()), return_value(Value::null()) {}
+        stack_top(stack.get()), is_running(false),return_value(Value::null()) {
+    declare_native_function(StringSlice("print"), 1, 0, native_builtins::print,
+                            nullptr, nullptr);
+    declare_native_function(StringSlice("dissasemble"), 1, 0,
+                            native_builtins::dissasemble, nullptr, nullptr);
+  }
   ~VM();
 };
 

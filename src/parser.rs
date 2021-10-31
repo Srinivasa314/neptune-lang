@@ -92,7 +92,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::EqualEqualEqual => Precedence::Comparison,
         TokenType::BangEqualEqual => Precedence::Comparison,
         TokenType::DotDot => Precedence::None,
-        TokenType::Print => Precedence::None,
         TokenType::Pipe => Precedence::None,
         TokenType::Try => Precedence::None,
         TokenType::Catch => Precedence::None,
@@ -227,7 +226,6 @@ pub enum Statement {
         line: u32,
         expr: Option<Expr>,
     },
-    Print(Expr),
     Panic(Expr),
     TryCatch {
         try_block: Vec<Statement>,
@@ -406,7 +404,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::EqualEqualEqual => None,
             TokenType::BangEqualEqual => None,
             TokenType::DotDot => None,
-            TokenType::Print => None,
             TokenType::Pipe => Some(self.closure()),
             TokenType::Try => None,
             TokenType::Catch => None,
@@ -477,7 +474,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::EqualEqualEqual => self.binary(left),
             TokenType::BangEqualEqual => self.binary(left),
             TokenType::DotDot => unreachable!(),
-            TokenType::Print => unreachable!(),
             TokenType::Pipe => unreachable!(),
             TokenType::Try => unreachable!(),
             TokenType::Catch => unreachable!(),
@@ -709,8 +705,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.function()
             } else if self.match_token(TokenType::Return) {
                 self.return_stmt()
-            } else if self.match_token(TokenType::Print) {
-                Ok(Statement::Print(self.expression()?))
             } else if self.match_token(TokenType::Panic) {
                 Ok(Statement::Panic(self.expression()?))
             } else if self.match_token(TokenType::Try) {

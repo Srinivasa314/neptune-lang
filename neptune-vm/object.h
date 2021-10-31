@@ -16,6 +16,10 @@ template <typename T> size_t size(T *t) {
 struct StringSlice {
   const char *data;
   size_t len;
+  explicit StringSlice(const char *data_, size_t len_)
+      : data(data_), len(len_) {}
+  explicit StringSlice(const char *cstring)
+      : data(cstring), len(strlen(cstring)) {}
 };
 enum class Type : uint8_t {
   String,

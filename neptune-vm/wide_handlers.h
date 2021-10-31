@@ -124,9 +124,9 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
           bp = frames[num_frames - 1].bp;                                      \
           auto f = frames[num_frames - 1].f;                                   \
           constants = f->function_info->constants.data();                      \
+          DISPATCH();                                                          \
         } else                                                                 \
-          return VMResult(VMStatus::Error, std::move(last_panic),              \
-                          stack_trace);                                        \
+          goto panic_end;                                                      \
       }                                                                        \
       temp_roots.pop_back();                                                   \
       bp -= offset;                                                            \

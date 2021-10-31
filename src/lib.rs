@@ -27,19 +27,11 @@ pub type CompileResult<T> = Result<T, CompileError>;
 
 pub struct Neptune {
     vm: UniquePtr<VM>,
-    print_bytecode: bool,
 }
 
 impl Neptune {
     pub fn new() -> Self {
-        Self {
-            vm: new_vm(),
-            print_bytecode: false,
-        }
-    }
-
-    pub fn print_bytecode(&mut self, b: bool) {
-        self.print_bytecode = b;
+        Self { vm: new_vm() }
     }
 
     pub fn exec(&self, source: &str) -> Result<(), InterpretError> {
@@ -55,9 +47,6 @@ impl Neptune {
         }
         if errors.is_empty() {
             let mut fw = fw.unwrap();
-            if self.print_bytecode {
-                println!("{:?}", fw);
-            }
             let vm_result = unsafe { fw.run(false) };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(()),
@@ -93,9 +82,6 @@ impl Neptune {
         }
         if errors.is_empty() {
             let mut fw = fw.unwrap();
-            if self.print_bytecode {
-                println!("{:?}", fw);
-            }
             let vm_result = unsafe { fw.run(true) };
             match vm_result.get_status() {
                 VMStatus::Success => Ok(if is_expr {

@@ -869,45 +869,29 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     body,
                     last_line,
                 } => {
-                    if self.bctype != BytecodeType::Script || self.locals.len() != 0 {
-                        return Err(CompileError {
-                            message: "Global functions must be declared at the topmost scope"
-                                .into(),
-                            line: *line,
-                        });
-                    }
-                    if arguments.len() >= 25 {
-                        return Err(CompileError {
-                            message: "Cannot have more than 25 arguments".to_string(),
-                            line: *line,
-                        });
-                    }
-                    let mut bc = BytecodeCompiler::new(
-                        self.compiler.take().unwrap(),
-                        name.as_str(),
-                        BytecodeType::Function,
-                        arguments.len() as u8,
-                    );
-                    for arg in arguments {
-                        bc.new_local(*line, arg.clone(), true)?;
-                    }
-                    bc.evaluate_statments(body);
-                    if !matches!(body.last(), Some(Statement::Return { .. })) {
-                        bc.write0(Op::LoadNull, *last_line);
-                        bc.write0(Op::Return, *last_line);
-                    }
-                    self.compiler = Some(bc.compiler.take().unwrap());
-                    let c = self.bytecode.fun_constant(bc.bytecode);
-                    self.write1(
-                        Op::MakeFunction,
-                        c.map_err(|_| CompileError {
-                            line: *last_line,
-                            message: "Cannot have more than 65535 constants per function".into(),
-                        })? as u32,
+                    self.closure(
+                        name,
+                        *line,
+                        arguments,
+                        &ClosureBody::Block(body.clone()),
                         *last_line,
-                    );
-                    let g = self.get_global(name.as_str()).unwrap();
-                    self.write1(Op::StoreGlobal, g.position, *line);
+                    )?;
+                    if self.bctype == BytecodeType::Script && self.locals.is_empty() {
+                        let g = self.get_global(name).unwrap();
+                        self.write1(Op::StoreGlobal, g.position, *last_line);
+                    } else {
+                        if self.locals.last().unwrap().contains_key(name) {
+                            return Err(CompileError {
+                                message: format!(
+                                    "Cannot redeclare variable {} in the same scope",
+                                    name
+                                ),
+                                line: *line,
+                            });
+                        }
+                        let reg = self.new_local(*line, name.into(), false)?;
+                        self.write_op_store_register(reg, *last_line);
+                    }
                 }
                 Statement::Return { line, expr } => {
                     if self.bctype == BytecodeType::Script {
@@ -923,11 +907,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.write0(Op::LoadNull, *line);
                     }
                     self.write0(Op::Return, *line);
-                }
-                Statement::Print(e) => {
-                    let expr_res = self.evaluate_expr(e)?;
-                    self.store_in_accumulator(expr_res, e.line())?;
-                    self.write0(Op::Print, e.line());
                 }
                 Statement::Panic(e) => {
                     let expr_res = self.evaluate_expr(e)?;
@@ -1338,60 +1317,70 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 args,
                 body,
                 last_line,
-            } => {
-                if args.len() >= 25 {
-                    return Err(CompileError {
-                        message: "Cannot have more than 25 arguments".to_string(),
-                        line: *line,
-                    });
-                }
-                let bc = BytecodeCompiler::new(
-                    self.compiler.take().unwrap(),
-                    "<closure>",
-                    BytecodeType::Function,
-                    args.len() as u8,
-                );
-                let parent = std::mem::replace(self, bc);
-                self.parent = Some(Box::new(parent));
-                for arg in args {
-                    self.new_local(*line, arg.clone(), true)?;
-                }
-                match body {
-                    ClosureBody::Block(body) => {
-                        self.evaluate_statments(body);
-                        if !matches!(body.last(), Some(Statement::Return { .. })) {
-                            self.write0(Op::LoadNull, *last_line);
-                            self.write0(Op::Return, *last_line);
-                        }
-                    }
-                    ClosureBody::Expr(body) => {
-                        match self.evaluate_expr(body) {
-                            Ok(res) => {
-                                if let Err(e) = self.store_in_accumulator(res, *line) {
-                                    self.error(e)
-                                }
-                            }
-                            Err(e) => self.error(e),
-                        }
-                        self.write0(Op::Return, *line);
-                    }
-                }
-                let parent = *self.parent.take().unwrap();
-                let mut bc = std::mem::replace(self, parent);
-                self.compiler = bc.compiler.take();
-                let c = self.bytecode.fun_constant(bc.bytecode);
-                self.write1(
-                    Op::MakeFunction,
-                    c.map_err(|_| CompileError {
-                        line: *last_line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })? as u32,
-                    *last_line,
-                );
-                Ok(ExprResult::Accumulator)
-            }
+            } => self.closure("<closure>", *line, args, body, *last_line),
         }
     }
+
+    fn closure(
+        &mut self,
+        name: &str,
+        line: u32,
+        args: &[String],
+        body: &ClosureBody,
+        last_line: u32,
+    ) -> CompileResult<ExprResult> {
+        if args.len() >= 25 {
+            return Err(CompileError {
+                message: "Cannot have more than 25 arguments".to_string(),
+                line,
+            });
+        }
+        let bc = BytecodeCompiler::new(
+            self.compiler.take().unwrap(),
+            name,
+            BytecodeType::Function,
+            args.len() as u8,
+        );
+        let parent = std::mem::replace(self, bc);
+        self.parent = Some(Box::new(parent));
+        for arg in args {
+            self.new_local(line, arg.clone(), true)?;
+        }
+        match body {
+            ClosureBody::Block(body) => {
+                self.evaluate_statments(body);
+                if !matches!(body.last(), Some(Statement::Return { .. })) {
+                    self.write0(Op::LoadNull, last_line);
+                    self.write0(Op::Return, last_line);
+                }
+            }
+            ClosureBody::Expr(body) => {
+                match self.evaluate_expr(body) {
+                    Ok(res) => {
+                        if let Err(e) = self.store_in_accumulator(res, last_line) {
+                            self.error(e)
+                        }
+                    }
+                    Err(e) => self.error(e),
+                }
+                self.write0(Op::Return, last_line);
+            }
+        }
+        let parent = *self.parent.take().unwrap();
+        let mut bc = std::mem::replace(self, parent);
+        self.compiler = bc.compiler.take();
+        let c = self.bytecode.fun_constant(bc.bytecode);
+        self.write1(
+            Op::MakeFunction,
+            c.map_err(|_| CompileError {
+                line,
+                message: "Cannot have more than 65535 constants per function".into(),
+            })? as u32,
+            last_line,
+        );
+        Ok(ExprResult::Accumulator)
+    }
+
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         if let Expr::Literal {
             inner: TokenType::FloatLiteral(f),
@@ -1580,67 +1569,5 @@ fn signed_to_unsigned(i: i32) -> u32 {
             Ok(i) => i as u16 as u32,
             Err(_) => i as u32,
         },
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{parser::Parser, scanner::Scanner, vm::new_vm};
-
-    use super::*;
-    #[test]
-    fn test() {
-        let tests: Vec<String> =
-            serde_json::from_str(include_str!("../tests/compiler_tests/tests.json")).unwrap();
-        for test in tests {
-            let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
-            let s = Scanner::new(&s);
-            let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter());
-            let (stmts, errors) = parser.parse(false);
-            assert!(errors.is_empty(), "{:?}", errors);
-            let vm = new_vm();
-            let compiler = Compiler::new(&vm);
-            let fw = compiler.exec(stmts).unwrap();
-            if std::env::var("GENERATE_TESTS").is_ok() {
-                std::fs::write(
-                    format!("tests/compiler_tests/{}.bc", test),
-                    fw.to_cxx_string().as_bytes(),
-                )
-                .unwrap();
-            } else {
-                let expected =
-                    std::fs::read_to_string(format!("tests/compiler_tests/{}.bc", test)).unwrap();
-                assert_eq!(expected, fw.to_cxx_string().to_str().unwrap());
-            }
-        }
-    }
-
-    #[test]
-    fn error() {
-        let tests: Vec<String> =
-            serde_json::from_str(include_str!("../tests/compiler_tests/errors.json")).unwrap();
-        for test in tests {
-            let s = std::fs::read_to_string(format!("tests/compiler_tests/{}.np", test)).unwrap();
-            let s = Scanner::new(&s);
-            let tokens = s.scan_tokens();
-            let parser = Parser::new(tokens.into_iter());
-            let (stmts, errors) = parser.parse(false);
-            assert!(errors.is_empty());
-            let vm = new_vm();
-            let compiler = Compiler::new(&vm);
-            let errors = compiler.exec(stmts).unwrap_err();
-            if std::env::var("GENERATE_TESTS").is_ok() {
-                std::fs::write(
-                    format!("tests/compiler_tests/{}.json", test),
-                    serde_json::to_string_pretty(&errors).unwrap(),
-                )
-                .unwrap();
-            } else {
-                let expected =
-                    std::fs::read_to_string(format!("tests/compiler_tests/{}.json", test)).unwrap();
-                assert_eq!(expected, serde_json::to_string_pretty(&errors).unwrap());
-            }
-        }
     }
 }

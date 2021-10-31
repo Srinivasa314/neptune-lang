@@ -57,12 +57,6 @@ handler(Not, {
 handler(ToString, { accumulator = to_string(accumulator); });
 handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
-handler(Print, {
-  auto s = static_cast<StringSlice>(
-      *(to_string(accumulator).as_object()->as<String>()));
-  std::cout.write(s.data, s.len);
-  std::cout << std::endl;
-});
 handler(Return, {
   CLOSE(0);
   num_frames--;

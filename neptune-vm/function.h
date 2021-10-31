@@ -74,10 +74,9 @@ public:
   uint16_t int_constant(int32_t i);
   uint16_t reserve_constant();
   std::unique_ptr<VMResult> run(bool eval);
-  std::unique_ptr<std::string> to_cxx_string() const;
   void add_upvalue(uint16_t index, bool is_local);
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
-                           uint16_t error_reg, uint32_t catch_begin);
+                             uint16_t error_reg, uint32_t catch_begin);
 };
 
 struct UpValue : public Object {

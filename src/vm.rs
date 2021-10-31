@@ -38,11 +38,6 @@ impl<'a> Display for StringSlice<'a> {
     }
 }
 
-impl Debug for FunctionInfoWriter<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_cxx_string())
-    }
-}
 
 unsafe impl<'a> ExternType for StringSlice<'a> {
     type Id = type_id!("neptune_vm::StringSlice");
@@ -176,7 +171,6 @@ mod ffi {
         JumpIfNotFalseOrNullConstant,
         BeginForLoopConstant,
         Close,
-        Print,
         Return,
         Panic,
         Exit,
@@ -200,7 +194,6 @@ mod ffi {
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
         unsafe fn run(self: &mut FunctionInfoWriter, eval: bool) -> UniquePtr<VMResult>;
-        fn to_cxx_string(self: &FunctionInfoWriter) -> UniquePtr<CxxString>;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);

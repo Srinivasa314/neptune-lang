@@ -93,7 +93,6 @@
   OP(JumpIfNotFalseOrNullConstant)                                             \
   OP(BeginForLoopConstant)                                                     \
   OP(Close)                                                                    \
-  OP(Print)                                                                    \
   OP(Return)                                                                   \
   OP(Panic)                                                                    \
   OP(Exit)

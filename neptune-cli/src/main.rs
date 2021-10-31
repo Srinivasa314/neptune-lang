@@ -10,11 +10,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut n = Neptune::new();
     let mut file = None;
     for arg in std::env::args().skip(1) {
-        if arg == "--print-bytecode" {
-            n.print_bytecode(true);
-        } else {
-            file = Some(arg)
-        }
+        file = Some(arg)
     }
     match file {
         Some(file) => match n.exec(&std::fs::read_to_string(file)?) {

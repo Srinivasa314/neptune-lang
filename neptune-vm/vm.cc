@@ -567,4 +567,28 @@ bool VM::declare_native_function(StringSlice name, uint8_t arity,
   manage(n);
   return true;
 }
+namespace native_builtins {
+bool print(FunctionContext ctx, void *data) {
+  auto s = static_cast<StringSlice>(
+      *(ctx.vm->to_string(ctx.slots[0]).as_object()->as<String>()));
+  std::cout.write(s.data, s.len);
+  std::cout << std::endl;
+  return true;
+}
+bool dissasemble(FunctionContext ctx, void *data) {
+  auto fn = ctx.slots[0];
+  if (fn.is_object() && fn.as_object()->is<Function>()) {
+    std::ostringstream os;
+    disassemble(os, *fn.as_object()->as<Function>()->function_info);
+    auto str = os.str();
+    ctx.vm->return_value = Value(
+        ctx.vm->manage(String::from(StringSlice(str.data(), str.length()))));
+    return true;
+  } else {
+    ctx.vm->return_value = Value(ctx.vm->manage(
+        String::from(StringSlice("Only functions can be dissasembled"))));
+    return false;
+  }
+}
+} // namespace native_builtins
 } // namespace neptune_vm
