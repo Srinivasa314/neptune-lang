@@ -115,7 +115,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
       stack_top = bp + f->max_slots;                                           \
       for (auto v = bp + arity; v < bp + f->max_slots; v++)                    \
         *v = Value::empty();                                                   \
-      temp_roots.push_back(f);                                                 \
+      last_native_function = f;                                                \
       auto ok = f->inner(FunctionContext{this, bp, f->max_slots}, f->data);    \
       accumulator = return_value;                                              \
       return_value = Value::null();                                            \
@@ -128,7 +128,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
         } else                                                                 \
           goto panic_end;                                                      \
       }                                                                        \
-      temp_roots.pop_back();                                                   \
+      last_native_function = nullptr;                                          \
       bp -= offset;                                                            \
       stack_top = bp + frames[num_frames - 1].f->function_info->max_registers; \
     } else {                                                                   \

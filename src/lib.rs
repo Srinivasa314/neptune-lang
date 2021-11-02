@@ -4,7 +4,7 @@ use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
-use vm::{new_vm, VM};
+use vm::{new_vm, FunctionContext, VM};
 
 mod bytecode_compiler;
 mod parser;
@@ -24,6 +24,9 @@ pub enum InterpretError {
 }
 
 pub type CompileResult<T> = Result<T, CompileError>;
+
+#[derive(Debug)]
+pub struct FunctionRedeclarationError;
 
 pub struct Neptune {
     vm: UniquePtr<VM>,
@@ -98,6 +101,23 @@ impl Neptune {
         } else {
             errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
             Err(InterpretError::CompileError(errors))
+        }
+    }
+
+    pub fn create_function(
+        &self,
+        name: &str,
+        arity: u8,
+        extra_slots: u16,
+        callback: impl FnMut(FunctionContext) -> Result<u16, u16> + 'static,
+    ) -> Result<(), FunctionRedeclarationError> {
+        if self
+            .vm
+            .declare_native_rust_function(name, arity, extra_slots, callback)
+        {
+            Ok(())
+        } else {
+            Err(FunctionRedeclarationError)
         }
     }
 }

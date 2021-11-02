@@ -6,20 +6,22 @@ use rustyline::{
 };
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
-fn main() -> Result<(), std::io::Error> {
-    let mut n = Neptune::new();
-    let mut file = None;
-    for arg in std::env::args().skip(1) {
-        file = Some(arg)
-    }
-    match file {
-        Some(file) => match n.exec(&std::fs::read_to_string(file)?) {
-            Ok(()) => {}
-            Err(e) => report_error(e),
+fn main() {
+    let n = Neptune::new();
+    n.create_function("foo", 1, 0, |_| Err(0)).unwrap();
+    match std::env::args().nth(1) {
+        Some(file) => match &std::fs::read_to_string(file) {
+            Ok(s) => match n.exec(s) {
+                Ok(()) => {}
+                Err(e) => report_error(e),
+            },
+            Err(e) => {
+                eprintln!("{}", e);
+                return;
+            }
         },
-        None => repl(&mut n),
+        None => repl(&n),
     }
-    Ok(())
 }
 
 #[derive(Helper, Hinter, Highlighter, Completer)]
@@ -41,7 +43,7 @@ impl Validator for ReplValidator {
     }
 }
 
-fn repl(n: &mut Neptune) {
+fn repl(n: &Neptune) {
     let mut rl = Editor::new();
     rl.set_helper(Some(ReplValidator {}));
     let histfile = dirs::cache_dir().map(|mut dir| {

@@ -1,9 +1,5 @@
 use cxx::{type_id, ExternType};
-use std::{
-    ffi::c_void,
-    fmt::{Debug, Display},
-    marker::PhantomData,
-};
+use std::{ffi::c_void, fmt::Display, marker::PhantomData};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -37,7 +33,6 @@ impl<'a> Display for StringSlice<'a> {
         write!(f, "{}", self.as_str())
     }
 }
-
 
 unsafe impl<'a> ExternType for StringSlice<'a> {
     type Id = type_id!("neptune_vm::StringSlice");
@@ -73,6 +68,21 @@ unsafe impl ExternType for Global {
     type Id = type_id!("neptune_vm::Global");
     type Kind = cxx::kind::Trivial;
 }
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FunctionContextInner {
+    vm: *mut c_void,
+    slots: *mut c_void,
+    max_slots: u16,
+}
+
+unsafe impl ExternType for FunctionContextInner {
+    type Id = type_id!("neptune_vm::FunctionContext");
+    type Kind = cxx::kind::Trivial;
+}
+
+pub struct FunctionContext(FunctionContextInner);
 
 #[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
@@ -182,6 +192,13 @@ mod ffi {
         Error,
     }
 
+    #[repr(u8)]
+    enum NativeFunctionStatus {
+        Ok,
+        InvalidSlotError,
+        TypeError,
+    }
+
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
@@ -190,7 +207,12 @@ mod ffi {
         type VMResult;
         type VMStatus;
         type VM;
+        type Data;
+        type NativeFunctionCallback;
+        type FreeDataCallback;
+        type NativeFunctionStatus;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
+        type FunctionContext = super::FunctionContextInner;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
         unsafe fn run(self: &mut FunctionInfoWriter, eval: bool) -> UniquePtr<VMResult>;
@@ -235,335 +257,70 @@ mod ffi {
             catch_begin: u32,
         );
         fn size(self: &FunctionInfoWriter) -> usize;
+        unsafe fn declare_native_function(
+            self: &VM,
+            name: StringSlice,
+            arity: u8,
+            extra_slots: u16,
+            callback: *const NativeFunctionCallback,
+            data: *mut Data,
+            free_data: *const FreeDataCallback,
+        ) -> bool;
+        fn return_value(self: &mut FunctionContext, slot: u16) -> NativeFunctionStatus;
     }
+}
+
+use ffi::{Data, FreeDataCallback, NativeFunctionCallback, NativeFunctionStatus};
+
+impl VM {
+    pub fn declare_native_rust_function<F>(
+        &self,
+        name: &str,
+        arity: u8,
+        extra_slots: u16,
+        callback: F,
+    ) -> bool
+    where
+        F: FnMut(FunctionContext) -> Result<u16, u16> + 'static,
+    {
+        let data = Box::into_raw(Box::new(callback));
+        unsafe {
+            self.declare_native_function(
+                name.into(),
+                arity,
+                extra_slots,
+                trampoline::<F> as *const NativeFunctionCallback,
+                data as *mut Data,
+                free_data::<F> as *const FreeDataCallback,
+            )
+        }
+    }
+}
+
+unsafe extern "C" fn trampoline<F>(mut ctx: FunctionContextInner, data: *mut Data) -> bool
+where
+    F: FnMut(FunctionContext) -> Result<u16, u16> + 'static,
+{
+    let callback = data as *mut F;
+    let callback = &mut *callback;
+    match callback(FunctionContext(ctx)) {
+        Ok(slot) => {
+            if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
+                panic!("Attempt to return invalid slot");
+            }
+            true
+        }
+        Err(slot) => {
+            if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
+                panic!("Attempt to return invalid slot");
+            }
+            false
+        }
+    }
+}
+
+unsafe extern "C" fn free_data<F>(data: *mut Data) {
+    Box::from_raw(data as *mut F);
 }
 
 pub use ffi::{new_vm, Op, VMStatus, VM};
-
-#[cfg(test)]
-mod tests {
-    use crate::{InterpretError, Neptune};
-
-    #[test]
-    fn test() {
-        let n = Neptune::new();
-        assert_eq!(n.eval("null").unwrap().unwrap(), "null");
-        assert_eq!(n.eval("true").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("false").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("1.0").unwrap().unwrap(), "1.0");
-        assert_eq!(n.eval("1.2").unwrap().unwrap(), "1.2");
-        assert!(matches!(
-            n.eval("0.0/0.0").unwrap().unwrap().as_str(),
-            "-nan" | "nan"
-        ));
-        assert_eq!(n.eval("1.0/0.0").unwrap().unwrap(), "inf");
-        assert_eq!(n.eval("-1.0/0.0").unwrap().unwrap(), "-inf");
-        assert_eq!(n.eval("5").unwrap().unwrap(), "5");
-        assert_eq!(n.eval("-5").unwrap().unwrap(), "-5");
-        assert_eq!(n.eval("1000").unwrap().unwrap(), "1000");
-        assert_eq!(n.eval("-1000").unwrap().unwrap(), "-1000");
-        assert_eq!(n.eval("1000000").unwrap().unwrap(), "1000000");
-        assert_eq!(n.eval("-1000000").unwrap().unwrap(), "-1000000");
-        assert_eq!(n.eval("'hi'").unwrap().unwrap(), "'hi'");
-        assert_eq!(n.eval("'hi\n'").unwrap().unwrap(), "'hi\\n'");
-        assert_eq!(n.eval("'\"'").unwrap().unwrap(), "'\"'");
-        assert_eq!(n.eval("'\\''").unwrap().unwrap(), "'\\''");
-        assert_eq!(n.eval("@abc").unwrap().unwrap(), "@abc");
-        assert_eq!(n.eval("global=1").unwrap(), None);
-        assert_eq!(n.eval("global").unwrap().unwrap(), "1");
-        n.exec("global=global+1000").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "1001");
-        assert_eq!(n.eval("1.2+3").unwrap().unwrap(), "4.2");
-        n.exec("{let a=1;let b=a;global=b}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "1");
-        assert_eq!(n.eval("-(2.3)").unwrap().unwrap(), "-2.3");
-        assert_eq!(n.eval("'\\(432)'").unwrap().unwrap(), "'432'");
-        assert_eq!(n.eval("'\\(-1)'").unwrap().unwrap(), "'-1'");
-        assert!(matches!(
-            n.eval("'\\(0.0/0.0)'").unwrap().unwrap().as_str(),
-            "'-nan'" | "'nan"
-        ));
-        assert_eq!(n.eval("'\\(-2.0)'").unwrap().unwrap(), "'-2.0'");
-        assert_eq!(n.eval("'\\(null)'").unwrap().unwrap(), "'null'");
-        assert_eq!(n.eval("'\\('hello')'").unwrap().unwrap(), "'hello'");
-        assert_eq!(n.eval("'\\(@bye)'").unwrap().unwrap(), "'bye'");
-        assert_eq!(n.eval("@a==@a").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("[null,true][1]").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("2.3>=1").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
-        assert_eq!(n.eval("1==global").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("1==3").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("1==1.0").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("1==1.1").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("1.1==1.1").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("[]==[]").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("null==null").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("null==false").unwrap().unwrap(), "false");
-        n.exec("global='a'").unwrap();
-        assert_eq!(n.eval("'a'==global").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("0.0/0.0==0.0/0.0").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("-0.0==0.0").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("0.0/0.0===0.0/0.0").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("-0.0===0.0").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("1===1.0").unwrap().unwrap(), "false");
-        n.exec(
-            r#"global={}
-        global[1]=2
-        global[1.0]=3.0
-        global[true]=true
-        global['a']='a'
-        global['a']='b'
-        global[@a]=4
-        global[@a]=6
-        global[global]='global'
-        "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("global[1]").unwrap().unwrap(), "2");
-        assert_eq!(n.eval("global[1.0]").unwrap().unwrap(), "3.0");
-        assert_eq!(n.eval("global[true]").unwrap().unwrap(), "true");
-        assert_eq!(n.eval("global['a']").unwrap().unwrap(), "'b'");
-        assert_eq!(n.eval("global[@a]").unwrap().unwrap(), "6");
-        assert_eq!(n.eval("global[global]").unwrap().unwrap(), "'global'");
-        n.exec("global=[null]").unwrap();
-        assert_eq!(n.eval("global[0]=5").unwrap(), None);
-        assert_eq!(n.eval("global[0]").unwrap().unwrap(), "5");
-        n.exec("if true{global=3}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "3");
-        n.exec("if global==3{global=5}else{global=7}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "5");
-        n.exec("if global==0{global=10}else if global==5{global=11}else{global=12}")
-            .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "11");
-        n.exec("global=0\nfor i in 1..10{global+=i}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "45");
-        n.exec("global=0\nfor i in 1..10{for j in 1..10{global+=1}}")
-            .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "81");
-        n.exec("global=0\nfor i in 1..1{global+=1}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "0");
-        n.exec("global=0\nfor i in 1..-1{global+=1}").unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "0");
-        n.exec(
-            r#"
-                global=0
-                for i in 1..10{
-                    if i==7{
-                        break
-                    }
-                global+=i
-                }
-       "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "21");
-        n.exec(
-            r#"
-                global=0
-                for i in 1..10{
-                    if i==7{
-                        continue
-                    }
-                global+=i
-                }
-       "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "38");
-        n.exec(
-            r#"
-                let i=0
-                global=0
-                while i<10{
-                    i+=1
-                    if i==7{
-                        break
-                    }
-                global+=i
-                }
-       "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "21");
-        n.exec(
-            r#"
-                let i=0
-                global=0
-                while i<10{
-                    i+=1
-                    if i==7{
-                        continue
-                    }
-                global+=i
-                }
-       "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("global").unwrap().unwrap(), "48");
-        assert_eq!(n.eval("[]").unwrap().unwrap(), "[]");
-        assert_eq!(n.eval("[1]").unwrap().unwrap(), "[ 1 ]");
-        assert_eq!(n.eval("[1,2]").unwrap().unwrap(), "[ 1, 2 ]");
-        assert_eq!(n.eval("{}").unwrap().unwrap(), "{}");
-        assert_eq!(n.eval("{'one':1}").unwrap().unwrap(), "{ 'one': 1 }");
-        n.exec("a=[0];a[0]=a").unwrap();
-        assert_eq!(
-            n.eval("a").unwrap().unwrap(),
-            "[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]"
-        );
-        n.exec(
-            r"
-        list=null
-        for i in 0..50 {
-            list={@next:list}
-        }
-        ",
-        )
-        .unwrap();
-        assert_eq!(
-            n.eval("list").unwrap().unwrap(),
-            "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
-        );
-        n.exec("fun retnull(){}").unwrap();
-        assert_eq!(n.eval("retnull()").unwrap().unwrap(), "null");
-        n.exec(
-            r#"
-        fun factorial(n){
-            if n==0{
-                return 1
-            }
-            return n*factorial(n-1)
-        }
-        "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("factorial(5)").unwrap().unwrap(), "120");
-        assert_eq!(n.eval("![]").unwrap().unwrap(), "false");
-        assert_eq!(n.eval("1 and 2").unwrap().unwrap(), "2");
-        assert_eq!(n.eval("1 or 2").unwrap().unwrap(), "1");
-        match n
-            .exec(
-                r"fun f(a,b){
-            return a/b
-            }
-            fun g(a){f(a,0)}
-            g(1)
-            ",
-            )
-            .unwrap_err()
-        {
-            InterpretError::CompileError(e) => panic!("{:?}", e),
-            InterpretError::RuntimePanic { stack_trace, .. } => {
-                assert_eq!(
-                    stack_trace,
-                    "at f (line 2)\nat g (line 4)\nat <script> (line 5)\n"
-                )
-            }
-        }
-        match n
-            .exec(
-                r"let x=0
-                let y=1/x
-            ",
-            )
-            .unwrap_err()
-        {
-            InterpretError::CompileError(e) => panic!("{:?}", e),
-            InterpretError::RuntimePanic { stack_trace, .. } => {
-                assert_eq!(stack_trace, "at <script> (line 2)\n")
-            }
-        }
-        n.exec(
-            r#"
-            fun f(){
-                let a=10
-                let b=10
-                f=||a
-                if false{
-                    f=||b
-                }
-            }
-            f()
-        "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("f()").unwrap().unwrap(), "10");
-        n.exec(
-            r#"
-            a=[null,null,null]
-            for i in 0..3{
-                a[i]=||i;
-            }
-        "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("a[0]()").unwrap().unwrap(), "0");
-        assert_eq!(n.eval("a[1]()").unwrap().unwrap(), "1");
-        assert_eq!(n.eval("a[2]()").unwrap().unwrap(), "2");
-        n.exec(
-            "
-        try{try{panic ''}catch e{a=10}}catch e{a=20}
-        ",
-        )
-        .unwrap();
-        assert_eq!(n.eval("a").unwrap().unwrap(), "10");
-        n.exec("try{let a=30;f=||a;panic ''}catch e{}").unwrap();
-        assert_eq!(n.eval("f()").unwrap().unwrap(), "30");
-        assert_eq!(n.eval("a").unwrap().unwrap(), "10");
-        n.exec(
-            r#"
-        fun f(){
-            let a=17
-            f=||a
-            panic ''
-        }
-        try{
-            f()
-        }
-        catch e{}
-        "#,
-        )
-        .unwrap();
-        assert_eq!(n.eval("f()").unwrap().unwrap(), "17");
-    }
-    #[test]
-    fn error() {
-        let n = Neptune::new();
-        n.exec("n=1000;arr=[];global={[]:1}").unwrap();
-        for (code, expected_error) in [
-            ("glibal", "Cannot access uninitialized variable glibal"),
-            (
-                "n+2147483000",
-                "Cannot add 1000 and 2147483000 as the result does not fit in an int",
-            ),
-            ("null+1", "Cannot add types null and int"),
-            (
-                "-(-2147483647-(n/1000))",
-                "Cannot negate -2147483648 as the result cannot be stored in an int",
-            ),
-            ("-{}", "Cannot negate type map"),
-            ("arr[0]", "Array index out of range"),
-            ("arr[-1]", "Array index out of range"),
-            ("arr[0.0]", "Array indices must be int not float"),
-            (
-                "{let a=1000000000;let b=2000000000;let c=a+b}",
-                "Cannot add 1000000000 and 2000000000 as the result does not fit in an int",
-            ),
-            ("2.3-[]", "Cannot subtract types float and array"),
-            ("global[[]]", "Key [] does not exist in map"),
-            ("'a'-[]", "Cannot subtract types string and array"),
-            ("'a'~1.2", "Cannot concat types string and float"),
-            ("1[2]", "Cannot index type int"),
-            (
-                "for i in 'a'..1{}",
-                "Expected int and int for the start and end of for loop got string and int instead",
-            ),
-        ] {
-            match n.exec(code).unwrap_err() {
-                InterpretError::CompileError(e) => panic!("{:?}", e),
-                InterpretError::RuntimePanic { error, .. } => {
-                    assert_eq!(error, format!("'{}'", expected_error));
-                }
-            }
-        }
-    }
-}

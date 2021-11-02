@@ -1,4 +1,5 @@
 #include "function.cc"
+#include "native_function.cc"
 #include "object.cc"
 #include "value.cc"
 #include "vm.cc"

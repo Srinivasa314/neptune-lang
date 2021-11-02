@@ -14,7 +14,7 @@ constexpr bool DEBUG_GC = false;
 namespace neptune_vm {
 namespace native_builtins {
 bool print(FunctionContext ctx, void *data);
-bool dissasemble(FunctionContext ctx, void *data);
+bool disassemble(FunctionContext ctx, void *data);
 } // namespace native_builtins
 struct Frame {
   Value *bp;
@@ -66,6 +66,7 @@ class VM {
   std::string last_panic;
   bool is_running;
   std::ostringstream panic_message;
+  NativeFunction* last_native_function;
 
 public:
   Value return_value;
@@ -89,17 +90,15 @@ public:
   const uint8_t *panic(const uint8_t *ip);
   bool declare_native_function(StringSlice name, uint8_t arity,
                                uint16_t extra_slots,
-                               bool (*inner)(FunctionContext ctx, void *data),
-                               void *data, void (*free_data)(void *data));
+                               NativeFunctionCallback *callback, Data *data,
+                               FreeDataCallback *free_data) const;
+  void declare_native_builtins();
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
-        stack_top(stack.get()), is_running(false),return_value(Value::null()) {
-    declare_native_function(StringSlice("print"), 1, 0, native_builtins::print,
-                            nullptr, nullptr);
-    declare_native_function(StringSlice("dissasemble"), 1, 0,
-                            native_builtins::dissasemble, nullptr, nullptr);
+        stack_top(stack.get()), is_running(false), return_value(Value::null()) {
+    declare_native_builtins();
   }
   ~VM();
 };

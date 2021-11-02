@@ -335,7 +335,7 @@ Value VM::to_string(Value val) {
     auto f = val.as_float();
     if (std::isnan(f)) {
       const char *result = std::signbit(f) ? "-nan" : "nan";
-      return Value(manage(String::from(StringSlice{result, strlen(result)})));
+      return Value(manage(String::from(StringSlice(result))));
     } else {
       char buffer[24];
       size_t len = static_cast<size_t>(sprintf(buffer, "%.14g", f));
@@ -358,11 +358,11 @@ Value VM::to_string(Value val) {
       return Value(manage(String::from(StringSlice{s.data(), s.length()})));
     }
   } else if (val.is_true()) {
-    return Value(manage(String::from(StringSlice{"true", strlen("true")})));
+    return Value(manage(String::from(StringSlice("true"))));
   } else if (val.is_false()) {
-    return Value(manage(String::from(StringSlice{"false", strlen("false")})));
+    return Value(manage(String::from(StringSlice("false"))));
   } else if (val.is_null()) {
-    return Value(manage(String::from(StringSlice{"null", strlen("null")})));
+    return Value(manage(String::from(StringSlice("null"))));
   } else {
     unreachable();
   }
@@ -393,7 +393,9 @@ void VM::collect() {
     grey(frame->f);
   }
   grey_value(return_value);
-
+  // this might not be necessary since native functions are constants but just
+  // in case
+  grey(last_native_function);
   // Blacken all objects
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -500,9 +502,9 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
 
 std::string VM::get_stack_trace() {
   std::ostringstream os;
-  if (!temp_roots.empty() && temp_roots.back()->is<NativeFunction>()) {
-    os << "at " << temp_roots.back()->as<NativeFunction>()->name << '\n';
-    temp_roots.pop_back();
+  if (last_native_function != nullptr) {
+    os << "at " << last_native_function->name << '\n';
+    last_native_function = nullptr;
   }
   for (size_t i = num_frames; i-- > 0;) {
     auto frame = frames[i];
@@ -548,9 +550,9 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
 
 bool VM::declare_native_function(StringSlice name, uint8_t arity,
                                  uint16_t extra_slots,
-                                 bool (*inner)(FunctionContext ctx, void *data),
-                                 void *data = nullptr,
-                                 void (*free_data)(void *data) = nullptr) {
+                                 NativeFunctionCallback *callback,
+                                 Data *data = nullptr,
+                                 FreeDataCallback *free_data = nullptr) const {
   if (!global_names
            .insert({std::string(name.data, name.len),
                     Global{static_cast<uint32_t>(globals.size()), false}})
@@ -559,23 +561,27 @@ bool VM::declare_native_function(StringSlice name, uint8_t arity,
   auto n = new NativeFunction();
   n->arity = arity;
   n->max_slots = arity + extra_slots;
-  n->inner = inner;
+  n->inner = callback;
   n->data = data;
   n->free_data = free_data;
   n->name = std::string{name.data, name.len};
   globals.push_back(Value(n));
-  manage(n);
+  const_cast<VM *>(this)->manage(n);
   return true;
 }
+
 namespace native_builtins {
-bool print(FunctionContext ctx, void *data) {
-  auto s = static_cast<StringSlice>(
-      *(ctx.vm->to_string(ctx.slots[0]).as_object()->as<String>()));
-  std::cout.write(s.data, s.len);
+bool print(FunctionContext ctx, void *) {
+  if (ctx.slots[0].is_object() && ctx.slots[0].as_object()->is<String>()) {
+    auto s = static_cast<StringSlice>(*ctx.slots[0].as_object()->as<String>());
+    std::cout.write(s.data, s.len);
+  } else {
+    std::cout << ctx.slots[0];
+  }
   std::cout << std::endl;
   return true;
 }
-bool dissasemble(FunctionContext ctx, void *data) {
+bool disassemble(FunctionContext ctx, void *) {
   auto fn = ctx.slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
     std::ostringstream os;
@@ -585,10 +591,24 @@ bool dissasemble(FunctionContext ctx, void *data) {
         ctx.vm->manage(String::from(StringSlice(str.data(), str.length()))));
     return true;
   } else {
-    ctx.vm->return_value = Value(ctx.vm->manage(
-        String::from(StringSlice("Only functions can be dissasembled"))));
+    std::ostringstream os;
+    os << "Cannot disassemble " << fn.type_string();
+    ctx.vm->return_value = Value(ctx.vm->manage(String::from(os.str())));
     return false;
   }
 }
+
+bool gc(FunctionContext ctx, void *) {
+  ctx.vm->collect();
+  return true;
+}
 } // namespace native_builtins
+
+void VM::declare_native_builtins() {
+  declare_native_function(StringSlice("print"), 1, 0, native_builtins::print);
+  declare_native_function(StringSlice("disassemble"), 1, 0,
+                          native_builtins::disassemble);
+  declare_native_function(StringSlice("gc"), 0, 0, native_builtins::gc);
+}
+
 } // namespace neptune_vm
