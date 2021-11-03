@@ -1,0 +1,23 @@
+fun assert_eq(x,y){
+    if x!=y{
+        panic "Assertion failed: \(x)==\(y)"
+    }
+}
+
+fun assert_failed(f,err){
+    let handled=false
+    try{ 
+        f()
+    }catch e{
+        handled=true
+        if err!=e{
+            panic "Assertion failed: \(e)==\(err)"
+        }
+    }
+    if !handled{
+        panic "Assertion failed: Expected it to panic"
+    }
+}
+
+assert_eq(1+1,2)
+assert_failed(||{let x=1;x/0},"Cannot divide 1 and 0 as the result does not fit in an int")

@@ -600,4 +600,44 @@ void VM::declare_native_builtins() {
   declare_native_function(StringSlice("gc"), 0, 0, native_builtins::gc);
 }
 
+Value VM::make_function(Value *bp, Value constant) {
+  auto info = constant.as_object()->as<FunctionInfo>();
+  auto function = (Function *)malloc(sizeof(Function) +
+                                     sizeof(UpValue *) * info->upvalues.size());
+  function->function_info = info;
+  if (function == nullptr)
+    throw std::bad_alloc();
+  function->num_upvalues = 0;
+  temp_roots.push_back(static_cast<Object *>(manage(function)));
+  for (auto upvalue : info->upvalues) {
+    if (upvalue.is_local) {
+      auto loc = &bp[upvalue.index];
+      UpValue *prev = nullptr;
+      UpValue *upval;
+      auto curr = open_upvalues;
+      while (curr != nullptr && curr->location > loc) {
+        prev = curr;
+        curr = curr->next;
+      }
+      if (curr != nullptr && curr->location == loc) {
+        upval = curr;
+      } else {
+        upval = manage(new UpValue(loc));
+        upval->next = curr;
+        if (open_upvalues == nullptr) {
+          open_upvalues = upval;
+        } else {
+          prev->next = upval;
+        }
+      }
+      function->upvalues[function->num_upvalues++] = upval;
+    } else {
+      function->upvalues[function->num_upvalues++] =
+          frames[num_frames - 1].f->upvalues[upvalue.index];
+    }
+  }
+  temp_roots.pop_back();
+  return Value(static_cast<Object *>(function));
+}
+
 } // namespace neptune_vm
