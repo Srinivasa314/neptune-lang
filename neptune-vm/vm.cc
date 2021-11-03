@@ -571,16 +571,6 @@ bool VM::declare_native_function(StringSlice name, uint8_t arity,
 }
 
 namespace native_builtins {
-bool print(FunctionContext ctx, void *) {
-  if (ctx.slots[0].is_object() && ctx.slots[0].as_object()->is<String>()) {
-    auto s = static_cast<StringSlice>(*ctx.slots[0].as_object()->as<String>());
-    std::cout.write(s.data, s.len);
-  } else {
-    std::cout << ctx.slots[0];
-  }
-  std::cout << std::endl;
-  return true;
-}
 bool disassemble(FunctionContext ctx, void *) {
   auto fn = ctx.slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
@@ -605,7 +595,6 @@ bool gc(FunctionContext ctx, void *) {
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
-  declare_native_function(StringSlice("print"), 1, 0, native_builtins::print);
   declare_native_function(StringSlice("disassemble"), 1, 0,
                           native_builtins::disassemble);
   declare_native_function(StringSlice("gc"), 0, 0, native_builtins::gc);

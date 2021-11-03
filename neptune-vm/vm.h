@@ -13,7 +13,6 @@ constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
 namespace native_builtins {
-bool print(FunctionContext ctx, void *data);
 bool disassemble(FunctionContext ctx, void *data);
 } // namespace native_builtins
 struct Frame {

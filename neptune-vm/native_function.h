@@ -4,17 +4,16 @@
 namespace neptune_vm {
 class VM;
 
-enum class NativeFunctionStatus : uint8_t {
-  Ok,
-  InvalidSlotError,
-  TypeError
-};
+enum class NativeFunctionStatus : uint8_t { Ok, InvalidSlotError, TypeError };
 
 struct FunctionContext {
   VM *vm;
   Value *slots;
   uint16_t max_slots;
   NativeFunctionStatus return_value(uint16_t slot);
+  NativeFunctionStatus as_string(uint16_t slot, StringSlice &s) const;
+  NativeFunctionStatus to_string(uint16_t dest, uint16_t source);
+  void null(uint16_t slot);
 };
 
 using Data = void; // Can be anything

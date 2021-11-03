@@ -16,6 +16,14 @@ impl<'a> StringSlice<'a> {
             std::str::from_utf8_unchecked(s)
         }
     }
+
+    fn new() -> Self {
+        Self {
+            data: std::ptr::null(),
+            len: 0,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<'a> From<&'a str> for StringSlice<'a> {
@@ -267,6 +275,13 @@ mod ffi {
             free_data: *const FreeDataCallback,
         ) -> bool;
         fn return_value(self: &mut FunctionContext, slot: u16) -> NativeFunctionStatus;
+        fn as_string<'a>(
+            self: &'a FunctionContext,
+            slot: u16,
+            s: &mut StringSlice<'a>,
+        ) -> NativeFunctionStatus;
+        fn to_string(self: &mut FunctionContext, dest: u16, source: u16) -> NativeFunctionStatus;
+        fn null(self: &mut FunctionContext, slot: u16);
     }
 }
 
@@ -303,24 +318,49 @@ where
 {
     let callback = data as *mut F;
     let callback = &mut *callback;
-    match callback(FunctionContext(ctx)) {
-        Ok(slot) => {
-            if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
-                panic!("Attempt to return invalid slot");
+    //https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        match callback(FunctionContext(ctx)) {
+            Ok(slot) => {
+                if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
+                    panic!("Attempt to return invalid slot");
+                }
+                true
             }
-            true
-        }
-        Err(slot) => {
-            if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
-                panic!("Attempt to return invalid slot");
+            Err(slot) => {
+                if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
+                    panic!("Attempt to return invalid slot");
+                }
+                false
             }
-            false
         }
-    }
+    }))
+    .unwrap_or_else(|_| std::process::abort())
 }
 
 unsafe extern "C" fn free_data<F>(data: *mut Data) {
     Box::from_raw(data as *mut F);
+}
+
+impl FunctionContext {
+    pub fn as_string<'a>(&'a self, slot: u16) -> Option<&'a str> {
+        let mut s = StringSlice::new();
+        match self.0.as_string(slot, &mut s) {
+            NativeFunctionStatus::InvalidSlotError => panic!("Attempt to access invalid slot"),
+            NativeFunctionStatus::TypeError => None,
+            _ => Some(s.as_str()),
+        }
+    }
+
+    pub fn to_string(&mut self, dest: u16, source: u16) {
+        if self.0.to_string(dest, source) == NativeFunctionStatus::InvalidSlotError {
+            panic!("Attempt to access invalid slot")
+        }
+    }
+
+    pub fn null(&mut self, slot: u16) {
+        self.0.null(slot);
+    }
 }
 
 pub use ffi::{new_vm, Op, VMStatus, VM};

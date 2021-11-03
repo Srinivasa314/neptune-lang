@@ -8,7 +8,13 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
     let n = Neptune::new();
-    n.create_function("foo", 1, 0, |_| Err(0)).unwrap();
+    n.create_function("print", 1, 0, |mut ctx| {
+        ctx.to_string(0, 0);
+        println!("{}", ctx.as_string(0).unwrap());
+        ctx.null(0);
+        Ok(0)
+    })
+    .unwrap();
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(file) {
             Ok(s) => match n.exec(s) {
