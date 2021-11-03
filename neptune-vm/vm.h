@@ -66,7 +66,7 @@ class VM {
   std::string last_panic;
   bool is_running;
   std::ostringstream panic_message;
-  NativeFunction* last_native_function;
+  NativeFunction *last_native_function;
 
 public:
   Value return_value;
@@ -93,6 +93,7 @@ public:
                                NativeFunctionCallback *callback, Data *data,
                                FreeDataCallback *free_data) const;
   void declare_native_builtins();
+  Value make_function(Value *bp, Value constant);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),

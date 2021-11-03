@@ -17,7 +17,7 @@ pub struct CompileError {
     pub line: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum InterpretError {
     CompileError(Vec<CompileError>),
     RuntimePanic { error: String, stack_trace: String },
@@ -125,5 +125,59 @@ impl Neptune {
 impl Default for Neptune {
     fn default() -> Self {
         Self::new()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use crate::{InterpretError, Neptune};
+    use std::{
+        env,
+        fs::File,
+        io::{Read, Write},
+        path::PathBuf,
+    };
+    fn open(file: &str) -> PathBuf {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push(file);
+        path
+    }
+    fn read(file: &str) -> String {
+        let path = open(file);
+        let mut s = String::new();
+        File::open(path).unwrap().read_to_string(&mut s).unwrap();
+        s
+    }
+    #[test]
+    fn test() {
+        let n = Neptune::new();
+        assert_eq!(n.eval("1+1").unwrap().unwrap(), "2");
+        assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
+        assert_eq!(n.eval("0.1+0.2").unwrap().unwrap(), "0.3");
+        if let Err(e) = n.exec(&read("test.np")) {
+            panic!("{:?}", e);
+        }
+        let errors: Vec<String> = serde_json::from_str(&read("errors.json")).unwrap();
+        for error in errors {
+            let res = n.eval(&read(&format!("{}.np", error))).unwrap_err();
+            if let InterpretError::CompileError(res) = res {
+                let result = serde_json::to_string_pretty(&res).unwrap();
+                if env::var("NEPTUNE_GEN_ERRORS").is_ok() {
+                    File::create(open(&format!("{}.json", error)))
+                        .unwrap()
+                        .write(result.as_bytes())
+                        .unwrap();
+                } else {
+                    let mut expected_result = String::new();
+                    File::open(open(&format!("{}.json", error)))
+                        .unwrap()
+                        .read_to_string(&mut expected_result)
+                        .unwrap();
+                    assert_eq!(expected_result, result);
+                }
+            } else {
+                panic!("Expected a compile error");
+            }
+        }
     }
 }

@@ -308,43 +308,7 @@ handler(BeginForLoopConstant, {
 
 handler(MakeFunction, {
   auto constant = constants[READ(utype)];
-  auto info = constant.as_object()->as<FunctionInfo>();
-  auto function = (Function *)malloc(sizeof(Function) +
-                                     sizeof(UpValue *) * info->upvalues.size());
-  function->function_info = info;
-  if (function == nullptr)
-    throw std::bad_alloc();
-  function->num_upvalues = 0;
-  temp_roots.push_back(static_cast<Object *>(manage(function)));
-  for (auto upvalue : info->upvalues) {
-    if (upvalue.is_local) {
-      auto loc = &bp[upvalue.index];
-      UpValue *prev = nullptr;
-      UpValue *upval;
-      auto curr = open_upvalues;
-      while (curr != nullptr && curr->location > loc) {
-        prev = curr;
-        curr = curr->next;
-      }
-      if (curr != nullptr && curr->location == loc) {
-        upval = curr;
-      } else {
-        upval = manage(new UpValue(loc));
-        upval->next = curr;
-        if (open_upvalues == nullptr) {
-          open_upvalues = upval;
-        } else {
-          prev->next = upval;
-        }
-      }
-      function->upvalues[function->num_upvalues++] = upval;
-    } else {
-      function->upvalues[function->num_upvalues++] =
-          frames[num_frames - 1].f->upvalues[upvalue.index];
-    }
-  }
-  accumulator = Value(static_cast<Object *>(function));
-  temp_roots.pop_back();
+  accumulator = make_function(bp, constant);
 });
 
 handler(
