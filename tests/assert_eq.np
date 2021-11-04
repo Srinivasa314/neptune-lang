@@ -1,0 +1,7 @@
+fun assert_eq(x,y){
+    if x!=y{
+        panic "Assertion failed: \(x)==\(y)"
+    }
+}
+
+assert_eq(2+2,5)

@@ -1,23 +1,80 @@
-fun assert_eq(x,y){
-    if x!=y{
-        panic "Assertion failed: \(x)==\(y)"
-    }
-}
-
-fun assert_failed(f,err){
-    let handled=false
-    try{ 
-        f()
-    }catch e{
-        handled=true
-        if err!=e{
-            panic "Assertion failed: \(e)==\(err)"
-        }
-    }
-    if !handled{
-        panic "Assertion failed: Expected it to panic"
-    }
-}
-
-assert_eq(1+1,2)
+assert_failed(||{let x=2147483647;x+1},"Cannot add 2147483647 and 1 as the result does not fit in an int")
+assert_failed(||{let x=-2147483647;x-5},"Cannot subtract -2147483647 and 5 as the result does not fit in an int")
+assert_failed(||{let x=1000000;x*1000000},"Cannot multiply 1000000 and 1000000 as the result does not fit in an int")
 assert_failed(||{let x=1;x/0},"Cannot divide 1 and 0 as the result does not fit in an int")
+assert_failed(||{let x=-2147483647-1;x=-x},"Cannot negate -2147483648 as the result cannot be stored in an int")
+assert_failed(||'a'+'b',"Cannot add types string and string")
+
+assert_eq(1==1.0,true)
+assert_eq(!![],true)
+assert_eq("a"~"b","ab")
+
+m={@a:5}
+assert_eq(m[@a],5)
+assert_failed(||m[0],"Key 0 does not exist in map")
+
+a=[]
+assert_failed(||a[0], "Array index out of range")
+assert_failed(||a[-1], "Array index out of range")
+assert_failed(||a[0.0], "Array indices must be int not float")
+
+assert_failed(||{for i in 'a'..1{}},"Expected int and int for the start and end of for loop got string and int instead")
+let g=null
+for i in 1..10{
+    g=i
+    if i==7{
+        break
+    }
+}
+assert_eq(g,7)
+
+g=0
+for i in 1..10{
+    if i==7{
+        continue
+    }
+    g+=i
+}
+assert_eq(g,38)
+
+fun fib(n){
+    if n<2{
+        return n
+    }
+    return fib(n-1)+fib(n-2)
+}
+assert_eq(fib(6),8)
+
+fun f0(){}
+assert_eq(f0(),null)
+
+
+fun f1(){
+    let a=10
+    let b=20
+    return ||a
+    return ||b
+}
+assert_eq(f1()(),10)
+
+a=[null,null,null]
+for i in 0..3{
+    a[i]=||i
+}
+assert_eq(a[0](),0)
+assert_eq(a[1](),1)
+assert_eq(a[2](),2)
+
+fun f2(){
+    let a=17
+    g=||a
+    panic ''
+}
+try{
+    f2()
+}
+catch e{}
+assert_eq(g(),17)
+
+try{try{panic ''}catch e{g=10}}catch e{g=20}
+assert_eq(g,10)

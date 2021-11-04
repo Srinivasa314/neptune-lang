@@ -1,1 +1,0 @@
-[{"token_type":"Let","inner":"let","line":1},{"token_type":"Identifier","inner":"t","line":1},{"token_type":"Equal","inner":"=","line":1},{"token_type":{"Symbol":"x"},"inner":"@x","line":1},{"token_type":"StatementSeparator","inner":";","line":1},{"token_type":"Eof","inner":"","line":1}]

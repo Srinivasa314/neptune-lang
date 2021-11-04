@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Cannot redeclare global var1",
+    "line": 2
+  },
+  {
+    "message": "Cannot redeclare variable a in the same scope",
+    "line": 7
+  }
+]

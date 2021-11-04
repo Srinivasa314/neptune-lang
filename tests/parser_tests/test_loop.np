@@ -1,7 +1,0 @@
-for i in 1..10{
-
-}
-let i=0
-while i<10{
-    i+=1
-}
