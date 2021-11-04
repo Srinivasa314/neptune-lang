@@ -175,12 +175,46 @@ mod tests {
         assert_eq!(n.eval("1+1").unwrap().unwrap(), "2");
         assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
         assert_eq!(n.eval("0.1+0.2").unwrap().unwrap(), "0.3");
+
+        assert_eq!(n.eval("1.0/0.0").unwrap().unwrap(), "inf");
+        assert_eq!(n.eval("-1.0/0.0").unwrap().unwrap(), "-inf");
+
+        assert!(matches!(
+            n.eval("0.0/0.0").unwrap().unwrap().as_str(),
+            "-nan" | "nan"
+        ));
+
+        n.exec("let a=[0];a[0]=a").unwrap();
+        assert_eq!(
+            n.eval("a").unwrap().unwrap(),
+            "[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]"
+        );
+
+        n.exec(
+            r"
+        let m=null
+        for i in 0..50 {
+            m={@next:m}
+        }
+        ",
+        )
+        .unwrap();
+        assert_eq!(
+            n.eval("m").unwrap().unwrap(),
+            "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
+        );
+
+        for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
+            if let InterpretError::CompileError(_) = n.exec(&read(test)).unwrap_err() {
+                panic!("Expected a runtime error")
+            }
+        }
         if let Err(e) = n.exec(&read("test.np")) {
             panic!("{:?}", e);
         }
         let errors: Vec<String> = serde_json::from_str(&read("errors.json")).unwrap();
         for error in errors {
-            let res = n.eval(&read(&format!("{}.np", error))).unwrap_err();
+            let res = n.exec(&read(&format!("{}.np", error))).unwrap_err();
             if let InterpretError::CompileError(res) = res {
                 let result = serde_json::to_string_pretty(&res).unwrap();
                 if env::var("NEPTUNE_GEN_ERRORS").is_ok() {

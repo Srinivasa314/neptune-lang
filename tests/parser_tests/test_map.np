@@ -1,4 +1,0 @@
-let x={@a:5}
-let y={}
-let z={@a:7,0.4:9,}
-let i=x[@a]

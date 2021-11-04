@@ -1,7 +1,0 @@
-{
-    let s1='abc';
-    let s2='\(5)'
-    let s3='hello \(s1)'
-    let s4='\(s3)!'
-    let s5='\(s1)\(s2)'
-}

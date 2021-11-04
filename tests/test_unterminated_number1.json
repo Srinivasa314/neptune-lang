@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Expect number after . for 1",
+    "line": 1
+  },
+  {
+    "message": "Expect newline or semicolon at token .",
+    "line": 1
+  }
+]
