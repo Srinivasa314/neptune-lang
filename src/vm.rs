@@ -16,14 +16,6 @@ impl<'a> StringSlice<'a> {
             std::str::from_utf8_unchecked(s)
         }
     }
-
-    fn new() -> Self {
-        Self {
-            data: std::ptr::null(),
-            len: 0,
-            _marker: PhantomData,
-        }
-    }
 }
 
 impl<'a> From<&'a str> for StringSlice<'a> {
@@ -80,7 +72,7 @@ unsafe impl ExternType for Global {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct FunctionContextInner {
-    vm: *mut c_void,
+    vm: *mut ffi::VM,
     slots: *mut c_void,
     max_slots: u16,
 }
@@ -212,7 +204,6 @@ mod ffi {
         type StringSlice<'a> = super::StringSlice<'a>;
         type Global = super::Global;
         type Op;
-        type VMResult;
         type VMStatus;
         type VM;
         type Data;
@@ -223,7 +214,7 @@ mod ffi {
         type FunctionContext = super::FunctionContextInner;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
-        unsafe fn run(self: &mut FunctionInfoWriter, eval: bool) -> UniquePtr<VMResult>;
+        unsafe fn run(self: &mut FunctionInfoWriter) -> VMStatus;
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
@@ -252,9 +243,6 @@ mod ffi {
         fn new_vm() -> UniquePtr<VM>;
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
-        fn get_result<'a>(self: &'a VMResult) -> StringSlice<'a>;
-        fn get_stack_trace<'a>(self: &'a VMResult) -> StringSlice<'a>;
-        fn get_status(self: &VMResult) -> VMStatus;
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
         fn add_upvalue(self: &mut FunctionInfoWriter, index: u16, is_local: bool);
         fn add_exception_handler(
@@ -270,18 +258,23 @@ mod ffi {
             name: StringSlice,
             arity: u8,
             extra_slots: u16,
-            callback: *const NativeFunctionCallback,
+            callback: *mut NativeFunctionCallback,
             data: *mut Data,
-            free_data: *const FreeDataCallback,
+            free_data: *mut FreeDataCallback,
         ) -> bool;
-        fn return_value(self: &mut FunctionContext, slot: u16) -> NativeFunctionStatus;
-        fn as_string<'a>(
-            self: &'a FunctionContext,
+        fn get_stack_trace(self: &VM) -> String;
+        fn get_result(self: &VM) -> String;
+        fn return_value(self: &FunctionContext, slot: u16) -> NativeFunctionStatus;
+        fn as_string(self: &FunctionContext, slot: u16, s: &mut String) -> NativeFunctionStatus;
+        fn to_string(self: &FunctionContext, dest: u16, source: u16) -> NativeFunctionStatus;
+        fn null(self: &FunctionContext, slot: u16) -> NativeFunctionStatus;
+        // For safety whenever control is returned to the VM, the bytecode must be valid
+        unsafe fn function(
+            self: &FunctionContext,
             slot: u16,
-            s: &mut StringSlice<'a>,
+            fw: FunctionInfoWriter,
         ) -> NativeFunctionStatus;
-        fn to_string(self: &mut FunctionContext, dest: u16, source: u16) -> NativeFunctionStatus;
-        fn null(self: &mut FunctionContext, slot: u16);
+        fn error(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
     }
 }
 
@@ -304,15 +297,15 @@ impl VM {
                 name.into(),
                 arity,
                 extra_slots,
-                trampoline::<F> as *const NativeFunctionCallback,
+                trampoline::<F> as *mut NativeFunctionCallback,
                 data as *mut Data,
-                free_data::<F> as *const FreeDataCallback,
+                free_data::<F> as *mut FreeDataCallback,
             )
         }
     }
 }
 
-unsafe extern "C" fn trampoline<F>(mut ctx: FunctionContextInner, data: *mut Data) -> bool
+unsafe extern "C" fn trampoline<F>(ctx: FunctionContextInner, data: *mut Data) -> bool
 where
     F: FnMut(FunctionContext) -> Result<u16, u16> + 'static,
 {
@@ -343,23 +336,42 @@ unsafe extern "C" fn free_data<F>(data: *mut Data) {
 }
 
 impl FunctionContext {
-    pub fn as_string<'a>(&'a self, slot: u16) -> Option<&'a str> {
-        let mut s = StringSlice::new();
+    pub fn as_string(&self, slot: u16) -> Option<String> {
+        let mut s = String::new();
         match self.0.as_string(slot, &mut s) {
             NativeFunctionStatus::InvalidSlotError => panic!("Attempt to access invalid slot"),
             NativeFunctionStatus::TypeError => None,
-            _ => Some(s.as_str()),
+            _ => Some(s),
         }
     }
 
-    pub fn to_string(&mut self, dest: u16, source: u16) {
+    pub fn to_string(&self, dest: u16, source: u16) {
         if self.0.to_string(dest, source) == NativeFunctionStatus::InvalidSlotError {
             panic!("Attempt to access invalid slot")
         }
     }
 
-    pub fn null(&mut self, slot: u16) {
-        self.0.null(slot);
+    pub fn null(&self, slot: u16) {
+        if self.0.null(slot) == NativeFunctionStatus::InvalidSlotError {
+            panic!("Attempt to access invalid slot")
+        }
+    }
+
+    pub fn error(&self, slot: u16, error: &str) {
+        if self.0.error(slot, error.into()) == NativeFunctionStatus::InvalidSlotError {
+            panic!("Attempt to access invalid slot")
+        }
+    }
+
+    pub(crate) fn vm(&self) -> &VM {
+        unsafe { &*self.0.vm }
+    }
+
+    // For safety whenever control is returned to the VM, the bytecode must be valid
+    pub(crate) unsafe fn function(self: &FunctionContext, slot: u16, fw: FunctionInfoWriter) {
+        if self.0.function(slot, fw) == NativeFunctionStatus::InvalidSlotError {
+            panic!("Attempt to access invalid slot")
+        }
     }
 }
 

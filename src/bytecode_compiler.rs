@@ -27,7 +27,7 @@ impl<'vm> Compiler<'vm> {
         mut self,
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        self.register_globals(&ast);
+        self.register_module_variables(&ast);
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
         b.bytecode.write_u8(Op::Exit.repr);
@@ -79,7 +79,7 @@ impl<'vm> Compiler<'vm> {
         }
     }
 
-    fn register_globals(&mut self, ast: &[Statement]) {
+    fn register_module_variables(&mut self, ast: &[Statement]) {
         for statement in ast {
             match statement {
                 Statement::VarDeclaration {

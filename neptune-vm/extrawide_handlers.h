@@ -1,5 +1,5 @@
-handler(LoadGlobal, accumulator = globals[READ(utype)];);
-handler(StoreGlobal, globals[READ(utype)] = accumulator;);
+handler(LoadModuleVariable, accumulator = module_variables[READ(utype)];);
+handler(StoreModuleVariable, module_variables[READ(utype)] = accumulator;);
 
 #define BINARY_OP_INT(opname, intfn, op)                                       \
   do {                                                                         \

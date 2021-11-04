@@ -77,7 +77,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
   } while (0)
 
 namespace neptune_vm {
-VMResult VM::run(Function *f, bool eval) {
+VMStatus VM::run(Function *f) {
   if (is_running)
     throw std::runtime_error("Cannot call run() while VM is already running");
   is_running = true;
@@ -95,10 +95,10 @@ VMResult VM::run(Function *f, bool eval) {
   };
 #endif
   stack_trace = "";
-  last_panic = "";
+  return_value = Value::null();
   Value accumulator = Value::null();
   Value *bp = &stack[0];
-  auto globals = this->globals.begin();
+  auto module_variables = this->module_variables.begin();
   Value *constants;
   const uint8_t *ip = nullptr;
   static_assert(
@@ -172,16 +172,11 @@ VMResult VM::run(Function *f, bool eval) {
   }
 end:
   is_running = false;
-  if (eval) {
-    std::ostringstream os;
-    os << accumulator;
-    return VMResult(VMStatus::Success, os.str(), "");
-  } else {
-    return VMResult(VMStatus::Success, "", "");
-  }
+  return_value = accumulator;
+  return VMStatus::Success;
 panic_end:
   is_running = false;
-  return VMResult(VMStatus::Error, std::move(last_panic), stack_trace);
+  return VMStatus::Error;
 }
 #undef READ
 void VM::close(Value *last) {
@@ -191,28 +186,42 @@ void VM::close(Value *last) {
     open_upvalues = open_upvalues->next;
   }
 }
-bool VM::add_global(StringSlice name, bool mutable_) const {
-  if (!global_names
-           .insert({std::string(name.data, name.len),
-                    Global{static_cast<uint32_t>(globals.size()), mutable_}})
-           .second)
+bool VM::add_module_variable(StringSlice module, StringSlice name,
+                             bool mutable_) const {
+  auto module_iter = modules.find(module);
+  if (module_iter == modules.end())
     return false;
-  globals.push_back(Value::null());
-  return true;
+  else {
+    auto module = module_iter->second;
+    if (!module->module_variables
+             .insert(
+                 {const_cast<VM *>(this)->intern(name),
+                  ModuleVariable{static_cast<uint32_t>(module_variables.size()),
+                                 mutable_}})
+             .second)
+      return false;
+    module_variables.push_back(Value::null());
+    return true;
+  }
 }
 
-Global VM::get_global(StringSlice name) const {
-  auto it = global_names.find(std::string(name.data, name.len));
-  if (it == global_names.end())
-    throw std::runtime_error("Global does not exist");
+ModuleVariable VM::get_module_variable(StringSlice module_name,
+                                       StringSlice name) const {
+  auto module_iter = modules.find(module_name);
+  if (module_iter == modules.end())
+    throw std::runtime_error("No such module");
+  auto module = module_iter->second;
+  auto it = module->module_variables.find(name);
+  if (it == module->module_variables.end())
+    throw std::runtime_error("No such module variable");
   return it->second;
 }
 std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 
-FunctionInfoWriter VM::new_function_info(StringSlice name,
+FunctionInfoWriter VM::new_function_info(StringSlice module, StringSlice name,
                                          uint8_t arity) const {
   auto this_ = const_cast<VM *>(this);
-  auto function_info = new FunctionInfo(name, arity);
+  auto function_info = new FunctionInfo(module, name, arity);
   this_->manage(function_info);
   return FunctionInfoWriter(this_->make_handle(function_info), this);
 }
@@ -382,21 +391,26 @@ void VM::collect() {
   }
   for (auto t : temp_roots)
     grey(t);
-  for (auto i = stack.get(); i < stack_top; i++) {
-    if (!i->is_empty() && i->is_object())
-      grey(i->as_object());
+  for (auto v = stack.get(); v < stack_top; v++) {
+    if (!v->is_empty() && v->is_object())
+      grey(v->as_object());
   }
-  for (auto i : globals) {
-    grey_value(i);
+  for (auto v : module_variables) {
+    if (v.is_object())
+      grey(v.as_object());
+  }
+  for (auto module : modules) {
+    grey(module.second);
   }
   for (auto frame = frames.get(); frame < frames.get() + num_frames; frame++) {
     grey(frame->f);
   }
-  grey_value(return_value);
+  if (return_value.is_object())
+    grey(return_value.as_object());
   // this might not be necessary since native functions are constants but just
   // in case
   grey(last_native_function);
-  // Blacken all objects
+
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
     greyobjects.pop_back();
@@ -427,33 +441,28 @@ void VM::grey(Object *o) {
   greyobjects.push_back(o);
 }
 
-void VM::grey_value(Value v) {
-  if (!v.is_empty() && v.is_object())
-    grey(v.as_object());
-}
-
 void VM::blacken(Object *o) {
   switch (o->type) {
   case Type::Array:
-    for (auto i : o->as<Array>()->inner) {
-      if (i.is_object())
-        grey(i.as_object());
+    for (auto v : o->as<Array>()->inner) {
+      if (v.is_object())
+        grey(v.as_object());
     }
     bytes_allocated += sizeof(Array);
     break;
   case Type::Map:
-    for (auto i : o->as<Map>()->inner) {
-      if (i.first.is_object())
-        grey(i.first.as_object());
-      if (i.second.is_object())
-        grey(i.second.as_object());
+    for (auto pair : o->as<Map>()->inner) {
+      if (pair.first.is_object())
+        grey(pair.first.as_object());
+      if (pair.second.is_object())
+        grey(pair.second.as_object());
     }
     bytes_allocated += sizeof(Map);
     break;
   case Type::FunctionInfo:
-    for (auto i : o->as<FunctionInfo>()->constants) {
-      if (i.is_object())
-        grey(i.as_object());
+    for (auto constant : o->as<FunctionInfo>()->constants) {
+      if (constant.is_object())
+        grey(constant.as_object());
     }
     bytes_allocated += sizeof(FunctionInfo);
     break;
@@ -472,7 +481,8 @@ void VM::blacken(Object *o) {
     break;
   case Type::UpValue:
     bytes_allocated += sizeof(UpValue);
-    grey_value(o->as<UpValue>()->closed);
+    if (o->as<UpValue>()->closed.is_object())
+      grey(o->as<UpValue>()->closed.as_object());
     break;
   case Type::NativeFunction:
     bytes_allocated += sizeof(NativeFunction);
@@ -500,7 +510,7 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
   }
 }
 
-std::string VM::get_stack_trace() {
+std::string VM::generate_stack_trace() {
   std::ostringstream os;
   if (last_native_function != nullptr) {
     os << "at " << last_native_function->name << '\n';
@@ -508,7 +518,8 @@ std::string VM::get_stack_trace() {
   }
   for (size_t i = num_frames; i-- > 0;) {
     auto frame = frames[i];
-    os << "at " << frame.f->function_info->name << " (line "
+    os << "at " << frame.f->function_info->name << " ("
+       << frame.f->function_info->module << ':'
        << get_line_number(frame.f->function_info, frame.ip - 1) << ")\n";
   }
   return os.str();
@@ -522,7 +533,7 @@ const uint8_t *VM::panic(const uint8_t *ip) {
 
 const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   frames[num_frames - 1].ip = ip;
-  stack_trace = get_stack_trace();
+  stack_trace = generate_stack_trace();
   do {
     auto frame = frames[num_frames - 1];
     auto bytecode = frame.f->function_info->bytecode.data();
@@ -542,21 +553,16 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
     num_frames--;
   } while (num_frames != 0);
   stack_top = stack.get();
-  std::ostringstream os;
-  os << v;
-  last_panic = os.str();
+  return_value = v;
   return nullptr;
 }
 
-bool VM::declare_native_function(StringSlice name, uint8_t arity,
-                                 uint16_t extra_slots,
+bool VM::declare_native_function(StringSlice module, StringSlice name,
+                                 uint8_t arity, uint16_t extra_slots,
                                  NativeFunctionCallback *callback,
                                  Data *data = nullptr,
                                  FreeDataCallback *free_data = nullptr) const {
-  if (!global_names
-           .insert({std::string(name.data, name.len),
-                    Global{static_cast<uint32_t>(globals.size()), false}})
-           .second)
+  if (!add_module_variable(module, name, false))
     return false;
   auto n = new NativeFunction();
   n->arity = arity;
@@ -565,7 +571,7 @@ bool VM::declare_native_function(StringSlice name, uint8_t arity,
   n->data = data;
   n->free_data = free_data;
   n->name = std::string{name.data, name.len};
-  globals.push_back(Value(n));
+  module_variables[module_variables.size() - 1] = Value(n);
   const_cast<VM *>(this)->manage(n);
   return true;
 }
@@ -577,8 +583,7 @@ bool disassemble(FunctionContext ctx, void *) {
     std::ostringstream os;
     disassemble(os, *fn.as_object()->as<Function>()->function_info);
     auto str = os.str();
-    ctx.vm->return_value = Value(
-        ctx.vm->manage(String::from(StringSlice(str.data(), str.length()))));
+    ctx.vm->return_value = Value(ctx.vm->manage(String::from(str)));
     return true;
   } else {
     std::ostringstream os;
@@ -595,9 +600,10 @@ bool gc(FunctionContext ctx, void *) {
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
-  declare_native_function(StringSlice("disassemble"), 1, 0,
+  declare_native_function(StringSlice("vm"), StringSlice("disassemble"), 1, 0,
                           native_builtins::disassemble);
-  declare_native_function(StringSlice("gc"), 0, 0, native_builtins::gc);
+  declare_native_function(StringSlice("vm"), StringSlice("gc"), 0, 0,
+                          native_builtins::gc);
 }
 
 Value VM::make_function(Value *bp, Value constant) {
@@ -640,4 +646,14 @@ Value VM::make_function(Value *bp, Value constant) {
   return Value(static_cast<Object *>(function));
 }
 
+bool VM::module_exists(StringSlice module_name) {
+  return modules.find(module_name) != modules.end();
+}
+
+void VM::create_module(StringSlice module_name) {
+  if (!module_exists(module_name)) {
+    modules.insert(
+        {std::string(module_name.data, module_name.len), manage(new Module)});
+  }
+}
 } // namespace neptune_vm

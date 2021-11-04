@@ -8,7 +8,7 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
     let n = Neptune::new();
-    n.create_function("print", 1, 0, |mut ctx| {
+    n.create_function("print", 1, 0, |ctx| {
         ctx.to_string(0, 0);
         println!("{}", ctx.as_string(0).unwrap());
         ctx.null(0);

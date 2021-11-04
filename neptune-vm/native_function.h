@@ -1,5 +1,6 @@
 #pragma once
 #include "object.h"
+#include "rust/cxx.h"
 
 namespace neptune_vm {
 class VM;
@@ -10,10 +11,12 @@ struct FunctionContext {
   VM *vm;
   Value *slots;
   uint16_t max_slots;
-  NativeFunctionStatus return_value(uint16_t slot);
-  NativeFunctionStatus as_string(uint16_t slot, StringSlice &s) const;
-  NativeFunctionStatus to_string(uint16_t dest, uint16_t source);
-  void null(uint16_t slot);
+  NativeFunctionStatus return_value(uint16_t slot) const;
+  NativeFunctionStatus as_string(uint16_t slot, rust::String &s) const;
+  NativeFunctionStatus to_string(uint16_t dest, uint16_t source) const;
+  NativeFunctionStatus null(uint16_t slot) const;
+  NativeFunctionStatus function(uint16_t slot, FunctionInfoWriter fw) const;
+  NativeFunctionStatus error(uint16_t slot, StringSlice error) const;
 };
 
 using Data = void; // Can be anything

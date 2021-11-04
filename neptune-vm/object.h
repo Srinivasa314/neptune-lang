@@ -1,4 +1,5 @@
 #pragma once
+#include "rust/cxx.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -29,7 +30,8 @@ enum class Type : uint8_t {
   FunctionInfo,
   Function,
   UpValue,
-  NativeFunction
+  NativeFunction,
+  Module
 };
 
 class Object {
@@ -55,6 +57,7 @@ public:
   static String *from(StringSlice s);
   static String *from(const std::string &s);
   operator StringSlice() const;
+  operator rust::String() const;
   String *concat(String *s);
 };
 
@@ -91,11 +94,21 @@ struct StringEquality {
     return StringEquality{}(static_cast<StringSlice>(*s1),
                             static_cast<StringSlice>(*s2));
   }
+  bool operator()(const std::string &s1, const std::string &s2) const {
+    return s1 == s2;
+  }
+  bool operator()(const std::string &s1, StringSlice s2) const {
+    return StringEquality{}(StringSlice(s1.data(), s1.size()), s2);
+  }
+  bool operator()(StringSlice s1, const std::string &s2) const {
+    return StringEquality{}(s2, s1);
+  }
 };
 
 struct StringHasher {
   uint32_t operator()(StringSlice s) const;
   uint32_t operator()(Symbol *sym) const;
+  uint32_t operator()(const std::string &s) const;
 };
 
 class Array : public Object {
@@ -116,5 +129,19 @@ public:
   explicit Map(size_t size);
   ValueMap<Value> inner;
   static constexpr Type type = Type::Map;
+};
+
+struct ModuleVariable {
+  uint32_t position;
+  bool mutable_;
+};
+
+class Module : public Object {
+  tsl::robin_map<Symbol *, ModuleVariable, StringHasher, StringEquality>
+      module_variables;
+
+public:
+  static constexpr Type type = Type::Module;
+  friend class VM;
 };
 } // namespace neptune_vm

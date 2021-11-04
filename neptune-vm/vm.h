@@ -1,6 +1,8 @@
 #pragma once
+#include "rust/cxx.h"
 #include <memory>
 #include <sstream>
+#include <string>
 #include <tsl/robin_map.h>
 #include <tsl/robin_set.h>
 
@@ -21,38 +23,14 @@ struct Frame {
   const uint8_t *ip;
 };
 
-enum class VMStatus : uint8_t { Success, Error };
-
-struct VMResult {
-  VMStatus status;
-  std::string result;
-  std::string stack_trace;
-
-  VMResult(VMStatus status_, std::string result_, std::string stack_trace_)
-      : status(status_), result(result_), stack_trace(stack_trace_) {}
-
-  VMStatus get_status() const { return status; }
-  StringSlice get_result() const {
-    return StringSlice{result.data(), result.size()};
-  }
-  StringSlice get_stack_trace() const {
-    return StringSlice{stack_trace.data(), stack_trace.size()};
-  }
-};
-
-struct Global {
-  uint32_t position;
-  bool mutable_;
-};
-
 class VM {
   std::unique_ptr<Value[]> stack;
   std::unique_ptr<Frame[]> frames;
   size_t num_frames;
   UpValue *open_upvalues;
   std::vector<Object *> temp_roots;
-  mutable tsl::robin_map<std::string, Global> global_names;
-  mutable std::vector<Value> globals;
+  tsl::robin_map<std::string, Module *, StringHasher, StringEquality> modules;
+  mutable std::vector<Value> module_variables;
   size_t bytes_allocated;
   // Linked list of all objects
   Object *first_obj;
@@ -62,7 +40,6 @@ class VM {
   Value *stack_top;
   std::vector<Object *> greyobjects;
   std::string stack_trace;
-  std::string last_panic;
   bool is_running;
   std::ostringstream panic_message;
   NativeFunction *last_native_function;
@@ -70,10 +47,13 @@ class VM {
 public:
   Value return_value;
   Value to_string(Value val);
-  VMResult run(Function *f, bool eval);
-  bool add_global(StringSlice name, bool mutable_) const;
-  Global get_global(StringSlice name) const;
-  FunctionInfoWriter new_function_info(StringSlice name, uint8_t arity) const;
+  VMStatus run(Function *f);
+  bool add_module_variable(StringSlice module, StringSlice name,
+                           bool mutable_) const;
+  ModuleVariable get_module_variable(StringSlice module_name,
+                                     StringSlice name) const;
+  FunctionInfoWriter new_function_info(StringSlice module, StringSlice name,
+                                       uint8_t arity) const;
   template <typename O> O *manage(O *t);
   template <typename O> Handle<O> *make_handle(O *object);
   template <typename O> void release(Handle<O> *handle);
@@ -82,17 +62,24 @@ public:
   void collect();
   void blacken(Object *o);
   void grey(Object *o);
-  void grey_value(Value v);
   void close(Value *last);
-  std::string get_stack_trace();
+  std::string generate_stack_trace();
   const uint8_t *panic(const uint8_t *ip, Value v);
   const uint8_t *panic(const uint8_t *ip);
-  bool declare_native_function(StringSlice name, uint8_t arity,
-                               uint16_t extra_slots,
+  bool declare_native_function(StringSlice module, StringSlice name,
+                               uint8_t arity, uint16_t extra_slots,
                                NativeFunctionCallback *callback, Data *data,
                                FreeDataCallback *free_data) const;
   void declare_native_builtins();
   Value make_function(Value *bp, Value constant);
+  rust::String get_stack_trace() const { return rust::String(stack_trace); }
+  rust::String get_result() const {
+    std::ostringstream os;
+    os << return_value;
+    return rust::String(os.str());
+  }
+  bool module_exists(StringSlice module_name);
+  void create_module(StringSlice module_name);
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),

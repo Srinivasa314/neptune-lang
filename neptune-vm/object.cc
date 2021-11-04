@@ -40,6 +40,8 @@ String *String::concat(String *s) {
   return p;
 }
 
+String::operator rust::String() const { return rust::String(data, len); }
+
 uint32_t StringHasher::operator()(StringSlice s) const {
   // FNV-1a hash. http://www.isthe.com/chongo/tech/comp/fnv/
   uint32_t hash = 2166136261U;
@@ -54,6 +56,10 @@ uint32_t StringHasher::operator()(StringSlice s) const {
 }
 
 uint32_t StringHasher::operator()(Symbol *sym) const { return sym->hash; }
+
+uint32_t StringHasher::operator()(const std::string &s) const {
+  return StringHasher{}(StringSlice(s.data(), s.length()));
+}
 
 const char *Object::type_string() const {
   // todo change this when more types are added

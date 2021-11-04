@@ -34,49 +34,58 @@ pub struct Neptune {
 
 impl Neptune {
     pub fn new() -> Self {
-        Self { vm: new_vm() }
+        let vm = new_vm();
+        vm.declare_native_rust_function("_eval", 1, 0, |ctx| {
+            let source = match ctx.as_string(0) {
+                Some(source) => source,
+                None => {
+                    ctx.error(0, "the first argument of eval must be a string");
+                    return Err(0);
+                }
+            };
+            let scanner = Scanner::new(&source);
+            let tokens = scanner.scan_tokens();
+            let parser = Parser::new(tokens.into_iter());
+            let ast = parser.parse(true);
+            let compiler = Compiler::new(ctx.vm());
+            let mut fw = if let Some(expr) = Compiler::can_eval(&ast.0) {
+                compiler.eval(expr)
+            } else {
+                compiler.exec(ast.0)
+            };
+            let mut errors = ast.1;
+            if let Err(e) = &mut fw {
+                errors.append(e);
+            }
+            if errors.is_empty() {
+                unsafe { ctx.function(0, fw.unwrap()) };
+                Ok(0)
+            } else {
+                errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
+                let e = format!("{:?}", errors);
+                ctx.error(0, &e);
+                Err(0)
+            }
+        });
+        Self { vm }
     }
 
-    pub fn exec(&self, source: &str) -> Result<(), InterpretError> {
+    fn run(&self, source: &str, eval: bool) -> Result<bool, InterpretError> {
         let scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
-        let ast = parser.parse(false);
+        let ast = parser.parse(eval);
         let compiler = Compiler::new(&self.vm);
-        let mut fw = compiler.exec(ast.0);
-        let mut errors = ast.1;
-        if let Err(e) = &mut fw {
-            errors.append(e);
-        }
-        if errors.is_empty() {
-            let mut fw = fw.unwrap();
-            let vm_result = unsafe { fw.run(false) };
-            match vm_result.get_status() {
-                VMStatus::Success => Ok(()),
-                VMStatus::Error => Err(InterpretError::RuntimePanic {
-                    error: vm_result.get_result().to_string(),
-                    stack_trace: vm_result.get_stack_trace().to_string(),
-                }),
-                _ => unreachable!(),
+        let mut is_expr = false;
+        let mut fw = if eval {
+            if let Some(expr) = Compiler::can_eval(&ast.0) {
+                is_expr = true;
+                compiler.eval(expr)
+            } else {
+                is_expr = false;
+                compiler.exec(ast.0)
             }
         } else {
-            errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
-            Err(InterpretError::CompileError(errors))
-        }
-    }
-
-    pub fn eval(&self, source: &str) -> Result<Option<String>, InterpretError> {
-        let scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens();
-        let parser = Parser::new(tokens.into_iter());
-        let ast = parser.parse(true);
-        let compiler = Compiler::new(&self.vm);
-        let is_expr;
-        let mut fw = if let Some(expr) = Compiler::can_eval(&ast.0) {
-            is_expr = true;
-            compiler.eval(expr)
-        } else {
-            is_expr = false;
             compiler.exec(ast.0)
         };
         let mut errors = ast.1;
@@ -85,22 +94,34 @@ impl Neptune {
         }
         if errors.is_empty() {
             let mut fw = fw.unwrap();
-            let vm_result = unsafe { fw.run(true) };
-            match vm_result.get_status() {
-                VMStatus::Success => Ok(if is_expr {
-                    Some(vm_result.get_result().to_string())
-                } else {
-                    None
-                }),
+            match unsafe { fw.run() } {
+                VMStatus::Success => Ok(is_expr),
                 VMStatus::Error => Err(InterpretError::RuntimePanic {
-                    error: vm_result.get_result().to_string(),
-                    stack_trace: vm_result.get_stack_trace().to_string(),
+                    error: self.vm.get_result(),
+                    stack_trace: self.vm.get_stack_trace(),
                 }),
                 _ => unreachable!(),
             }
         } else {
             errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
             Err(InterpretError::CompileError(errors))
+        }
+    }
+
+    pub fn exec(&self, source: &str) -> Result<(), InterpretError> {
+        self.run(source, false).map(|_| ())
+    }
+
+    pub fn eval(&self, source: &str) -> Result<Option<String>, InterpretError> {
+        match self.run(source, true) {
+            Ok(is_expr) => {
+                if is_expr {
+                    Ok(Some(self.vm.get_result()))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(e) => Err(e),
         }
     }
 

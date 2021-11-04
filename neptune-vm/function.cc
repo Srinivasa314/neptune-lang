@@ -88,10 +88,10 @@ void FunctionInfoWriter::release() {
   constants.reset();
 }
 
-std::unique_ptr<VMResult> FunctionInfoWriter::run(bool eval) {
+VMStatus FunctionInfoWriter::run() {
   auto function = vm->manage(new Function(hf->object));
   function->num_upvalues = 0;
-  return std::unique_ptr<VMResult>(new VMResult(vm->run(function, eval)));
+  return vm->run(function);
 }
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
@@ -196,9 +196,9 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
         CASE(Move) << REG(uint16_t) << ' ' << REG(uint16_t);
         break;
 
-        CASE(LoadGlobal) << READ(uint16_t);
+        CASE(LoadModuleVariable) << READ(uint16_t);
         break;
-        CASE(StoreGlobal) << READ(uint16_t);
+        CASE(StoreModuleVariable) << READ(uint16_t);
         break;
 
         CASE(AddRegister) << REG(uint16_t);
@@ -301,9 +301,9 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
     case Op::ExtraWide: {
       os << "ExtraWide ";
       switch (READ(Op)) {
-        CASE(LoadGlobal) << READ(uint32_t);
+        CASE(LoadModuleVariable) << READ(uint32_t);
         break;
-        CASE(StoreGlobal) << READ(uint32_t);
+        CASE(StoreModuleVariable) << READ(uint32_t);
         break;
         CASE(AddInt) << READ(int32_t);
         break;
@@ -342,9 +342,9 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(Move) << REG(uint8_t) << ' ' << REG(uint8_t);
       break;
-      CASE(LoadGlobal) << READ(uint8_t);
+      CASE(LoadModuleVariable) << READ(uint8_t);
       break;
-      CASE(StoreGlobal) << READ(uint8_t);
+      CASE(StoreModuleVariable) << READ(uint8_t);
       break;
 
       CASE(AddRegister) << REG(uint8_t);
@@ -539,10 +539,10 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
        << "\ncatch block: " << handler.catch_begin
        << "\nerror register: " << handler.error_reg << '\n';
   }
-  for (auto i : f.constants) {
-    if (i.is_object() && i.as_object()->is<FunctionInfo>()) {
+  for (auto constant : f.constants) {
+    if (constant.is_object() && constant.as_object()->is<FunctionInfo>()) {
       os << '\n';
-      disassemble(os, *i.as_object()->as<FunctionInfo>());
+      disassemble(os, *constant.as_object()->as<FunctionInfo>());
     }
   }
 }

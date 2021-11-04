@@ -8,7 +8,7 @@
 namespace neptune_vm {
 template <typename O> class Handle;
 class VM;
-struct VMResult;
+enum class VMStatus : uint8_t { Success, Error };
 
 struct LineInfo {
   uint32_t offset;
@@ -31,6 +31,7 @@ struct ExceptionHandler {
 class FunctionInfo : public Object {
 public:
   static constexpr Type type = Type::FunctionInfo;
+  std::string module;
   std::string name;
   std::vector<uint8_t> bytecode;
   std::vector<Value> constants;
@@ -39,8 +40,9 @@ public:
   uint8_t arity;
   std::vector<UpvalueInfo> upvalues;
   std::vector<ExceptionHandler> exception_handlers;
-  FunctionInfo(StringSlice name_, uint8_t arity_)
-      : name(name_.data, name_.len), arity(arity_) {}
+  FunctionInfo(StringSlice module_, StringSlice name_, uint8_t arity_)
+      : name(name_.data, name_.len), arity(arity_),
+        module(module_.data, module_.len) {}
 };
 
 class FunctionInfoWriter {
@@ -73,10 +75,11 @@ public:
   size_t size() const;
   uint16_t int_constant(int32_t i);
   uint16_t reserve_constant();
-  std::unique_ptr<VMResult> run(bool eval);
+  VMStatus run();
   void add_upvalue(uint16_t index, bool is_local);
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
                              uint16_t error_reg, uint32_t catch_begin);
+  friend class FunctionContext;
 };
 
 struct UpValue : public Object {
@@ -86,7 +89,7 @@ struct UpValue : public Object {
   static constexpr Type type = Type::UpValue;
 
   UpValue(Value *v = nullptr)
-      : location(v), next(nullptr), closed(Value::empty()) {}
+      : location(v), next(nullptr), closed(Value::null()) {}
 };
 
 class Function : public Object {
