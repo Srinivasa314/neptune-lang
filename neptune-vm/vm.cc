@@ -314,6 +314,10 @@ void VM::release(Object *o) {
       n->free_data(n->data);
     delete o;
   } break;
+  case Type::Module: {
+    delete o->as<Module>();
+    break;
+  }
   default:
     unreachable();
   }
@@ -487,6 +491,12 @@ void VM::blacken(Object *o) {
   case Type::NativeFunction:
     bytes_allocated += sizeof(NativeFunction);
     break;
+  case Type::Module:
+    bytes_allocated += sizeof(Module);
+    for (auto pair : o->as<Module>()->module_variables) {
+      grey(pair.first);
+    }
+    break;
   default:
     break;
   }
@@ -646,14 +656,15 @@ Value VM::make_function(Value *bp, Value constant) {
   return Value(static_cast<Object *>(function));
 }
 
-bool VM::module_exists(StringSlice module_name) {
+bool VM::module_exists(StringSlice module_name) const {
   return modules.find(module_name) != modules.end();
 }
 
-void VM::create_module(StringSlice module_name) {
+void VM::create_module(StringSlice module_name) const {
   if (!module_exists(module_name)) {
-    modules.insert(
-        {std::string(module_name.data, module_name.len), manage(new Module)});
+    auto this_ = const_cast<VM *>(this);
+    this_->modules.insert({std::string(module_name.data, module_name.len),
+                           this_->manage(new Module)});
   }
 }
 } // namespace neptune_vm

@@ -41,8 +41,8 @@ public:
   std::vector<UpvalueInfo> upvalues;
   std::vector<ExceptionHandler> exception_handlers;
   FunctionInfo(StringSlice module_, StringSlice name_, uint8_t arity_)
-      : name(name_.data, name_.len), arity(arity_),
-        module(module_.data, module_.len) {}
+      : module(module_.data, module_.len), name(name_.data, name_.len),
+        arity(arity_) {}
 };
 
 class FunctionInfoWriter {

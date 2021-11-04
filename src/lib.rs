@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
@@ -26,48 +28,21 @@ pub enum InterpretError {
 pub type CompileResult<T> = Result<T, CompileError>;
 
 #[derive(Debug)]
-pub struct FunctionRedeclarationError;
+pub enum FunctionDeclarationError {
+    Redecelaration,
+    NoSuchModule,
+}
 
 pub struct Neptune {
     vm: UniquePtr<VM>,
+    module_name: String,
 }
 
 impl Neptune {
-    pub fn new() -> Self {
+    pub fn new(module_name: String) -> Self {
         let vm = new_vm();
-        vm.declare_native_rust_function("_eval", 1, 0, |ctx| {
-            let source = match ctx.as_string(0) {
-                Some(source) => source,
-                None => {
-                    ctx.error(0, "the first argument of eval must be a string");
-                    return Err(0);
-                }
-            };
-            let scanner = Scanner::new(&source);
-            let tokens = scanner.scan_tokens();
-            let parser = Parser::new(tokens.into_iter());
-            let ast = parser.parse(true);
-            let compiler = Compiler::new(ctx.vm());
-            let mut fw = if let Some(expr) = Compiler::can_eval(&ast.0) {
-                compiler.eval(expr)
-            } else {
-                compiler.exec(ast.0)
-            };
-            let mut errors = ast.1;
-            if let Err(e) = &mut fw {
-                errors.append(e);
-            }
-            if errors.is_empty() {
-                unsafe { ctx.function(0, fw.unwrap()) };
-                Ok(0)
-            } else {
-                errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
-                let e = format!("{:?}", errors);
-                ctx.error(0, &e);
-                Err(0)
-            }
-        });
-        Self { vm }
+        vm.create_module(module_name.as_str().into());
+        Self { vm, module_name }
     }
 
     fn run(&self, source: &str, eval: bool) -> Result<bool, InterpretError> {
@@ -75,7 +50,7 @@ impl Neptune {
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens.into_iter());
         let ast = parser.parse(eval);
-        let compiler = Compiler::new(&self.vm);
+        let compiler = Compiler::new(&self.vm, self.module_name.clone());
         let mut is_expr = false;
         let mut fw = if eval {
             if let Some(expr) = Compiler::can_eval(&ast.0) {
@@ -127,25 +102,23 @@ impl Neptune {
 
     pub fn create_function(
         &self,
+        module: &str,
         name: &str,
         arity: u8,
         extra_slots: u16,
         callback: impl FnMut(FunctionContext) -> Result<u16, u16> + 'static,
-    ) -> Result<(), FunctionRedeclarationError> {
+    ) -> Result<(), FunctionDeclarationError> {
+        if !self.vm.module_exists(module.into()) {
+            return Err(FunctionDeclarationError::NoSuchModule)
+        }
         if self
             .vm
-            .declare_native_rust_function(name, arity, extra_slots, callback)
+            .declare_native_rust_function(module, name, arity, extra_slots, callback)
         {
             Ok(())
         } else {
-            Err(FunctionRedeclarationError)
+            Err(FunctionDeclarationError::Redecelaration)
         }
-    }
-}
-
-impl Default for Neptune {
-    fn default() -> Self {
-        Self::new()
     }
 }
 #[cfg(test)]
@@ -171,7 +144,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let n = Neptune::new();
+        let n = Neptune::new("<script>".to_string());
         assert_eq!(n.eval("1+1").unwrap().unwrap(), "2");
         assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
         assert_eq!(n.eval("0.1+0.2").unwrap().unwrap(), "0.3");

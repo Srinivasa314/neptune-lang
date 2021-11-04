@@ -1,5 +1,5 @@
 use cxx::{type_id, ExternType};
-use std::{ffi::c_void, fmt::Display, marker::PhantomData};
+use std::{ffi::c_void, fmt::Display, marker::PhantomData, ops::Index};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -59,13 +59,13 @@ impl<'vm> Drop for FunctionInfoWriter<'vm> {
 }
 
 #[repr(C)]
-pub struct Global {
+pub struct ModuleVariable {
     pub position: u32,
     pub mutable: bool,
 }
 
-unsafe impl ExternType for Global {
-    type Id = type_id!("neptune_vm::Global");
+unsafe impl ExternType for ModuleVariable {
+    type Id = type_id!("neptune_vm::ModuleVariable");
     type Kind = cxx::kind::Trivial;
 }
 
@@ -131,8 +131,8 @@ mod ffi {
         StoreR14,
         StoreR15,
         Move,
-        LoadGlobal,
-        StoreGlobal,
+        LoadModuleVariable,
+        StoreModuleVariable,
         LoadUpvalue,
         StoreUpvalue,
         LoadSubscript,
@@ -202,7 +202,7 @@ mod ffi {
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
-        type Global = super::Global;
+        type ModuleVariable = super::ModuleVariable;
         type Op;
         type VMStatus;
         type VM;
@@ -233,10 +233,20 @@ mod ffi {
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
-        fn add_global<'vm, 's>(self: &'vm VM, name: StringSlice<'s>, mutable_: bool) -> bool;
-        fn get_global<'vm, 's>(self: &'vm VM, name: StringSlice) -> Result<Global>;
+        fn add_module_variable<'vm, 's>(
+            self: &'vm VM,
+            module: StringSlice<'s>,
+            name: StringSlice<'s>,
+            mutable_: bool,
+        ) -> bool;
+        fn get_module_variable<'vm, 's>(
+            self: &'vm VM,
+            module_name: StringSlice,
+            name: StringSlice,
+        ) -> Result<ModuleVariable>;
         fn new_function_info<'vm>(
             self: &'vm VM,
+            module: StringSlice,
             name: StringSlice,
             arity: u8,
         ) -> FunctionInfoWriter<'vm>;
@@ -255,6 +265,7 @@ mod ffi {
         fn size(self: &FunctionInfoWriter) -> usize;
         unsafe fn declare_native_function(
             self: &VM,
+            module: StringSlice,
             name: StringSlice,
             arity: u8,
             extra_slots: u16,
@@ -275,6 +286,8 @@ mod ffi {
             fw: FunctionInfoWriter,
         ) -> NativeFunctionStatus;
         fn error(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
+        fn create_module(self: &VM, module_name: StringSlice);
+        fn module_exists(self: &VM, module_name: StringSlice) -> bool;
     }
 }
 
@@ -283,6 +296,7 @@ use ffi::{Data, FreeDataCallback, NativeFunctionCallback, NativeFunctionStatus};
 impl VM {
     pub fn declare_native_rust_function<F>(
         &self,
+        module: &str,
         name: &str,
         arity: u8,
         extra_slots: u16,
@@ -294,6 +308,7 @@ impl VM {
         let data = Box::into_raw(Box::new(callback));
         unsafe {
             self.declare_native_function(
+                module.into(),
                 name.into(),
                 arity,
                 extra_slots,

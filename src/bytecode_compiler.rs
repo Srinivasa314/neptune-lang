@@ -4,7 +4,7 @@ use crate::parser::ClosureBody;
 use crate::parser::Statement;
 use crate::parser::Substring;
 use crate::vm::FunctionInfoWriter;
-use crate::vm::Global;
+use crate::vm::ModuleVariable;
 use crate::vm::Op;
 use crate::vm::VM;
 use crate::CompileError;
@@ -12,15 +12,21 @@ use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType};
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::ops::Index;
 
 pub struct Compiler<'vm> {
+    module_name: String,
     errors: Vec<CompileError>,
     vm: &'vm VM,
 }
 
 impl<'vm> Compiler<'vm> {
-    pub fn new(vm: &'vm VM) -> Self {
-        Self { vm, errors: vec![] }
+    pub fn new(vm: &'vm VM, module_name: String) -> Self {
+        Self {
+            vm,
+            module_name,
+            errors: vec![],
+        }
     }
 
     pub fn exec(
@@ -28,7 +34,8 @@ impl<'vm> Compiler<'vm> {
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         self.register_module_variables(&ast);
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
+        let module = self.module_name.clone();
+        let mut b = BytecodeCompiler::new(&mut self, &module, BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
         b.bytecode.write_u8(Op::Exit.repr);
         let bytecode = b.bytecode;
@@ -59,7 +66,8 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
+        let module = self.module_name.clone();
+        let mut b = BytecodeCompiler::new(&mut self, &module, BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
                 if let Err(e) = b.store_in_accumulator(er, 1) {
@@ -88,7 +96,11 @@ impl<'vm> Compiler<'vm> {
                     line,
                     ..
                 } => {
-                    if !self.vm.add_global(name.as_str().into(), *mutable) {
+                    if !self.vm.add_module_variable(
+                        self.module_name.as_str().into(),
+                        name.as_str().into(),
+                        *mutable,
+                    ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
                             line: *line,
@@ -96,7 +108,11 @@ impl<'vm> Compiler<'vm> {
                     }
                 }
                 Statement::Function { name, line, .. } => {
-                    if !self.vm.add_global(name.as_str().into(), false) {
+                    if !self.vm.add_module_variable(
+                        self.module_name.as_str().into(),
+                        name.as_str().into(),
+                        false,
+                    ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
                             line: *line,
@@ -155,7 +171,9 @@ struct UpValue {
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType, arity: u8) -> Self {
         Self {
-            bytecode: c.vm.new_function_info(name.into(), arity),
+            bytecode: c
+                .vm
+                .new_function_info(c.module_name.as_str().into(), name.into(), arity),
             locals: if bctype == BytecodeType::Script {
                 vec![]
             } else {
@@ -191,12 +209,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         self.regcount -= 1;
     }
 
-    fn get_global(&self, name: &str) -> Option<Global> {
-        self.compiler
-            .as_ref()
-            .unwrap()
+    fn get_global(&self, name: &str) -> Option<ModuleVariable> {
+        (self.compiler.as_ref().unwrap() as &Compiler)
             .vm
-            .get_global(name.into())
+            .get_module_variable(
+                (self.compiler.as_ref().unwrap() as &Compiler)
+                    .module_name
+                    .as_str()
+                    .into(),
+                name.into(),
+            )
             .ok()
     }
 
@@ -599,7 +621,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             let g = self.get_global(name).unwrap();
             let res = self.evaluate_expr(expr)?;
             self.store_in_accumulator(res, line)?;
-            self.write1(Op::StoreGlobal, g.position, line);
+            self.write1(Op::StoreModuleVariable, g.position, line);
         } else {
             if self.locals.last().unwrap().contains_key(name) {
                 return Err(CompileError {
@@ -878,7 +900,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     )?;
                     if self.bctype == BytecodeType::Script && self.locals.is_empty() {
                         let g = self.get_global(name).unwrap();
-                        self.write1(Op::StoreGlobal, g.position, *last_line);
+                        self.write1(Op::StoreModuleVariable, g.position, *last_line);
                     } else {
                         if self.locals.last().unwrap().contains_key(name) {
                             return Err(CompileError {
@@ -1143,7 +1165,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             message: format!("{} is not defined", name),
                             line: *line,
                         })?;
-                        self.write1(Op::LoadGlobal, global.position, *line);
+                        self.write1(Op::LoadModuleVariable, global.position, *line);
                         Ok(ExprResult::Accumulator)
                     }
                 },
@@ -1513,7 +1535,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     })
                 } else {
-                    self.write1(Op::StoreGlobal, global.position, *line);
+                    self.write1(Op::StoreModuleVariable, global.position, *line);
                     Ok(())
                 }
             }
