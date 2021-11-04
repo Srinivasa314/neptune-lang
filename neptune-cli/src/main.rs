@@ -7,8 +7,8 @@ use rustyline::{
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
-    let n = Neptune::new("<script>".to_string());
-    n.create_function("<script>", "print", 1, 0, |ctx| {
+    let n = Neptune::new();
+    n.create_function("prelude", "print", 1, 0, |ctx| {
         ctx.to_string(0, 0);
         println!("{}", ctx.as_string(0).unwrap());
         ctx.null(0);
@@ -16,8 +16,8 @@ fn main() {
     })
     .unwrap();
     match std::env::args().nth(1) {
-        Some(file) => match &std::fs::read_to_string(file) {
-            Ok(s) => match n.exec(s) {
+        Some(file) => match &std::fs::read_to_string(&file) {
+            Ok(s) => match n.exec(&file, s) {
                 Ok(()) => {}
                 Err(e) => report_error(e),
             },
@@ -61,7 +61,7 @@ fn repl(n: &Neptune) {
     loop {
         match rl.readline(">> ") {
             Ok(lines) => {
-                match n.eval(&lines) {
+                match n.eval("<stdin>", &lines) {
                     Ok(Some(val)) => {
                         println!("{}", val);
                     }

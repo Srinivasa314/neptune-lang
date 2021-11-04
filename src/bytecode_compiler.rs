@@ -12,7 +12,6 @@ use crate::CompileResult;
 use crate::{parser::Expr, scanner::TokenType};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::ops::Index;
 
 pub struct Compiler<'vm> {
     module_name: String,

@@ -141,6 +141,8 @@ class Module : public Object {
       module_variables;
 
 public:
+  std::string name;
+  Module(std::string name_) : name(name_) {}
   static constexpr Type type = Type::Module;
   friend class VM;
 };

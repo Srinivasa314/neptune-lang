@@ -80,12 +80,13 @@ public:
   }
   bool module_exists(StringSlice module_name) const;
   void create_module(StringSlice module_name) const;
+  void create_module_with_prelude(StringSlice module_name) const;
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
         stack_top(stack.get()), is_running(false), return_value(Value::null()) {
-    create_module(StringSlice("vm"));
+    create_module(StringSlice("prelude"));
     declare_native_builtins();
   }
   ~VM();

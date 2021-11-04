@@ -1,5 +1,5 @@
 use cxx::{type_id, ExternType};
-use std::{ffi::c_void, fmt::Display, marker::PhantomData, ops::Index};
+use std::{ffi::c_void, fmt::Display, marker::PhantomData};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -239,8 +239,8 @@ mod ffi {
             name: StringSlice<'s>,
             mutable_: bool,
         ) -> bool;
-        fn get_module_variable<'vm, 's>(
-            self: &'vm VM,
+        fn get_module_variable(
+            self: &VM,
             module_name: StringSlice,
             name: StringSlice,
         ) -> Result<ModuleVariable>;
@@ -287,6 +287,7 @@ mod ffi {
         ) -> NativeFunctionStatus;
         fn error(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
         fn create_module(self: &VM, module_name: StringSlice);
+        fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
     }
 }

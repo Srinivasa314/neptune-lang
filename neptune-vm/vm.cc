@@ -610,6 +610,7 @@ bool gc(FunctionContext ctx, void *) {
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
+  create_module(StringSlice("vm"));
   declare_native_function(StringSlice("vm"), StringSlice("disassemble"), 1, 0,
                           native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), 0, 0,
@@ -664,7 +665,26 @@ void VM::create_module(StringSlice module_name) const {
   if (!module_exists(module_name)) {
     auto this_ = const_cast<VM *>(this);
     this_->modules.insert({std::string(module_name.data, module_name.len),
-                           this_->manage(new Module)});
+                           this_->manage(new Module(std::string(
+                               module_name.data, module_name.len)))});
+  }
+}
+
+void VM::create_module_with_prelude(StringSlice module_name) const {
+  if (!module_exists(module_name)) {
+    auto this_ = const_cast<VM *>(this);
+    auto module = this_->manage(
+        new Module(std::string(module_name.data, module_name.len)));
+    this_->modules.insert(
+        {std::string(module_name.data, module_name.len), module});
+    auto prelude = modules.find(StringSlice("prelude"))->second;
+    for (auto pair : prelude->module_variables) {
+      module->module_variables.insert(
+          {pair.first,
+           ModuleVariable{static_cast<uint32_t>(module_variables.size()),
+                          false}});
+      module_variables.push_back(module_variables[pair.second.position]);
+    }
   }
 }
 } // namespace neptune_vm

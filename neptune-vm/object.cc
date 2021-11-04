@@ -192,7 +192,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
     vf.os << "<native function " << obj->as<NativeFunction>()->name << '>';
     break;
   case Type::Module:
-    vf.os << "module";
+    vf.os << "<module " << obj->as<Module>()->name << '>';
     break;
   default:
     unreachable();
