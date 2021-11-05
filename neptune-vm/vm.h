@@ -81,6 +81,7 @@ public:
   bool module_exists(StringSlice module_name) const;
   void create_module(StringSlice module_name) const;
   void create_module_with_prelude(StringSlice module_name) const;
+  Module *get_module(StringSlice module_name) const;
   VM()
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),

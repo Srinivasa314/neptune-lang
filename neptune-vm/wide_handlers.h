@@ -114,7 +114,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
         PANIC("Stack overflow");                                               \
       stack_top = bp + f->max_slots;                                           \
       for (auto v = bp + arity; v < bp + f->max_slots; v++)                    \
-        *v = Value::empty();                                                   \
+        *v = Value::null();                                                    \
       last_native_function = f;                                                \
       auto ok = f->inner(FunctionContext{this, bp, f->max_slots}, f->data);    \
       accumulator = return_value;                                              \
@@ -318,3 +318,18 @@ handler(
     StoreUpvalue,
     *frames[num_frames - 1].f->upvalues[READ(utype)]->location = accumulator;);
 handler(Close, CLOSE(READ(utype)););
+
+handler(LoadProperty, {
+  auto property = constants[READ(utype)].as_object()->as<Symbol>();
+  if (accumulator.is_object() && accumulator.as_object()->is<Module>()) {
+    auto module = accumulator.as_object()->as<Module>();
+    auto iter = module->module_variables.find(property);
+    if (iter == module->module_variables.end())
+      PANIC("Module " << module->name << " does not have variable "
+                      << static_cast<StringSlice>(*property));
+    else
+      accumulator = module_variables[iter->second.position];
+  } else {
+    PANIC("Cannot get property from type " << accumulator.type_string());
+  }
+});

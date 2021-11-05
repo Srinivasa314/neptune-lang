@@ -127,6 +127,9 @@ pub fn are_brackets_balanced(s: &str) -> bool {
         match s.as_bytes()[index] {
             b'(' => *depths.last_mut().unwrap() += 1,
             b')' => {
+                if *depths.last_mut().unwrap() == 0 {
+                    return true;
+                }
                 *depths.last_mut().unwrap() -= 1;
                 if *depths.last().unwrap() == 0 && depths.len() > 1 {
                     depths.pop();

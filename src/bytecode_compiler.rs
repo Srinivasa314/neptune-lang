@@ -1339,6 +1339,20 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 body,
                 last_line,
             } => self.closure("<closure>", *line, args, body, *last_line),
+            Expr::Member { object, property } => {
+                let line = object.line();
+                let object_res = self.evaluate_expr(object)?;
+                self.store_in_accumulator(object_res, line)?;
+                let property = self
+                    .bytecode
+                    .symbol_constant(property.as_str().into())
+                    .map_err(|_| CompileError {
+                        line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })?;
+                self.write1(Op::LoadProperty, property as u32, line);
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
 
@@ -1479,71 +1493,72 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn equal(&mut self, left: &Expr, right: &Expr, line: u32) -> CompileResult<()> {
-        if let Expr::Subscript {
-            object,
-            subscript,
-            line,
-        } = left
-        {
-            let object = self.evaluate_expr(object)?;
-            let object_reg = self.store_in_register(object, *line)?;
-            let subscript = self.evaluate_expr(subscript)?;
-            let subscript_reg = self.store_in_register(subscript, *line)?;
-            let right = self.evaluate_expr(right)?;
-            self.store_in_accumulator(right, *line)?;
-            self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
-            if !matches!(subscript, ExprResult::Register(_)) {
-                self.pop_register();
-            }
-            if !matches!(object, ExprResult::Register(_)) {
-                self.pop_register();
-            }
-            return Ok(());
-        }
-        if let Expr::Variable { name, line } = left {
-            if let Some(local) = self.resolve_local(name).cloned() {
-                let expr_res = self.evaluate_expr_with_dest(right, Some(local.reg))?;
-                if !local.mutable {
-                    return Err(CompileError {
-                        message: format!("Cannot modify constant {}", name),
-                        line: *line,
-                    });
-                }
-                self.store_in_specific_register(expr_res, local.reg, *line)
-            } else if let Some(upval) = self.resolve_upvalue(name, *line)? {
-                let res = self.evaluate_expr(right)?;
-                if !self.upvalues[upval as usize].mutable {
-                    return Err(CompileError {
-                        message: format!("Cannot modify constant {}", name),
-                        line: *line,
-                    });
-                }
-                self.store_in_accumulator(res, *line)?;
-                self.write1(Op::StoreUpvalue, upval as u32, *line);
-                Ok(())
-            } else {
-                let global = self.get_global(name).ok_or_else(|| CompileError {
-                    message: format!("{} is not defined", name),
-                    line: *line,
-                })?;
-                let res = self.evaluate_expr(right)?;
-                self.store_in_accumulator(res, *line)?;
-                if !global.mutable {
-                    Err(CompileError {
-                        message: format!("Cannot modify constant {}", name),
-                        line: *line,
-                    })
-                } else {
-                    self.write1(Op::StoreModuleVariable, global.position, *line);
-                    Ok(())
-                }
-            }
-        } else {
-            Err(CompileError {
-                message: "Invalid target for assignment".to_string(),
+        match left {
+            Expr::Subscript {
+                object,
+                subscript,
                 line,
-            })
+            } => {
+                let object = self.evaluate_expr(object)?;
+                let object_reg = self.store_in_register(object, *line)?;
+                let subscript = self.evaluate_expr(subscript)?;
+                let subscript_reg = self.store_in_register(subscript, *line)?;
+                let right = self.evaluate_expr(right)?;
+                self.store_in_accumulator(right, *line)?;
+                self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
+                if !matches!(subscript, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
+                if !matches!(object, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
+            }
+            Expr::Variable { name, line } => {
+                if let Some(local) = self.resolve_local(name).cloned() {
+                    let expr_res = self.evaluate_expr_with_dest(right, Some(local.reg))?;
+                    if !local.mutable {
+                        return Err(CompileError {
+                            message: format!("Cannot modify constant {}", name),
+                            line: *line,
+                        });
+                    }
+                    self.store_in_specific_register(expr_res, local.reg, *line)?;
+                } else if let Some(upval) = self.resolve_upvalue(name, *line)? {
+                    let res = self.evaluate_expr(right)?;
+                    if !self.upvalues[upval as usize].mutable {
+                        return Err(CompileError {
+                            message: format!("Cannot modify constant {}", name),
+                            line: *line,
+                        });
+                    }
+                    self.store_in_accumulator(res, *line)?;
+                    self.write1(Op::StoreUpvalue, upval as u32, *line);
+                } else {
+                    let global = self.get_global(name).ok_or_else(|| CompileError {
+                        message: format!("{} is not defined", name),
+                        line: *line,
+                    })?;
+                    let res = self.evaluate_expr(right)?;
+                    self.store_in_accumulator(res, *line)?;
+                    if !global.mutable {
+                        return Err(CompileError {
+                            message: format!("Cannot modify constant {}", name),
+                            line: *line,
+                        });
+                    } else {
+                        self.write1(Op::StoreModuleVariable, global.position, *line);
+                    }
+                }
+            }
+            Expr::Member { .. } => unimplemented!(),
+            _ => {
+                return Err(CompileError {
+                    message: "Invalid target for assignment".into(),
+                    line,
+                })
+            }
         }
+        Ok(())
     }
 
     binary_op!(add, AddRegister, AddInt, add, checked_add, "add");

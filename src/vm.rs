@@ -133,6 +133,7 @@ mod ffi {
         Move,
         LoadModuleVariable,
         StoreModuleVariable,
+        LoadProperty,
         LoadUpvalue,
         StoreUpvalue,
         LoadSubscript,

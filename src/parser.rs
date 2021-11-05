@@ -38,7 +38,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::LeftBrace => Precedence::None,
         TokenType::RightBrace => Precedence::None,
         TokenType::Comma => Precedence::None,
-        TokenType::Dot => Precedence::None,
+        TokenType::Dot => Precedence::Call,
         TokenType::Minus => Precedence::Additive,
         TokenType::Plus => Precedence::Additive,
         TokenType::StatementSeparator => Precedence::None,
@@ -152,6 +152,10 @@ pub enum Expr {
         args: Vec<String>,
         body: ClosureBody,
     },
+    Member {
+        object: Box<Expr>,
+        property: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +177,7 @@ impl Expr {
             Expr::Map { line, .. } => *line,
             Expr::Call { line, .. } => *line,
             Expr::Closure { line, .. } => *line,
+            Expr::Member { object, .. } => object.line(),
         }
     }
 }
@@ -420,7 +425,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::LeftBrace => unreachable!(),
             TokenType::RightBrace => unreachable!(),
             TokenType::Comma => unreachable!(),
-            TokenType::Dot => unreachable!(),
+            TokenType::Dot => self.dot(left),
             TokenType::Minus => self.binary(left),
             TokenType::Plus => self.binary(left),
             TokenType::StatementSeparator => unreachable!(),
@@ -943,5 +948,13 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             catch_end,
         })
     }
-}
 
+    fn dot(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
+        self.consume(TokenType::Identifier, "Expect property name after .".into())?;
+        let property = self.previous.inner.into();
+        Ok(Expr::Member {
+            object: left,
+            property,
+        })
+    }
+}

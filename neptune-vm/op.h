@@ -43,8 +43,9 @@
   OP(StoreR14)                                                                 \
   OP(StoreR15)                                                                 \
   OP(Move)                                                                     \
-  OP(LoadModuleVariable)                                                               \
-  OP(StoreModuleVariable)                                                              \
+  OP(LoadModuleVariable)                                                       \
+  OP(StoreModuleVariable)                                                      \
+  OP(LoadProperty)                                                             \
   OP(LoadUpvalue)                                                              \
   OP(StoreUpvalue)                                                             \
   OP(LoadSubscript)                                                            \

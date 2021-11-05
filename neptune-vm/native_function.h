@@ -5,7 +5,11 @@
 namespace neptune_vm {
 class VM;
 
-enum class NativeFunctionStatus : uint8_t { Ok, InvalidSlotError, TypeError };
+enum class NativeFunctionStatus : uint8_t {
+  Ok,
+  InvalidSlotError,
+  TypeError,
+};
 
 struct FunctionContext {
   VM *vm;
@@ -33,6 +37,7 @@ class NativeFunction : public Object {
 public:
   static constexpr Type type = Type::NativeFunction;
   std::string name;
+  std::string module_name;
   friend class VM;
 };
 }; // namespace neptune_vm
