@@ -4,7 +4,7 @@
     "line": 1
   },
   {
-    "message": "Expect newline or semicolon at token .",
+    "message": "Expect property name after . at end",
     "line": 1
   }
 ]

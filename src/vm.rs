@@ -286,7 +286,7 @@ mod ffi {
             slot: u16,
             fw: FunctionInfoWriter,
         ) -> NativeFunctionStatus;
-        fn error(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
+        fn string(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
@@ -374,8 +374,8 @@ impl FunctionContext {
         }
     }
 
-    pub fn error(&self, slot: u16, error: &str) {
-        if self.0.error(slot, error.into()) == NativeFunctionStatus::InvalidSlotError {
+    pub fn string(&self, slot: u16, string: &str) {
+        if self.0.string(slot, string.into()) == NativeFunctionStatus::InvalidSlotError {
             panic!("Attempt to access invalid slot")
         }
     }

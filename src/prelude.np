@@ -2,8 +2,8 @@ fun import(moduleName) {
     let module = _getModule(moduleName)
     if module {
         return module
-    } else {
-        moduleName=_resolvePath(moduleName)
+    }else {
+        moduleName=_resolveModule(_getCallerModule(),moduleName)
         module = _getModule(moduleName)
         if module {
             return module

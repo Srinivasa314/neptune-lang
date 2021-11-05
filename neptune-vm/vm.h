@@ -25,8 +25,12 @@ struct Frame {
 
 class VM {
   std::unique_ptr<Value[]> stack;
+
+public:
   std::unique_ptr<Frame[]> frames;
   size_t num_frames;
+
+private:
   UpValue *open_upvalues;
   std::vector<Object *> temp_roots;
   tsl::robin_map<std::string, Module *, StringHasher, StringEquality> modules;
@@ -86,7 +90,8 @@ public:
       : stack(new Value[STACK_SIZE]), frames(new Frame[MAX_FRAMES]),
         num_frames(0), open_upvalues(nullptr), bytes_allocated(0),
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
-        stack_top(stack.get()), is_running(false), return_value(Value::null()) {
+        stack_top(stack.get()), is_running(false),
+        last_native_function(nullptr), return_value(Value::null()) {
     create_module(StringSlice("prelude"));
     declare_native_builtins();
   }

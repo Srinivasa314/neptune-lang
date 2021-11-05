@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
@@ -37,41 +39,85 @@ pub struct Neptune {
 }
 
 impl Neptune {
-    pub fn new() -> Self {
+    pub fn new(
+        mut resolve_module: Option<Box<dyn FnMut(&str, &str) -> Option<String>>>,
+        mut get_module_source: Option<Box<dyn FnMut(&str) -> Option<String>>>,
+    ) -> Self
+where {
+        assert!(
+            (resolve_module.is_some() && get_module_source.is_some())
+                || (resolve_module.is_none() && get_module_source.is_none())
+        );
         let vm = new_vm();
         let n = Self { vm };
-        n.create_function("prelude", "exec", 2, 0, |ctx| {
+        n.create_function("prelude", "_compileModule", 1, 0, move |ctx| {
+            let vm = ctx.vm();
             let module = match ctx.as_string(0) {
                 Some(module) => module,
                 None => {
-                    ctx.error(0, "module name must be a string");
+                    ctx.string(0, "module must be a string");
                     return Err(0);
                 }
             };
-            let source = match ctx.as_string(1) {
-                Some(module) => module,
-                None => {
-                    ctx.error(0, "source must be a string");
-                    return Err(0);
-                }
-            };
-            let vm = ctx.vm();
-            match compile(vm, module, &source, false) {
-                Ok((f, _)) => {
-                    unsafe {
-                        ctx.function(0, f);
+            if let Some(get_module_source) = get_module_source.as_mut() {
+                let source = get_module_source(&module);
+                if let Some(source) = source {
+                    match compile(vm, module, &source, false) {
+                        Ok((f, _)) => {
+                            unsafe {
+                                ctx.function(0, f);
+                            }
+                            Ok(0)
+                        }
+                        Err(e) => {
+                            let error = format!("{:?}", e);
+                            ctx.string(0, &error);
+                            Err(0)
+                        }
                     }
-                    Ok(0)
-                }
-                Err(e) => {
-                    let error = format!("{:?}", e);
-                    ctx.error(0, &error);
+                } else {
+                    ctx.string(0, &format!("cannot get source of module {}", &module));
                     Err(0)
                 }
+            } else {
+                ctx.string(0, &format!("module {} does not exist", &module));
+                Err(0)
             }
         })
         .unwrap();
-        //n.exec("prelude", include_str!("prelude.np")).unwrap();
+        n.create_function("prelude", "_resolveModule", 2, 0, move |ctx| {
+            let module = match ctx.as_string(0) {
+                Some(module) => module,
+                None => {
+                    ctx.string(0, "module must be a string");
+                    return Err(0);
+                }
+            };
+            let name = match ctx.as_string(1) {
+                Some(module) => module,
+                None => {
+                    ctx.string(0, "name must be a string");
+                    return Err(0);
+                }
+            };
+            if let Some(resolve_module) = resolve_module.as_mut() {
+                match resolve_module(&module, &name) {
+                    Some(s) => {
+                        ctx.string(0, &s);
+                        Ok(0)
+                    }
+                    None => {
+                        ctx.string(0, &format!("module {} does not exist", &name));
+                        Err(0)
+                    }
+                }
+            } else {
+                ctx.string(0, &format!("module {} does not exist", &name));
+                Err(0)
+            }
+        })
+        .unwrap();
+        n.exec("prelude", include_str!("prelude.np")).unwrap();
         n
     }
 
@@ -203,7 +249,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let n = Neptune::new();
+        let n = Neptune::new(None, None);
         assert_eq!(n.eval("fun f(){}", "").unwrap(), None);
         for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
             if let InterpretError::CompileError(_) = n.exec(test, &read(test)).unwrap_err() {

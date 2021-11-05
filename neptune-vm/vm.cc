@@ -415,7 +415,8 @@ void VM::collect() {
     grey(return_value.as_object());
   // this might not be necessary since native functions are constants but just
   // in case
-  grey(last_native_function);
+  if (last_native_function != nullptr)
+    grey(last_native_function);
 
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -627,6 +628,19 @@ bool _getModule(FunctionContext ctx, void *) {
     return false;
   }
 }
+
+bool _getCallerModule(FunctionContext ctx, void *) {
+  if (ctx.vm->num_frames < 2) {
+    ctx.vm->return_value =
+        Value(ctx.vm->manage(String::from(StringSlice("No caller exists"))));
+    return false;
+  } else {
+    ctx.vm->return_value = Value(
+        ctx.vm->manage(String::from(ctx.vm->frames.get()[ctx.vm->num_frames - 2]
+                                        .f->function_info->module)));
+    return true;
+  }
+}
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
@@ -637,6 +651,9 @@ void VM::declare_native_builtins() {
                           native_builtins::gc);
   declare_native_function(StringSlice("prelude"), StringSlice("_getModule"), 1,
                           0, native_builtins::_getModule);
+  declare_native_function(StringSlice("prelude"),
+                          StringSlice("_getCallerModule"), 0, 0,
+                          native_builtins::_getCallerModule);
 }
 
 Value VM::make_function(Value *bp, Value constant) {
