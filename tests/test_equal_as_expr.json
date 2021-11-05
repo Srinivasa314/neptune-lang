@@ -1,6 +1,6 @@
 [
   {
-    "message": "= is not an expression",
+    "message": "a is not defined",
     "line": 3
   },
   {

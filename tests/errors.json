@@ -1,9 +1,8 @@
 [
     "test_at",
-    "test_break_outside_loop",
+    "test_break_continue_outside_loop",
     "test_compiletime_overflow",
     "test_concat_int",
-    "test_continue_outside_loop",
     "test_equal_as_expr",
     "test_hash",
     "test_invalid_block",
@@ -21,8 +20,7 @@
     "test_invalid_octal",
     "test_invalid_symbol",
     "test_invalid_token",
-    "test_invalid_unicode1",
-    "test_invalid_unicode2",
+    "test_invalid_unicode",
     "test_modify_constant",
     "test_no_separator",
     "test_null",
@@ -36,9 +34,5 @@
     "test_unterminated_string2",
     "test_unterminated_string3",
     "test_unterminated_unicode",
-    "test_var_redeclare",
-    "test_wrong_number1",
-    "test_wrong_number2",
-    "test_wrong_number3",
-    "test_wrong_number4"
+    "test_var_redeclare"
 ]

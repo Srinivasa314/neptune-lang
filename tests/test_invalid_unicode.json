@@ -2,5 +2,9 @@
   {
     "message": "Cannot parse err in unicode escape sequence",
     "line": 1
+  },
+  {
+    "message": "Cannot convert 110000 to a unicode character",
+    "line": 2
   }
 ]
