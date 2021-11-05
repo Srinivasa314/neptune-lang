@@ -1,5 +1,13 @@
 [
   {
+    "message": "x is not defined",
+    "line": 1
+  },
+  {
+    "message": "x is not defined",
+    "line": 2
+  },
+  {
     "message": "Can only have if statement or block after else",
     "line": 3
   }

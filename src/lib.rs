@@ -148,42 +148,34 @@ mod tests {
     #[test]
     fn test() {
         let n = Neptune::new();
-        /*assert_eq!(n.eval("1+1").unwrap().unwrap(), "2");
-        assert_eq!(n.eval("'a'~'b'").unwrap().unwrap(), "'ab'");
-        assert_eq!(n.eval("0.1+0.2").unwrap().unwrap(), "0.3");
-
-        assert_eq!(n.eval("1.0/0.0").unwrap().unwrap(), "inf");
-        assert_eq!(n.eval("-1.0/0.0").unwrap().unwrap(), "-inf");
-
-        assert!(matches!(
-            n.eval("0.0/0.0").unwrap().unwrap().as_str(),
-            "-nan" | "nan"
-        ));
-
-        n.exec("let a=[0];a[0]=a").unwrap();
-        assert_eq!(
-            n.eval("a").unwrap().unwrap(),
-            "[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]"
-        );
-
-        n.exec(
-            r"
-        let m=null
-        for i in 0..50 {
-            m={@next:m}
-        }
-        ",
-        )
-        .unwrap();
-        assert_eq!(
-            n.eval("m").unwrap().unwrap(),
-            "{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }"
-        );*/
-
+        assert_eq!(n.eval("fun f(){}", "").unwrap(), None);
         for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
             if let InterpretError::CompileError(_) = n.exec(test, &read(test)).unwrap_err() {
                 panic!("Expected a runtime error")
             }
+        }
+        if let InterpretError::RuntimePanic { error, stack_trace } = n
+            .exec(
+                "<script>",
+                r#"
+            fun f(){
+                fun g(){
+                    fun h(){
+                        panic 'abc'
+                    }
+                    h()
+                }
+                g()
+            }
+            f()
+        "#,
+            )
+            .unwrap_err()
+        {
+            assert_eq!(error, "'abc'");
+            assert_eq!(stack_trace, "at h (<script>:5)\nat g (<script>:7)\nat f (<script>:9)\nat <script> (<script>:11)\n");
+        } else {
+            panic!("Expected error");
         }
         if let Err(e) = n.exec("test.np", &read("test.np")) {
             panic!("{:?}", e);

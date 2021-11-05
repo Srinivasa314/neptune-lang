@@ -1,3 +1,42 @@
+fun assert_eq(x,y){
+    if x!=y{
+        panic "Assertion failed: \(x)==\(y)"
+    }
+}
+
+fun assert_failed(f,err){
+    let handled=false
+    try{ 
+        f()
+    }catch e{
+        handled=true
+        if err!=e{
+            panic "Assertion failed: \(e)==\(err)"
+        }
+    }
+    if !handled{
+        panic "Assertion failed: Expected it to panic"
+    }
+}
+
+assert_eq(1+1,2)
+assert_eq("\(1+1)","2")
+assert_eq('a'~'b','ab');
+assert_eq(0.1+0.2,0.3)
+assert_eq("\(1.0/0.0)", "inf")
+assert_eq("\(-1.0/0.0)", "-inf")
+assert_eq("\(0.0/0.0)"=="nan" or "\(0.0/0.0)"=="-nan",true)
+
+let a=[0]
+a[0]=a
+assert_eq("\(a)","[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]")
+
+let m=null
+for i in 0..50 {
+    m={@next:m}
+}
+assert_eq("\(m)","{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }")
+
 assert_failed(||{let x=2147483647;x+1},"Cannot add 2147483647 and 1 as the result does not fit in an int")
 assert_failed(||{let x=-2147483647;x-5},"Cannot subtract -2147483647 and 5 as the result does not fit in an int")
 assert_failed(||{let x=1000000;x*1000000},"Cannot multiply 1000000 and 1000000 as the result does not fit in an int")
@@ -9,14 +48,21 @@ assert_eq(1==1.0,true)
 assert_eq(!![],true)
 assert_eq("a"~"b","ab")
 
-m={@a:5}
+m={@a:5,'b':10}
 assert_eq(m[@a],5)
+assert_eq(m['b'],10)
 assert_failed(||m[0],"Key 0 does not exist in map")
 
 a=[]
 assert_failed(||a[0], "Array index out of range")
 assert_failed(||a[-1], "Array index out of range")
 assert_failed(||a[0.0], "Array indices must be int not float")
+
+let i=0
+while i<10 {
+    i=i+1
+}
+assert_eq(i,10)
 
 assert_failed(||{for i in 'a'..1{}},"Expected int and int for the start and end of for loop got string and int instead")
 let g=null
@@ -64,6 +110,17 @@ for i in 0..3{
 assert_eq(a[0](),0)
 assert_eq(a[1](),1)
 assert_eq(a[2](),2)
+
+let g3=null
+fun g1(){
+    let a=5;
+    fun g2(){
+        g3=||a
+    }
+    g2()
+}
+g1()
+assert_eq(g3(),5)
 
 fun f2(){
     let a=17

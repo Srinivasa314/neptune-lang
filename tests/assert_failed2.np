@@ -1,1 +1,16 @@
+fun assert_failed(f,err){
+    let handled=false
+    try{ 
+        f()
+    }catch e{
+        handled=true
+        if err!=e{
+            panic "Assertion failed: \(e)==\(err)"
+        }
+    }
+    if !handled{
+        panic "Assertion failed: Expected it to panic"
+    }
+}
+
 assert_failed(||{panic 'abc'},"def")
