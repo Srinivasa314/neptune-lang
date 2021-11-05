@@ -51,19 +51,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define READ(type) read<type>(ip)
 #define CLOSE(n) close(&bp[n])
 
-#define PANIC(fmt)                                                             \
-  do {                                                                         \
-    panic_message << fmt;                                                      \
-    if ((ip = panic(ip)) != nullptr) {                                         \
-      bp = frames[num_frames - 1].bp;                                          \
-      auto f = frames[num_frames - 1].f;                                       \
-      constants = f->function_info->constants.data();                          \
-      DISPATCH();                                                              \
-    } else {                                                                   \
-      goto panic_end;                                                          \
-    }                                                                          \
-  } while (0)
-
 #define CALL(n)                                                                \
   do {                                                                         \
     constants = f->function_info->constants.data();                            \
@@ -103,7 +90,23 @@ VMStatus VM::run(Function *f) {
   static_assert(
       STACK_SIZE > 65536,
       "Stack size must be greater than the maximum number of registers");
+#define PANIC(x) unreachable()
   CALL(0);
+#undef PANIC
+
+#define PANIC(fmt)                                                             \
+  do {                                                                         \
+    panic_message << fmt;                                                      \
+    if ((ip = panic(ip)) != nullptr) {                                         \
+      bp = frames[num_frames - 1].bp;                                          \
+      auto f = frames[num_frames - 1].f;                                       \
+      constants = f->function_info->constants.data();                          \
+      DISPATCH();                                                              \
+    } else {                                                                   \
+      goto panic_end;                                                          \
+    }                                                                          \
+  } while (0)
+
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
     HANDLER(ExtraWide) : DISPATCH_EXTRAWIDE();
