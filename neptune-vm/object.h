@@ -22,6 +22,9 @@ struct StringSlice {
   explicit StringSlice(const char *cstring)
       : data(cstring), len(strlen(cstring)) {}
 };
+
+std::ostream &operator<<(std::ostream &os, StringSlice s);
+
 enum class Type : uint8_t {
   String,
   Symbol,

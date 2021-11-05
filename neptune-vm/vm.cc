@@ -98,7 +98,6 @@ VMStatus VM::run(Function *f) {
   return_value = Value::null();
   Value accumulator = Value::null();
   Value *bp = &stack[0];
-  auto module_variables = this->module_variables.begin();
   Value *constants;
   const uint8_t *ip = nullptr;
   static_assert(
@@ -523,7 +522,8 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
 std::string VM::generate_stack_trace() {
   std::ostringstream os;
   if (last_native_function != nullptr) {
-    os << "at " << last_native_function->name << '\n';
+    os << "at " << last_native_function->name << " ("
+       << last_native_function->module_name << ")\n";
     last_native_function = nullptr;
   }
   for (size_t i = num_frames; i-- > 0;) {
@@ -581,6 +581,7 @@ bool VM::declare_native_function(StringSlice module, StringSlice name,
   n->data = data;
   n->free_data = free_data;
   n->name = std::string{name.data, name.len};
+  n->module_name = std::string{module.data, module.len};
   module_variables[module_variables.size() - 1] = Value(n);
   const_cast<VM *>(this)->manage(n);
   return true;
@@ -607,6 +608,22 @@ bool gc(FunctionContext ctx, void *) {
   ctx.vm->collect();
   return true;
 }
+
+bool _getModule(FunctionContext ctx, void *) {
+  if (ctx.slots[0].is_object() && ctx.slots[0].as_object()->is<String>()) {
+    auto module = ctx.vm->get_module(
+        StringSlice(*ctx.slots[0].as_object()->as<String>()));
+    if (module == NULL)
+      ctx.vm->return_value = Value::null();
+    else
+      ctx.vm->return_value = Value(module);
+    return true;
+  } else {
+    ctx.vm->return_value = Value(ctx.vm->manage(
+        String::from(StringSlice("First argument must be a string"))));
+    return false;
+  }
+}
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
@@ -615,6 +632,8 @@ void VM::declare_native_builtins() {
                           native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), 0, 0,
                           native_builtins::gc);
+  declare_native_function(StringSlice("prelude"), StringSlice("_getModule"), 1,
+                          0, native_builtins::_getModule);
 }
 
 Value VM::make_function(Value *bp, Value constant) {
@@ -686,5 +705,13 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
       module_variables.push_back(module_variables[pair.second.position]);
     }
   }
+}
+
+Module *VM::get_module(StringSlice module_name) const {
+  auto module_iter = modules.find(module_name);
+  if (module_iter == modules.end())
+    return nullptr;
+  else
+    return module_iter->second;
 }
 } // namespace neptune_vm

@@ -9,7 +9,7 @@
   do {                                                                         \
     std::cout << "unreachable at: " << __FILE__ << ":" << __LINE__             \
               << std::endl;                                                    \
-    exit(1);                                                                   \
+    abort();                                                                   \
   } while (0)
 #elif defined(__GNUC__) || defined(__clang__) // gcc or clang
 #define unreachable() __builtin_unreachable()

@@ -127,7 +127,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
   case Type::Symbol: {
     vf.os << '@';
     auto s = static_cast<StringSlice>(*obj->as<Symbol>());
-    vf.os.write(s.data, static_cast<std::streamsize>(s.len));
+    vf.os << s;
     break;
   }
   case Type::Array: {
@@ -201,4 +201,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
 Array::Array(size_t size) : inner(std::vector<Value>(size, Value::null())) {}
 
 Map::Map(size_t size) { inner.reserve(size); }
+
+std::ostream &operator<<(std::ostream &os, StringSlice s) {
+  os.write(s.data, std::streamsize(s.len));
+  return os;
+}
+
 } // namespace neptune_vm

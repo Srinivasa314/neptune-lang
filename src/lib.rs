@@ -4,7 +4,7 @@ use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
-use vm::{new_vm, FunctionContext, VM};
+use vm::{new_vm, FunctionContext, FunctionInfoWriter, VM};
 
 mod bytecode_compiler;
 mod parser;
@@ -26,9 +26,10 @@ pub enum InterpretError {
 pub type CompileResult<T> = Result<T, CompileError>;
 
 #[derive(Debug)]
-pub enum FunctionDeclarationError {
-    FunctionRedeclarationError,
+pub enum NeptuneError {
+    FunctionAlreadyExists,
     ModuleNotFound,
+    ModuleAlreadyExists,
 }
 
 pub struct Neptune {
@@ -38,52 +39,54 @@ pub struct Neptune {
 impl Neptune {
     pub fn new() -> Self {
         let vm = new_vm();
-        Self { vm }
+        let n = Self { vm };
+        n.create_function("prelude", "exec", 2, 0, |ctx| {
+            let module = match ctx.as_string(0) {
+                Some(module) => module,
+                None => {
+                    ctx.error(0, "module name must be a string");
+                    return Err(0);
+                }
+            };
+            let source = match ctx.as_string(1) {
+                Some(module) => module,
+                None => {
+                    ctx.error(0, "source must be a string");
+                    return Err(0);
+                }
+            };
+            let vm = ctx.vm();
+            match compile(vm, module, &source, false) {
+                Ok((f, _)) => {
+                    unsafe {
+                        ctx.function(0, f);
+                    }
+                    Ok(0)
+                }
+                Err(e) => {
+                    let error = format!("{:?}", e);
+                    ctx.error(0, &error);
+                    Err(0)
+                }
+            }
+        })
+        .unwrap();
+        //n.exec("prelude", include_str!("prelude.np")).unwrap();
+        n
     }
 
-    fn run(&self, module: String, source: &str, eval: bool) -> Result<bool, InterpretError> {
-        if !self.vm.module_exists(module.as_str().into()) {
-            self.vm.create_module_with_prelude(module.as_str().into());
-        }
-        let scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens();
-        let parser = Parser::new(tokens.into_iter());
-        let ast = parser.parse(eval);
-        let compiler = Compiler::new(&self.vm, module);
-        let mut is_expr = false;
-        let mut fw = if eval {
-            if let Some(expr) = Compiler::can_eval(&ast.0) {
-                is_expr = true;
-                compiler.eval(expr)
-            } else {
-                is_expr = false;
-                compiler.exec(ast.0)
-            }
-        } else {
-            compiler.exec(ast.0)
-        };
-        let mut errors = ast.1;
-        if let Err(e) = &mut fw {
-            errors.append(e);
-        }
-        if errors.is_empty() {
-            let mut fw = fw.unwrap();
-            match unsafe { fw.run() } {
-                VMStatus::Success => Ok(is_expr),
+    pub fn exec<S: Into<String>>(&self, module: S, source: &str) -> Result<(), InterpretError> {
+        match compile(&self.vm, module.into(), source, false) {
+            Ok((mut f, _)) => match unsafe { f.run() } {
+                VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::RuntimePanic {
                     error: self.vm.get_result(),
                     stack_trace: self.vm.get_stack_trace(),
                 }),
                 _ => unreachable!(),
-            }
-        } else {
-            errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
-            Err(InterpretError::CompileError(errors))
+            },
+            Err(e) => Err(InterpretError::CompileError(e)),
         }
-    }
-
-    pub fn exec<S: Into<String>>(&self, module: S, source: &str) -> Result<(), InterpretError> {
-        self.run(module.into(), source, false).map(|_| ())
     }
 
     pub fn eval<S: Into<String>>(
@@ -91,15 +94,20 @@ impl Neptune {
         module: S,
         source: &str,
     ) -> Result<Option<String>, InterpretError> {
-        match self.run(module.into(), source, true) {
-            Ok(is_expr) => {
-                if is_expr {
-                    Ok(Some(self.vm.get_result()))
+        match compile(&self.vm, module.into(), source, true) {
+            Ok((mut f, is_expr)) => match unsafe { f.run() } {
+                VMStatus::Success => Ok(if is_expr {
+                    Some(self.vm.get_result())
                 } else {
-                    Ok(None)
-                }
-            }
-            Err(e) => Err(e),
+                    None
+                }),
+                VMStatus::Error => Err(InterpretError::RuntimePanic {
+                    error: self.vm.get_result(),
+                    stack_trace: self.vm.get_stack_trace(),
+                }),
+                _ => unreachable!(),
+            },
+            Err(e) => Err(InterpretError::CompileError(e)),
         }
     }
 
@@ -110,9 +118,9 @@ impl Neptune {
         arity: u8,
         extra_slots: u16,
         callback: impl FnMut(FunctionContext) -> Result<u16, u16> + 'static,
-    ) -> Result<(), FunctionDeclarationError> {
+    ) -> Result<(), NeptuneError> {
         if !self.vm.module_exists(module.into()) {
-            return Err(FunctionDeclarationError::ModuleNotFound);
+            return Err(NeptuneError::ModuleNotFound);
         }
         if self
             .vm
@@ -120,10 +128,58 @@ impl Neptune {
         {
             Ok(())
         } else {
-            Err(FunctionDeclarationError::FunctionRedeclarationError)
+            Err(NeptuneError::FunctionAlreadyExists)
+        }
+    }
+
+    pub fn create_module(&self, name: &str) -> Result<(), NeptuneError> {
+        if self.vm.module_exists(name.into()) {
+            Err(NeptuneError::ModuleAlreadyExists)
+        } else {
+            self.vm.create_module(name.into());
+            Ok(())
         }
     }
 }
+
+fn compile<'vm>(
+    vm: &'vm VM,
+    module: String,
+    source: &str,
+    eval: bool,
+) -> Result<(FunctionInfoWriter<'vm>, bool), Vec<CompileError>> {
+    if !vm.module_exists(module.as_str().into()) {
+        vm.create_module_with_prelude(module.as_str().into());
+    }
+    let scanner = Scanner::new(source);
+    let tokens = scanner.scan_tokens();
+    let parser = Parser::new(tokens.into_iter());
+    let ast = parser.parse(eval);
+    let compiler = Compiler::new(vm, module);
+    let mut is_expr = false;
+    let mut fw = if eval {
+        if let Some(expr) = Compiler::can_eval(&ast.0) {
+            is_expr = true;
+            compiler.eval(expr)
+        } else {
+            is_expr = false;
+            compiler.exec(ast.0)
+        }
+    } else {
+        compiler.exec(ast.0)
+    };
+    let mut errors = ast.1;
+    if let Err(e) = &mut fw {
+        errors.append(e);
+    }
+    if errors.is_empty() {
+        Ok((fw.unwrap(), is_expr))
+    } else {
+        errors.sort_by(|e1, e2| e1.line.cmp(&e2.line));
+        Err(errors)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{InterpretError, Neptune};
