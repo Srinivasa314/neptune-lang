@@ -20,7 +20,7 @@ struct FunctionContext {
   NativeFunctionStatus to_string(uint16_t dest, uint16_t source) const;
   NativeFunctionStatus null(uint16_t slot) const;
   NativeFunctionStatus function(uint16_t slot, FunctionInfoWriter fw) const;
-  NativeFunctionStatus string(uint16_t slot, StringSlice error) const;
+  NativeFunctionStatus string(uint16_t slot, StringSlice string) const;
 };
 
 using Data = void; // Can be anything

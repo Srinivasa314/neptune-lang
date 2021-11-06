@@ -62,6 +62,7 @@ impl<'vm> Drop for FunctionInfoWriter<'vm> {
 pub struct ModuleVariable {
     pub position: u32,
     pub mutable: bool,
+    pub exported: bool,
 }
 
 unsafe impl ExternType for ModuleVariable {
@@ -239,6 +240,7 @@ mod ffi {
             module: StringSlice<'s>,
             name: StringSlice<'s>,
             mutable_: bool,
+            exported: bool,
         ) -> bool;
         fn get_module_variable(
             self: &VM,
@@ -268,6 +270,7 @@ mod ffi {
             self: &VM,
             module: StringSlice,
             name: StringSlice,
+            exported: bool,
             arity: u8,
             extra_slots: u16,
             callback: *mut NativeFunctionCallback,
@@ -286,7 +289,7 @@ mod ffi {
             slot: u16,
             fw: FunctionInfoWriter,
         ) -> NativeFunctionStatus;
-        fn string(self: &FunctionContext, slot: u16, error: StringSlice) -> NativeFunctionStatus;
+        fn string(self: &FunctionContext, slot: u16, s: StringSlice) -> NativeFunctionStatus;
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
@@ -300,6 +303,7 @@ impl VM {
         &self,
         module: &str,
         name: &str,
+        exported: bool,
         arity: u8,
         extra_slots: u16,
         callback: F,
@@ -312,6 +316,7 @@ impl VM {
             self.declare_native_function(
                 module.into(),
                 name.into(),
+                exported,
                 arity,
                 extra_slots,
                 trampoline::<F> as *mut NativeFunctionCallback,

@@ -320,16 +320,17 @@ handler(
 handler(Close, CLOSE(READ(utype)););
 
 handler(LoadProperty, {
+  auto object = bp[READ(utype)];
   auto property = constants[READ(utype)].as_object()->as<Symbol>();
-  if (accumulator.is_object() && accumulator.as_object()->is<Module>()) {
-    auto module = accumulator.as_object()->as<Module>();
+  if (object.is_object() && object.as_object()->is<Module>()) {
+    auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(property);
-    if (iter == module->module_variables.end())
-      PANIC("Module " << module->name << " does not have variable "
+    if (iter == module->module_variables.end() || !iter->second.exported)
+      PANIC("Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*property));
     else
       accumulator = module_variables[iter->second.position];
   } else {
-    PANIC("Cannot get property from type " << accumulator.type_string());
+    PANIC("Cannot get property from type " << object.type_string());
   }
 });

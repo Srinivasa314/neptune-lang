@@ -137,6 +137,7 @@ public:
 struct ModuleVariable {
   uint32_t position;
   bool mutable_;
+  bool exported;
 };
 
 class Module : public Object {

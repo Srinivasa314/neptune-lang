@@ -291,6 +291,9 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(StoreUpvalue) << READ(uint16_t);
         break;
+        CASE(LoadProperty) << REG(uint16_t) << ' '
+                           << f.constants[READ(uint16_t)];
+        break;
         CASE(Close) << READ(uint16_t);
         break;
       default:
@@ -438,6 +441,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(LoadUpvalue) << READ(uint8_t);
       break;
       CASE(StoreUpvalue) << READ(uint8_t);
+      break;
+      CASE(LoadProperty) << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)];
       break;
       CASE(Close) << READ(uint8_t);
       break;

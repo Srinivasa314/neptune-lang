@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use neptune_lang::{InterpretError, Neptune};
 use rustyline::{
     error::ReadlineError,
@@ -7,7 +9,30 @@ use rustyline::{
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
-    let n = Neptune::new(None, None);
+    let n = Neptune::new(
+        Some(Box::new(|caller_module, module_name| {
+            let current_path: PathBuf;
+            if caller_module == "<repl>" {
+                if let Ok(dir) = std::env::current_dir() {
+                    current_path = dir;
+                } else {
+                    return None;
+                }
+            } else {
+                let caller_path = Path::new(caller_module);
+                current_path = caller_path.parent().unwrap().into();
+            };
+            let module_path = current_path.join(module_name);
+            match std::fs::canonicalize(module_path) {
+                Ok(path) => Some(path.to_string_lossy().into_owned()),
+                Err(_) => None,
+            }
+        })),
+        Some(Box::new(|module_name| {
+            std::fs::read_to_string(module_name).ok()
+        })),
+    );
+
     n.create_function("prelude", "print", 1, 0, |ctx| {
         ctx.to_string(0, 0);
         println!("{}", ctx.as_string(0).unwrap());
@@ -15,6 +40,7 @@ fn main() {
         Ok(0)
     })
     .unwrap();
+
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
             Ok(s) => match n.exec(&file, s) {
@@ -61,7 +87,7 @@ fn repl(n: &Neptune) {
     loop {
         match rl.readline(">> ") {
             Ok(lines) => {
-                match n.eval("<stdin>", &lines) {
+                match n.eval("<repl>", &lines) {
                     Ok(Some(val)) => {
                         println!("{}", val);
                     }

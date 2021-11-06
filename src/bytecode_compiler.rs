@@ -17,14 +17,16 @@ pub struct Compiler<'vm> {
     module_name: String,
     errors: Vec<CompileError>,
     vm: &'vm VM,
+    exit: bool,
 }
 
 impl<'vm> Compiler<'vm> {
-    pub fn new(vm: &'vm VM, module_name: String) -> Self {
+    pub fn new(vm: &'vm VM, module_name: String, exit: bool) -> Self {
         Self {
             vm,
             module_name,
             errors: vec![],
+            exit,
         }
     }
 
@@ -33,10 +35,14 @@ impl<'vm> Compiler<'vm> {
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         self.register_module_variables(&ast);
-        let module = self.module_name.clone();
-        let mut b = BytecodeCompiler::new(&mut self, &module, BytecodeType::Script, 0);
+        let exit = self.exit;
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
-        b.bytecode.write_u8(Op::Exit.repr);
+        if exit {
+            b.bytecode.write_u8(Op::Exit.repr);
+        } else {
+            b.bytecode.write_u8(Op::Return.repr);
+        }
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -65,8 +71,8 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let module = self.module_name.clone();
-        let mut b = BytecodeCompiler::new(&mut self, &module, BytecodeType::Script, 0);
+        let exit = self.exit;
+        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
                 if let Err(e) = b.store_in_accumulator(er, 1) {
@@ -77,7 +83,11 @@ impl<'vm> Compiler<'vm> {
         }
         b.bytecode.shrink();
         b.bytecode.set_max_registers(b.max_registers);
-        b.bytecode.write_u8(Op::Exit.repr);
+        if exit {
+            b.bytecode.write_u8(Op::Exit.repr);
+        } else {
+            b.bytecode.write_u8(Op::Return.repr);
+        }
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -99,6 +109,7 @@ impl<'vm> Compiler<'vm> {
                         self.module_name.as_str().into(),
                         name.as_str().into(),
                         *mutable,
+                        true,
                     ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
@@ -111,6 +122,7 @@ impl<'vm> Compiler<'vm> {
                         self.module_name.as_str().into(),
                         name.as_str().into(),
                         false,
+                        true,
                     ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
@@ -1342,7 +1354,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Member { object, property } => {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
-                self.store_in_accumulator(object_res, line)?;
+                let reg = self.store_in_register(object_res, line)?;
                 let property = self
                     .bytecode
                     .symbol_constant(property.as_str().into())
@@ -1350,7 +1362,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line,
                         message: "Cannot have more than 65535 constants per function".into(),
                     })?;
-                self.write1(Op::LoadProperty, property as u32, line);
+                self.write2(Op::LoadProperty, reg, property, line);
+                if !matches!(object_res, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
                 Ok(ExprResult::Accumulator)
             }
         }

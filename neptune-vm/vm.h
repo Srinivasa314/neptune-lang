@@ -52,8 +52,8 @@ public:
   Value return_value;
   Value to_string(Value val);
   VMStatus run(Function *f);
-  bool add_module_variable(StringSlice module, StringSlice name,
-                           bool mutable_) const;
+  bool add_module_variable(StringSlice module, StringSlice name, bool mutable_,
+                           bool exported) const;
   ModuleVariable get_module_variable(StringSlice module_name,
                                      StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice module, StringSlice name,
@@ -71,7 +71,8 @@ public:
   const uint8_t *panic(const uint8_t *ip, Value v);
   const uint8_t *panic(const uint8_t *ip);
   bool declare_native_function(StringSlice module, StringSlice name,
-                               uint8_t arity, uint16_t extra_slots,
+                               bool exported, uint8_t arity,
+                               uint16_t extra_slots,
                                NativeFunctionCallback *callback, Data *data,
                                FreeDataCallback *free_data) const;
   void declare_native_builtins();

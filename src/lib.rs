@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
@@ -42,15 +40,13 @@ impl Neptune {
     pub fn new(
         mut resolve_module: Option<Box<dyn FnMut(&str, &str) -> Option<String>>>,
         mut get_module_source: Option<Box<dyn FnMut(&str) -> Option<String>>>,
-    ) -> Self
-where {
+    ) -> Self {
         assert!(
             (resolve_module.is_some() && get_module_source.is_some())
                 || (resolve_module.is_none() && get_module_source.is_none())
         );
         let vm = new_vm();
-        let n = Self { vm };
-        n.create_function("prelude", "_compileModule", 1, 0, move |ctx| {
+        vm.declare_native_rust_function("prelude", "_compileModule", false, 1, 0, move |ctx| {
             let vm = ctx.vm();
             let module = match ctx.as_string(0) {
                 Some(module) => module,
@@ -62,7 +58,7 @@ where {
             if let Some(get_module_source) = get_module_source.as_mut() {
                 let source = get_module_source(&module);
                 if let Some(source) = source {
-                    match compile(vm, module, &source, false) {
+                    match compile(vm, module, &source, false, false) {
                         Ok((f, _)) => {
                             unsafe {
                                 ctx.function(0, f);
@@ -83,46 +79,45 @@ where {
                 ctx.string(0, &format!("module {} does not exist", &module));
                 Err(0)
             }
-        })
-        .unwrap();
-        n.create_function("prelude", "_resolveModule", 2, 0, move |ctx| {
-            let module = match ctx.as_string(0) {
+        });
+        vm.declare_native_rust_function("prelude", "_resolveModule", false, 2, 0, move |ctx| {
+            let caller_module = match ctx.as_string(0) {
                 Some(module) => module,
                 None => {
-                    ctx.string(0, "module must be a string");
+                    ctx.string(0, "callerModule must be a string");
                     return Err(0);
                 }
             };
-            let name = match ctx.as_string(1) {
+            let module_name = match ctx.as_string(1) {
                 Some(module) => module,
                 None => {
-                    ctx.string(0, "name must be a string");
+                    ctx.string(0, "module name must be a string");
                     return Err(0);
                 }
             };
             if let Some(resolve_module) = resolve_module.as_mut() {
-                match resolve_module(&module, &name) {
+                match resolve_module(&caller_module, &module_name) {
                     Some(s) => {
                         ctx.string(0, &s);
                         Ok(0)
                     }
                     None => {
-                        ctx.string(0, &format!("module {} does not exist", &name));
+                        ctx.string(0, &format!("module {} does not exist", &module_name));
                         Err(0)
                     }
                 }
             } else {
-                ctx.string(0, &format!("module {} does not exist", &name));
+                ctx.string(0, &format!("module {} does not exist", &module_name));
                 Err(0)
             }
-        })
-        .unwrap();
+        });
+        let n = Self { vm };
         n.exec("prelude", include_str!("prelude.np")).unwrap();
         n
     }
 
     pub fn exec<S: Into<String>>(&self, module: S, source: &str) -> Result<(), InterpretError> {
-        match compile(&self.vm, module.into(), source, false) {
+        match compile(&self.vm, module.into(), source, false, true) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::RuntimePanic {
@@ -140,7 +135,7 @@ where {
         module: S,
         source: &str,
     ) -> Result<Option<String>, InterpretError> {
-        match compile(&self.vm, module.into(), source, true) {
+        match compile(&self.vm, module.into(), source, true, true) {
             Ok((mut f, is_expr)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(if is_expr {
                     Some(self.vm.get_result())
@@ -170,7 +165,7 @@ where {
         }
         if self
             .vm
-            .declare_native_rust_function(module, name, arity, extra_slots, callback)
+            .declare_native_rust_function(module, name, true, arity, extra_slots, callback)
         {
             Ok(())
         } else {
@@ -193,6 +188,7 @@ fn compile<'vm>(
     module: String,
     source: &str,
     eval: bool,
+    exit: bool,
 ) -> Result<(FunctionInfoWriter<'vm>, bool), Vec<CompileError>> {
     if !vm.module_exists(module.as_str().into()) {
         vm.create_module_with_prelude(module.as_str().into());
@@ -201,7 +197,7 @@ fn compile<'vm>(
     let tokens = scanner.scan_tokens();
     let parser = Parser::new(tokens.into_iter());
     let ast = parser.parse(eval);
-    let compiler = Compiler::new(vm, module);
+    let compiler = Compiler::new(vm, module, exit);
     let mut is_expr = false;
     let mut fw = if eval {
         if let Some(expr) = Compiler::can_eval(&ast.0) {

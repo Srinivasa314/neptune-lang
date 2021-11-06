@@ -189,7 +189,7 @@ void VM::close(Value *last) {
   }
 }
 bool VM::add_module_variable(StringSlice module, StringSlice name,
-                             bool mutable_) const {
+                             bool mutable_, bool exported) const {
   auto module_iter = modules.find(module);
   if (module_iter == modules.end())
     return false;
@@ -199,7 +199,7 @@ bool VM::add_module_variable(StringSlice module, StringSlice name,
              .insert(
                  {const_cast<VM *>(this)->intern(name),
                   ModuleVariable{static_cast<uint32_t>(module_variables.size()),
-                                 mutable_}})
+                                 mutable_, exported}})
              .second)
       return false;
     module_variables.push_back(Value::null());
@@ -572,11 +572,12 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
 }
 
 bool VM::declare_native_function(StringSlice module, StringSlice name,
-                                 uint8_t arity, uint16_t extra_slots,
+                                 bool exported, uint8_t arity,
+                                 uint16_t extra_slots,
                                  NativeFunctionCallback *callback,
                                  Data *data = nullptr,
                                  FreeDataCallback *free_data = nullptr) const {
-  if (!add_module_variable(module, name, false))
+  if (!add_module_variable(module, name, false, exported))
     return false;
   auto n = new NativeFunction();
   n->arity = arity;
@@ -645,14 +646,14 @@ bool _getCallerModule(FunctionContext ctx, void *) {
 
 void VM::declare_native_builtins() {
   create_module(StringSlice("vm"));
-  declare_native_function(StringSlice("vm"), StringSlice("disassemble"), 1, 0,
-                          native_builtins::disassemble);
-  declare_native_function(StringSlice("vm"), StringSlice("gc"), 0, 0,
+  declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
+                          1, 0, native_builtins::disassemble);
+  declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0, 0,
                           native_builtins::gc);
-  declare_native_function(StringSlice("prelude"), StringSlice("_getModule"), 1,
-                          0, native_builtins::_getModule);
+  declare_native_function(StringSlice("prelude"), StringSlice("_getModule"),
+                          false, 1, 0, native_builtins::_getModule);
   declare_native_function(StringSlice("prelude"),
-                          StringSlice("_getCallerModule"), 0, 0,
+                          StringSlice("_getCallerModule"), false, 0, 0,
                           native_builtins::_getCallerModule);
 }
 
@@ -717,13 +718,14 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
     this_->modules.insert(
         {std::string(module_name.data, module_name.len), module});
     auto prelude = modules.find(StringSlice("prelude"))->second;
-    for (auto pair : prelude->module_variables) {
-      module->module_variables.insert(
-          {pair.first,
-           ModuleVariable{static_cast<uint32_t>(module_variables.size()),
-                          false}});
-      module_variables.push_back(module_variables[pair.second.position]);
-    }
+    for (auto pair : prelude->module_variables)
+      if (pair.second.exported) {
+        module->module_variables.insert(
+            {pair.first,
+             ModuleVariable{static_cast<uint32_t>(module_variables.size()),
+                            false, false}});
+        module_variables.push_back(module_variables[pair.second.position]);
+      }
   }
 }
 
