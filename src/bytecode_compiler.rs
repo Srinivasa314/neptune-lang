@@ -103,13 +103,20 @@ impl<'vm> Compiler<'vm> {
                     name,
                     mutable,
                     line,
+                    exported,
                     ..
                 } => {
+                    if name.chars().next().unwrap() == '_' {
+                        self.errors.push(CompileError {
+                            message: format!("Exported variable {} cannot start with _", name),
+                            line: *line,
+                        })
+                    }
                     if !self.vm.add_module_variable(
                         self.module_name.as_str().into(),
                         name.as_str().into(),
                         *mutable,
-                        true,
+                        *exported,
                     ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
@@ -117,12 +124,23 @@ impl<'vm> Compiler<'vm> {
                         })
                     }
                 }
-                Statement::Function { name, line, .. } => {
+                Statement::Function {
+                    name,
+                    line,
+                    exported,
+                    ..
+                } => {
+                    if name.chars().next().unwrap() == '_' {
+                        self.errors.push(CompileError {
+                            message: format!("Exported variable {} cannot start with _", name),
+                            line: *line,
+                        })
+                    }
                     if !self.vm.add_module_variable(
                         self.module_name.as_str().into(),
                         name.as_str().into(),
                         false,
-                        true,
+                        *exported,
                     ) {
                         self.errors.push(CompileError {
                             message: format!("Cannot redeclare global {}", name),
@@ -737,8 +755,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     name,
                     expr,
                     mutable,
+                    exported,
                     line,
                 } => {
+                    if *exported && (self.bctype != BytecodeType::Script || !self.locals.is_empty())
+                    {
+                        self.error(CompileError {
+                            message: "Cannot export non module variable".to_string(),
+                            line: *line,
+                        });
+                    }
                     self.var_declaration(name, expr, *line, *mutable)?;
                 }
                 Statement::Block { block, end_line } => {
@@ -901,7 +927,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     arguments,
                     body,
                     last_line,
+                    exported,
                 } => {
+                    if *exported && (self.bctype != BytecodeType::Script || !self.locals.is_empty())
+                    {
+                        self.error(CompileError {
+                            message: "Cannot export non module variable".to_string(),
+                            line: *line,
+                        });
+                    }
                     self.closure(
                         name,
                         *line,
