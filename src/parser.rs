@@ -66,6 +66,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Const => Precedence::None,
         TokenType::Else => Precedence::None,
         TokenType::Extends => Precedence::None,
+        TokenType::Export => Precedence::None,
         TokenType::False => Precedence::None,
         TokenType::For => Precedence::None,
         TokenType::Fun => Precedence::None,
@@ -189,6 +190,7 @@ pub enum Statement {
         name: String,
         expr: Expr,
         mutable: bool,
+        exported: bool,
         line: u32,
     },
     Block {
@@ -226,6 +228,7 @@ pub enum Statement {
         name: String,
         arguments: Vec<String>,
         body: Vec<Statement>,
+        exported: bool,
     },
     Return {
         line: u32,
@@ -383,6 +386,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Const => None,
             TokenType::Else => None,
             TokenType::Extends => None,
+            TokenType::Export => None,
             TokenType::False => Some(self.literal()),
             TokenType::For => None,
             TokenType::Fun => None,
@@ -453,6 +457,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Const => unreachable!(),
             TokenType::Else => unreachable!(),
             TokenType::Extends => unreachable!(),
+            TokenType::Export => unreachable!(),
             TokenType::False => unreachable!(),
             TokenType::For => unreachable!(),
             TokenType::Fun => unreachable!(),
@@ -581,7 +586,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Expr::Map { inner: ret, line })
     }
 
-    fn function(&mut self) -> CompileResult<Statement> {
+    fn function(&mut self, exported: bool) -> CompileResult<Statement> {
         self.consume(
             TokenType::Identifier,
             "Expect identifier for function name".into(),
@@ -617,6 +622,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             name,
             arguments,
             body,
+            exported,
         })
     }
 
@@ -680,9 +686,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn statement(&mut self, needs_sep: bool, try_expr: bool) -> Option<Statement> {
         match (|| {
             let e = if self.match_token(TokenType::Let) {
-                self.var_declaration(true)
+                self.var_declaration(true, false)
             } else if self.match_token(TokenType::Const) {
-                self.var_declaration(false)
+                self.var_declaration(false, false)
             } else if self.match_token(TokenType::LeftBrace) {
                 if try_expr {
                     self.map().map(Statement::Expr)
@@ -707,13 +713,26 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                     line: self.previous.line,
                 })
             } else if self.match_token(TokenType::Fun) {
-                self.function()
+                self.function(false)
             } else if self.match_token(TokenType::Return) {
                 self.return_stmt()
             } else if self.match_token(TokenType::Panic) {
                 Ok(Statement::Panic(self.expression()?))
             } else if self.match_token(TokenType::Try) {
                 self.try_catch()
+            } else if self.match_token(TokenType::Export) {
+                if self.match_token(TokenType::Fun) {
+                    self.function(true)
+                } else if self.match_token(TokenType::Let) {
+                    self.var_declaration(true, true)
+                } else if self.match_token(TokenType::Const) {
+                    self.var_declaration(false, true)
+                } else {
+                    Err(CompileError {
+                        message: "Expected let,const or fun after export".to_string(),
+                        line: self.line(),
+                    })
+                }
             } else {
                 self.expression_statement()
             }?;
@@ -734,7 +753,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         }
     }
 
-    fn var_declaration(&mut self, mutable: bool) -> CompileResult<Statement> {
+    fn var_declaration(&mut self, mutable: bool, exported: bool) -> CompileResult<Statement> {
         if TokenType::Identifier == self.current.token_type {
             self.advance();
             let name = self.previous.inner.into();
@@ -746,6 +765,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 expr,
                 line,
                 mutable,
+                exported,
             })
         } else {
             Err(self.error_at_current("Expect identifier".into()))
