@@ -93,7 +93,7 @@ public:
         first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
         stack_top(stack.get()), is_running(false),
         last_native_function(nullptr), return_value(Value::null()) {
-    create_module(StringSlice("prelude"));
+    create_module(StringSlice("<prelude>"));
     declare_native_builtins();
   }
   ~VM();

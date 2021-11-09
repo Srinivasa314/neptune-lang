@@ -650,9 +650,9 @@ void VM::declare_native_builtins() {
                           1, 0, native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0, 0,
                           native_builtins::gc);
-  declare_native_function(StringSlice("prelude"), StringSlice("_getModule"),
+  declare_native_function(StringSlice("<prelude>"), StringSlice("_getModule"),
                           false, 1, 0, native_builtins::_getModule);
-  declare_native_function(StringSlice("prelude"),
+  declare_native_function(StringSlice("<prelude>"),
                           StringSlice("_getCallerModule"), false, 0, 0,
                           native_builtins::_getCallerModule);
 }
@@ -717,7 +717,7 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
         new Module(std::string(module_name.data, module_name.len)));
     this_->modules.insert(
         {std::string(module_name.data, module_name.len), module});
-    auto prelude = modules.find(StringSlice("prelude"))->second;
+    auto prelude = modules.find(StringSlice("<prelude>"))->second;
     for (auto pair : prelude->module_variables)
       if (pair.second.exported) {
         module->module_variables.insert(

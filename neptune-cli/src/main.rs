@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use neptune_lang::{InterpretError, Neptune};
+use neptune_lang::{InterpretError, ModuleLoader, Neptune};
 use rustyline::{
     error::ReadlineError,
     validate::{self, Validator},
@@ -9,31 +9,8 @@ use rustyline::{
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
-    let n = Neptune::new(
-        Some(Box::new(|caller_module, module_name| {
-            let current_path: PathBuf;
-            if caller_module == "<repl>" {
-                if let Ok(dir) = std::env::current_dir() {
-                    current_path = dir;
-                } else {
-                    return None;
-                }
-            } else {
-                let caller_path = Path::new(caller_module);
-                current_path = caller_path.parent().unwrap().into();
-            };
-            let module_path = current_path.join(module_name);
-            match std::fs::canonicalize(module_path) {
-                Ok(path) => Some(path.to_string_lossy().into_owned()),
-                Err(_) => None,
-            }
-        })),
-        Some(Box::new(|module_name| {
-            std::fs::read_to_string(module_name).ok()
-        })),
-    );
-
-    n.create_function("prelude", "print", 1, 0, |ctx| {
+    let n = Neptune::new(FileSystemModuleLoader);
+    n.create_function("<prelude>", "print", 1, 0, |ctx| {
         ctx.to_string(0, 0);
         println!("{}", ctx.as_string(0).unwrap());
         ctx.null(0);
@@ -43,7 +20,13 @@ fn main() {
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
-            Ok(s) => match n.exec(&file, s) {
+            Ok(s) => match n.exec(
+                std::fs::canonicalize(&file)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+                s,
+            ) {
                 Ok(()) => {}
                 Err(e) => report_error(e),
             },
@@ -53,6 +36,34 @@ fn main() {
             }
         },
         None => repl(&n),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct FileSystemModuleLoader;
+
+impl ModuleLoader for FileSystemModuleLoader {
+    fn resolve(&self, caller_module: &str, module: &str) -> Option<String> {
+        let current_path: PathBuf;
+        if caller_module == "<repl>" {
+            if let Ok(dir) = std::env::current_dir() {
+                current_path = dir;
+            } else {
+                return None;
+            }
+        } else {
+            let caller_path = Path::new(caller_module);
+            current_path = caller_path.parent().unwrap().into();
+        };
+        let module_path = current_path.join(module);
+        match std::fs::canonicalize(module_path) {
+            Ok(path) => Some(path.to_string_lossy().into_owned()),
+            Err(_) => None,
+        }
+    }
+
+    fn load(&self, module: &str) -> Option<String> {
+        std::fs::read_to_string(module).ok()
     }
 }
 
@@ -194,8 +205,8 @@ fn report_error(i: InterpretError) {
                 eprintln!("line {}: {}", error.line, error.message)
             }
         }
-        InterpretError::RuntimePanic { error, stack_trace } => {
-            eprintln!("Runtime Error: {}", error);
+        InterpretError::UncaughtPanic { error, stack_trace } => {
+            eprintln!("Uncaught Panic: {}", error);
             eprintln!("{}", stack_trace);
         }
     }

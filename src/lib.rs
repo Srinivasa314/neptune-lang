@@ -20,7 +20,7 @@ pub struct CompileError {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum InterpretError {
     CompileError(Vec<CompileError>),
-    RuntimePanic { error: String, stack_trace: String },
+    UncaughtPanic { error: String, stack_trace: String },
 }
 
 pub type CompileResult<T> = Result<T, CompileError>;
@@ -36,27 +36,39 @@ pub struct Neptune {
     vm: UniquePtr<VM>,
 }
 
+pub trait ModuleLoader {
+    fn resolve(&self, caller_module: &str, module: &str) -> Option<String>;
+    fn load(&self, module: &str) -> Option<String>;
+}
+
+#[derive(Clone, Copy)]
+struct NoopModuleLoader;
+
+impl ModuleLoader for NoopModuleLoader {
+    fn resolve(&self, _: &str, _: &str) -> Option<String> {
+        None
+    }
+
+    fn load(&self, _: &str) -> Option<String> {
+        None
+    }
+}
+
 impl Neptune {
-    pub fn new(
-        mut resolve_module: Option<Box<dyn FnMut(&str, &str) -> Option<String>>>,
-        mut get_module_source: Option<Box<dyn FnMut(&str) -> Option<String>>>,
-    ) -> Self {
-        assert!(
-            (resolve_module.is_some() && get_module_source.is_some())
-                || (resolve_module.is_none() && get_module_source.is_none())
-        );
+    pub fn new<M: ModuleLoader + 'static + Clone>(module_loader: M) -> Self {
         let vm = new_vm();
-        vm.declare_native_rust_function("prelude", "_compileModule", false, 1, 0, move |ctx| {
-            let vm = ctx.vm();
-            let module = match ctx.as_string(0) {
-                Some(module) => module,
-                None => {
-                    ctx.string(0, "module must be a string");
-                    return Err(0);
-                }
-            };
-            if let Some(get_module_source) = get_module_source.as_mut() {
-                let source = get_module_source(&module);
+        vm.declare_native_rust_function("<prelude>", "_compileModule", false, 1, 0, {
+            let module_loader = module_loader.clone();
+            move |ctx| {
+                let vm = ctx.vm();
+                let module = match ctx.as_string(0) {
+                    Some(module) => module,
+                    None => {
+                        ctx.string(0, "module must be a string");
+                        return Err(0);
+                    }
+                };
+                let source = module_loader.load(&module);
                 if let Some(source) = source {
                     match compile(vm, module, &source, false, false) {
                         Ok((f, _)) => {
@@ -75,12 +87,9 @@ impl Neptune {
                     ctx.string(0, &format!("cannot get source of module {}", &module));
                     Err(0)
                 }
-            } else {
-                ctx.string(0, &format!("module {} does not exist", &module));
-                Err(0)
             }
         });
-        vm.declare_native_rust_function("prelude", "_resolveModule", false, 2, 0, move |ctx| {
+        vm.declare_native_rust_function("<prelude>", "_resolveModule", false, 2, 0, move |ctx| {
             let caller_module = match ctx.as_string(0) {
                 Some(module) => module,
                 None => {
@@ -95,24 +104,19 @@ impl Neptune {
                     return Err(0);
                 }
             };
-            if let Some(resolve_module) = resolve_module.as_mut() {
-                match resolve_module(&caller_module, &module_name) {
-                    Some(s) => {
-                        ctx.string(0, &s);
-                        Ok(0)
-                    }
-                    None => {
-                        ctx.string(0, &format!("module {} does not exist", &module_name));
-                        Err(0)
-                    }
+            match module_loader.resolve(&caller_module, &module_name) {
+                Some(s) => {
+                    ctx.string(0, &s);
+                    Ok(0)
                 }
-            } else {
-                ctx.string(0, &format!("module {} does not exist", &module_name));
-                Err(0)
+                None => {
+                    ctx.string(0, &format!("module {} does not exist", &module_name));
+                    Err(0)
+                }
             }
         });
         let n = Self { vm };
-        n.exec("prelude", include_str!("prelude.np")).unwrap();
+        n.exec("<prelude>", include_str!("prelude.np")).unwrap();
         n
     }
 
@@ -120,7 +124,7 @@ impl Neptune {
         match compile(&self.vm, module.into(), source, false, true) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
-                VMStatus::Error => Err(InterpretError::RuntimePanic {
+                VMStatus::Error => Err(InterpretError::UncaughtPanic {
                     error: self.vm.get_result(),
                     stack_trace: self.vm.get_stack_trace(),
                 }),
@@ -142,7 +146,7 @@ impl Neptune {
                 } else {
                     None
                 }),
-                VMStatus::Error => Err(InterpretError::RuntimePanic {
+                VMStatus::Error => Err(InterpretError::UncaughtPanic {
                     error: self.vm.get_result(),
                     stack_trace: self.vm.get_stack_trace(),
                 }),
@@ -224,7 +228,7 @@ fn compile<'vm>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{InterpretError, Neptune};
+    use crate::{InterpretError, Neptune, NoopModuleLoader};
     use std::{
         env,
         fs::File,
@@ -245,14 +249,14 @@ mod tests {
     }
     #[test]
     fn test() {
-        let n = Neptune::new(None, None);
+        let n = Neptune::new(NoopModuleLoader);
         assert_eq!(n.eval("fun f(){}", "").unwrap(), None);
         for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
             if let InterpretError::CompileError(_) = n.exec(test, &read(test)).unwrap_err() {
                 panic!("Expected a runtime error")
             }
         }
-        if let InterpretError::RuntimePanic { error, stack_trace } = n
+        if let InterpretError::UncaughtPanic { error, stack_trace } = n
             .exec(
                 "<script>",
                 r#"
