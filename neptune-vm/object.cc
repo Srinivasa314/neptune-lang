@@ -64,30 +64,12 @@ uint32_t StringHasher::operator()(const std::string &s) const {
 const char *Object::type_string() const {
   // todo change this when more types are added
   switch (type) {
-  case Type::String:
-    return "string";
-  case Type::Symbol:
-    return "symbol";
-  case Type::Array:
-    return "array";
-  case Type::Map:
-    return "map";
   case Type::FunctionInfo:
-    return "<internal type functioninfo>";
-  case Type::Function:
-    return "function";
+    return "<internal type FunctionInfo>";
   case Type::UpValue:
-    return "<internal type upvalue>";
-  case Type::NativeFunction:
-    return "native function";
-  case Type::Module:
-    return "module";
-  case Type::Class:
-    return "class";
-  case Type::Task:
-    return "task";
+    return "<internal type UpValue>";
   default:
-    unreachable();
+    return class_->name.c_str();
   }
 }
 
@@ -184,26 +166,56 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   }
   case Type::FunctionInfo:
-    vf.os << "<functioninfo for " << obj->as<FunctionInfo>()->name << '>';
+    vf.os << "<FunctionInfo for " << obj->as<FunctionInfo>()->name << '>';
     break;
   case Type::Function:
-    vf.os << "<function " << obj->as<Function>()->function_info->name << '>';
+    vf.os << "<Function " << obj->as<Function>()->function_info->name << '>';
     break;
   case Type::UpValue:
-    vf.os << "<upvalue>";
+    vf.os << "<UpValue>";
     break;
   case Type::NativeFunction:
-    vf.os << "<native function " << obj->as<NativeFunction>()->name << '>';
+    vf.os << "<Function " << obj->as<NativeFunction>()->name << '>';
     break;
   case Type::Module:
-    vf.os << "<module " << obj->as<Module>()->name << '>';
+    vf.os << "<Module " << obj->as<Module>()->name << '>';
     break;
   case Type::Class:
-    vf.os << "<class " << obj->as<Class>()->name << '>';
+    vf.os << "<Class " << obj->as<Class>()->name << '>';
     break;
   case Type::Task:
-    vf.os << "<task>";
+    vf.os << "<Task>";
     break;
+  case Type::Instance: {
+    if (obj->class_->name != "Object")
+      vf.os << obj->class_->name << " ";
+    if (vf.depth > MAX_DEPTH) {
+      vf.os << "{ ... }";
+    } else {
+      auto new_vf = vf.inc_depth();
+      auto &o = obj->as<Instance>()->properties;
+      auto it = o.begin();
+      if (it != o.end()) {
+        vf.os << "{ ";
+        new_vf.os << static_cast<StringSlice>(*it->first);
+        new_vf.os << ": ";
+        new_vf << it->second;
+        it++;
+        for (auto p = it; p != o.end(); p++) {
+          new_vf.os << ", ";
+          new_vf.os << static_cast<StringSlice>(*p->first);
+          new_vf.os << ": ";
+          new_vf << p->second;
+        }
+        vf.os << " }";
+      } else {
+        vf.os << "{}";
+      }
+    }
+    break;
+
+    break;
+  }
   default:
     unreachable();
   }
@@ -211,6 +223,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
 Array::Array(size_t size) : inner(std::vector<Value>(size, Value::null())) {}
 
 Map::Map(size_t size) { inner.reserve(size); }
+Instance::Instance(size_t size) { properties.reserve(size); }
 
 std::ostream &operator<<(std::ostream &os, StringSlice s) {
   os.write(s.data, std::streamsize(s.len));

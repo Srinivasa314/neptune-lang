@@ -229,6 +229,12 @@ handler(NewMap, {
   bp[reg] = Value(manage(new Map(len)));
 });
 
+handler(NewObject, {
+  auto len = READ(utype);
+  auto reg = READ(utype);
+  bp[reg] = Value(manage(new Instance(len)));
+});
+
 handler(StrictEqual, accumulator = Value(ValueStrictEquality{}(bp[READ(utype)],
                                                                accumulator)););
 handler(StrictNotEqual,
@@ -328,7 +334,25 @@ handler(LoadProperty, {
                       << static_cast<StringSlice>(*property));
     else
       accumulator = module_variables[iter->second.position];
+  } else if (object.is_object() && object.as_object()->is<Instance>()) {
+    auto instance = object.as_object()->as<Instance>();
+    if (instance->properties.find(property) == instance->properties.end())
+      PANIC("Object does not have any property named "
+            << static_cast<StringSlice>(*property));
+    else
+      accumulator = instance->properties[property];
   } else {
     PANIC("Cannot get property from type " << object.type_string());
+  }
+});
+
+handler(StoreProperty, {
+  auto object = bp[READ(utype)];
+  auto property = constants[READ(utype)].as_object()->as<Symbol>();
+  if (object.is_object() && object.as_object()->is<Instance>()) {
+    auto instance = object.as_object()->as<Instance>();
+    instance->properties[property] = accumulator;
+  } else {
+    PANIC("Cannot set property for type " << object.type_string());
   }
 });

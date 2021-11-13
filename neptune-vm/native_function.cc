@@ -44,7 +44,7 @@ NativeFunctionStatus FunctionContext::null(uint16_t slot) const {
 }
 
 NativeFunctionStatus FunctionContext::string(uint16_t slot,
-                                            StringSlice string) const {
+                                             StringSlice string) const {
   if (slot < max_slots) {
     slots[slot] = Value(vm->manage(String::from(string)));
     return NativeFunctionStatus::Ok;

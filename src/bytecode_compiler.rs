@@ -1424,6 +1424,44 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 Ok(ExprResult::Accumulator)
             }
+            Expr::ObjectLiteral { line, inner } => {
+                if inner.is_empty() {
+                    self.write0(Op::EmptyObject, *line);
+                    return Ok(ExprResult::Accumulator);
+                }
+                let obj_reg = match dest {
+                    Some(r) => r,
+                    None => self.push_register(*line)?,
+                };
+                self.write2(
+                    Op::NewObject,
+                    u16::try_from(inner.len()).map_err(|_| CompileError {
+                        message: "Object literal can have up to 65535 elements".to_string(),
+                        line: *line,
+                    })?,
+                    obj_reg,
+                    *line,
+                );
+                for (key, val) in inner.iter() {
+                    let sym = self
+                        .bytecode
+                        .symbol_constant(key.as_str().into())
+                        .map_err(|_| CompileError {
+                            line: *line,
+                            message: "Cannot have more than 65535 constants per function".into(),
+                        })?;
+                    let val_res = self.evaluate_expr(val)?;
+                    self.store_in_accumulator(val_res, val.line())?;
+                    self.write2(Op::StoreProperty, obj_reg, sym, val.line());
+                }
+                if dest.is_none() {
+                    self.write_op_load_register(obj_reg, *line);
+                    self.pop_register();
+                    Ok(ExprResult::Accumulator)
+                } else {
+                    Ok(ExprResult::Register(obj_reg))
+                }
+            }
         }
     }
 
@@ -1621,7 +1659,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                 }
             }
-            Expr::Member { .. } => unimplemented!(),
+            Expr::Member { object, property } => {
+                let res = self.evaluate_expr(&object)?;
+                let object = self.store_in_register(res, line)?;
+                let sym = self
+                    .bytecode
+                    .symbol_constant(property.as_str().into())
+                    .map_err(|_| CompileError {
+                        line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })?;
+                let right = self.evaluate_expr(right)?;
+                self.store_in_accumulator(right, line)?;
+                self.write2(Op::StoreProperty, object, sym, line);
+                if !matches!(res, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
+            }
             _ => {
                 return Err(CompileError {
                     message: "Invalid target for assignment".into(),

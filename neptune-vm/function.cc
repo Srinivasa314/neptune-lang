@@ -259,6 +259,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(NewMap) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
+        CASE(NewObject) << READ(uint16_t) << ' ' << REG(uint16_t);
+        break;
 
         CASE(Jump) << READ(uint16_t);
         break;
@@ -297,6 +299,9 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(LoadProperty) << REG(uint16_t) << ' '
                            << f.constants[READ(uint16_t)];
+        break;
+        CASE(StoreProperty)
+            << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)];
         break;
         CASE(Close) << READ(uint16_t);
         break;
@@ -415,9 +420,13 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(NewMap) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
+      CASE(NewObject) << READ(uint8_t) << ' ' << REG(uint8_t);
+      break;
       CASE(EmptyArray);
       break;
       CASE(EmptyMap);
+      break;
+      CASE(EmptyObject);
       break;
       CASE(Jump) << READ(uint8_t);
       break;
@@ -447,6 +456,8 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(StoreUpvalue) << READ(uint8_t);
       break;
       CASE(LoadProperty) << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)];
+      break;
+      CASE(StoreProperty) << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)];
       break;
       CASE(Close) << READ(uint8_t);
       break;

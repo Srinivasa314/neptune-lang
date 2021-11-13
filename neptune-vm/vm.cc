@@ -234,6 +234,40 @@ template <typename O> O *VM::manage(O *t) {
   bytes_allocated += size(t);
   auto o = reinterpret_cast<Object *>(t);
   o->type = O::type;
+  switch (O::type) {
+  case Type::Class:
+    o->class_ = builtin_classes.Class_;
+    break;
+  case Type::String:
+    o->class_ = builtin_classes.String;
+    break;
+  case Type::Symbol:
+    o->class_ = builtin_classes.Symbol;
+    break;
+  case Type::Array:
+    o->class_ = builtin_classes.Array;
+    break;
+  case Type::Map:
+    o->class_ = builtin_classes.Map;
+    break;
+  case Type::Function:
+    o->class_ = builtin_classes.Function;
+    break;
+  case Type::NativeFunction:
+    o->class_ = builtin_classes.Function;
+    break;
+  case Type::Module:
+    o->class_ = builtin_classes.Function;
+    break;
+  case Type::Task:
+    o->class_ = builtin_classes.Task;
+    break;
+  case Type::Instance:
+    o->class_ = builtin_classes.Object;
+    break;
+  default:
+    o->class_ = nullptr;
+  }
   o->is_dark = false;
   o->next = first_obj;
   first_obj = o;
@@ -324,6 +358,10 @@ void VM::release(Object *o) {
   }
   case Type::Task: {
     delete o->as<Task>();
+    break;
+  }
+  case Type::Instance: {
+    delete o->as<Instance>();
     break;
   }
   default:
@@ -450,6 +488,8 @@ void VM::grey(Object *o) {
 }
 
 void VM::blacken(Object *o) {
+  if (o->class_ != nullptr)
+    grey(o->class_);
   switch (o->type) {
   case Type::Array:
     for (auto v : o->as<Array>()->inner) {
@@ -522,6 +562,14 @@ void VM::blacken(Object *o) {
       upvalue = upvalue->next;
     }
   } break;
+  case Type::Instance:
+    for (auto pair : o->as<Instance>()->properties) {
+      grey(pair.first);
+      if (pair.second.is_object())
+        grey(pair.second.as_object());
+    }
+    bytes_allocated += sizeof(Instance);
+    break;
   default:
     break;
   }
@@ -641,7 +689,7 @@ bool _getModule(FunctionContext ctx, void *) {
   if (ctx.slots[0].is_object() && ctx.slots[0].as_object()->is<String>()) {
     auto module = ctx.vm->get_module(
         StringSlice(*ctx.slots[0].as_object()->as<String>()));
-    if (module == NULL)
+    if (module == nullptr)
       ctx.vm->return_value = Value::null();
     else
       ctx.vm->return_value = Value(module);
@@ -668,6 +716,33 @@ bool _getCallerModule(FunctionContext ctx, void *) {
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
+#define DEFCLASS(Name)                                                         \
+  builtin_classes.Name = manage(new Class());                                   \
+  builtin_classes.Name->name = #Name;                                           \
+  builtin_classes.Name->super = builtin_classes.Object;                          \
+  add_module_variable(StringSlice("<prelude>"), StringSlice(#Name), false,     \
+                      true);                                                   \
+  module_variables[module_variables.size() - 1] = Value(builtin_classes.Name);
+  DEFCLASS(Object)
+  builtin_classes.Object->super = nullptr;
+  builtin_classes.Class_ = manage(new Class());
+  builtin_classes.Class_->name = "Class";
+  builtin_classes.Class_->super = builtin_classes.Object;
+  add_module_variable(StringSlice("<prelude>"), StringSlice("Class"), false,
+                      true);
+  module_variables[module_variables.size() - 1] = Value(builtin_classes.Class_);
+  DEFCLASS(Int)
+  DEFCLASS(Float)
+  DEFCLASS(Bool)
+  DEFCLASS(Null)
+  DEFCLASS(String)
+  DEFCLASS(Symbol)
+  DEFCLASS(Array)
+  DEFCLASS(Map)
+  DEFCLASS(Function)
+  DEFCLASS(Module)
+#undef DEFCLASS
+
   create_module(StringSlice("vm"));
   declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
                           1, 0, native_builtins::disassemble);
@@ -759,6 +834,23 @@ Module *VM::get_module(StringSlice module_name) const {
     return module_iter->second;
 }
 
+Class *VM::get_class(Value v) const {
+  if (v.is_int())
+    return builtin_classes.Int;
+  else if (v.is_float())
+    return builtin_classes.Float;
+  else if (v.is_null())
+    return builtin_classes.Null;
+  else if (v.is_true())
+    return builtin_classes.Bool;
+  else if (v.is_false())
+    return builtin_classes.Bool;
+  else if (v.is_object()) {
+    return v.as_object()->class_;
+  } else
+    unreachable();
+}
+
 static size_t power_of_two_ceil(size_t n) {
   n--;
   n |= n >> 1;
@@ -780,7 +872,8 @@ Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   for (auto &frame : frames) {
     frame.bp = stack.get() + (frame.bp - old_stack.get());
   }
-  for (auto upvalue = open_upvalues; upvalue != NULL; upvalue = upvalue->next) {
+  for (auto upvalue = open_upvalues; upvalue != nullptr;
+       upvalue = upvalue->next) {
     upvalue->location = stack.get() + (upvalue->location - old_stack.get());
   }
   return stack.get() + (bp - old_stack.get());

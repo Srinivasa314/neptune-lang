@@ -46,6 +46,7 @@
   OP(LoadModuleVariable)                                                       \
   OP(StoreModuleVariable)                                                      \
   OP(LoadProperty)                                                             \
+  OP(StoreProperty)                                                            \
   OP(LoadUpvalue)                                                              \
   OP(StoreUpvalue)                                                             \
   OP(LoadSubscript)                                                            \
@@ -80,8 +81,10 @@
   OP(ToString)                                                                 \
   OP(NewArray)                                                                 \
   OP(NewMap)                                                                   \
+  OP(NewObject)                                                                \
   OP(EmptyArray)                                                               \
   OP(EmptyMap)                                                                 \
+  OP(EmptyObject)                                                              \
   OP(MakeFunction)                                                             \
   OP(ForLoop)                                                                  \
   OP(Jump)                                                                     \
@@ -95,7 +98,7 @@
   OP(BeginForLoopConstant)                                                     \
   OP(Close)                                                                    \
   OP(Return)                                                                   \
-  OP(Panic)                                                                    \
+  OP(Panic)
 
 #define OP(x) x,
 namespace neptune_vm {

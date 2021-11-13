@@ -36,7 +36,8 @@ public:
   Value *grow_stack(Value *bp, size_t extra_needed);
   Task(size_t stack_size_)
       : stack(std::unique_ptr<Value[]>(new Value[stack_size_ / sizeof(Value)])),
-        stack_size(stack_size_), stack_top(stack.get()), open_upvalues(NULL) {}
+        stack_size(stack_size_), stack_top(stack.get()),
+        open_upvalues(nullptr) {}
 };
 
 class VM {
@@ -58,6 +59,7 @@ private:
   bool is_running;
   std::ostringstream panic_message;
   NativeFunction *last_native_function;
+  BuiltinClasses builtin_classes;
 
 public:
   Value return_value;
@@ -97,10 +99,11 @@ public:
   void create_module(StringSlice module_name) const;
   void create_module_with_prelude(StringSlice module_name) const;
   Module *get_module(StringSlice module_name) const;
+  Class *get_class(Value v) const;
   VM()
-      : bytes_allocated(0), first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE),
-        handles(nullptr), is_running(false), last_native_function(nullptr),
-        return_value(Value::null()),current_task(nullptr) {
+      : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
+        threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
+        last_native_function(nullptr), return_value(Value::null()) {
     create_module(StringSlice("<prelude>"));
     declare_native_builtins();
   }

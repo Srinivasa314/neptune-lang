@@ -200,13 +200,13 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
 }
 const char *Value::type_string() const {
   if (is_int())
-    return "int";
+    return "Int";
   else if (is_float())
-    return "float";
+    return "Float";
   else if (is_null())
-    return "null";
+    return "Null";
   else if (is_bool())
-    return "bool";
+    return "Bool";
   else if (is_object())
     return as_object()->type_string();
   else

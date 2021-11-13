@@ -36,9 +36,10 @@ enum class Type : uint8_t {
   NativeFunction,
   Module,
   Class,
-  Task
+  Task,
+  Instance
 };
-
+class Class;
 class Object {
   bool is_dark;
   Object *next; // part of intrusive linked list contained in GC
@@ -46,6 +47,7 @@ class Object {
 
 public:
   Type type;
+  Class *class_;
   template <typename O> bool is() const;
   template <typename O> O *as();
   const char *type_string() const;
@@ -160,7 +162,21 @@ class Class : public Object {
 
 public:
   std::string name;
+  Class *super;
   static constexpr Type type = Type::Class;
   friend class VM;
+};
+
+class Instance : public Object {
+public:
+  SymbolMap<Value> properties;
+  Instance() = default;
+  explicit Instance(size_t size);
+  static constexpr Type type = Type::Instance;
+  friend class VM;
+};
+struct BuiltinClasses {
+  Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
+      *Map, *Function, *Module, *Task;
 };
 } // namespace neptune_vm

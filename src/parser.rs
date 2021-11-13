@@ -156,6 +156,10 @@ pub enum Expr {
         object: Box<Expr>,
         property: String,
     },
+    ObjectLiteral {
+        line: u32,
+        inner: Vec<(String, Expr)>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,6 +182,7 @@ impl Expr {
             Expr::Call { line, .. } => *line,
             Expr::Closure { line, .. } => *line,
             Expr::Member { object, .. } => object.line(),
+            Expr::ObjectLiteral { line, .. } => *line,
         }
     }
 }
@@ -361,7 +366,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::RightParen => None,
             TokenType::LeftSquareBracket => Some(self.array()),
             TokenType::RightSquareBracket => None,
-            TokenType::LeftBrace => Some(todo!()),
+            TokenType::LeftBrace => Some(self.object_literal()),
             TokenType::RightBrace => None,
             TokenType::Comma => None,
             TokenType::Dot => None,
@@ -597,6 +602,44 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         }
     }
 
+    fn object_literal(&mut self) -> CompileResult<Expr> {
+        let mut ret = vec![];
+        let line = self.previous.line;
+        loop {
+            if self.current.token_type == TokenType::RightBrace {
+                self.advance();
+                break;
+            }
+            self.ignore_newline();
+            if self.current.token_type != TokenType::Identifier {
+                return Err(CompileError {
+                    message: "Expected identifier in object literal".to_string(),
+                    line,
+                });
+            }
+            self.advance();
+            let k = self.previous.inner.to_string();
+            self.ignore_newline();
+            self.consume(
+                TokenType::Colon,
+                "Expect colon after object literal key".into(),
+            )?;
+            self.ignore_newline();
+            let v = self.expression()?;
+            self.ignore_newline();
+            ret.push((k, v));
+            if self.match_token(TokenType::RightBrace) {
+                break;
+            }
+            self.consume(
+                TokenType::Comma,
+                "Expect comma after object literal value".into(),
+            )?;
+            self.ignore_newline();
+        }
+        Ok(Expr::ObjectLiteral { inner: ret, line })
+    }
+
     fn function(&mut self, exported: bool) -> CompileResult<Statement> {
         self.consume(
             TokenType::Identifier,
@@ -700,15 +743,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.var_declaration(true, false)
             } else if self.match_token(TokenType::Const) {
                 self.var_declaration(false, false)
-            } else if self.match_token(TokenType::LeftBrace) {
-                if try_expr {
-                    self.map().map(Statement::Expr)
-                } else {
-                    self.block().map(|block| Statement::Block {
-                        block,
-                        end_line: self.previous.line,
-                    })
-                }
+            } else if !try_expr && self.match_token(TokenType::LeftBrace) {
+                self.block().map(|block| Statement::Block {
+                    block,
+                    end_line: self.previous.line,
+                })
             } else if self.match_token(TokenType::If) {
                 self.if_statement()
             } else if self.match_token(TokenType::While) {
