@@ -70,7 +70,7 @@ impl Neptune {
                 };
                 let source = module_loader.load(&module);
                 if let Some(source) = source {
-                    match compile(vm, module, &source, false, false) {
+                    match compile(vm, module, &source, false) {
                         Ok((f, _)) => {
                             unsafe {
                                 ctx.function(0, f);
@@ -121,7 +121,7 @@ impl Neptune {
     }
 
     pub fn exec<S: Into<String>>(&self, module: S, source: &str) -> Result<(), InterpretError> {
-        match compile(&self.vm, module.into(), source, false, true) {
+        match compile(&self.vm, module.into(), source, false) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtPanic {
@@ -139,7 +139,7 @@ impl Neptune {
         module: S,
         source: &str,
     ) -> Result<Option<String>, InterpretError> {
-        match compile(&self.vm, module.into(), source, true, true) {
+        match compile(&self.vm, module.into(), source, true) {
             Ok((mut f, is_expr)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(if is_expr {
                     Some(self.vm.get_result())
@@ -192,7 +192,6 @@ fn compile<'vm>(
     module: String,
     source: &str,
     eval: bool,
-    exit: bool,
 ) -> Result<(FunctionInfoWriter<'vm>, bool), Vec<CompileError>> {
     if !vm.module_exists(module.as_str().into()) {
         vm.create_module_with_prelude(module.as_str().into());
@@ -201,7 +200,7 @@ fn compile<'vm>(
     let tokens = scanner.scan_tokens();
     let parser = Parser::new(tokens.into_iter());
     let ast = parser.parse(eval);
-    let compiler = Compiler::new(vm, module, exit);
+    let compiler = Compiler::new(vm, module);
     let mut is_expr = false;
     let mut fw = if eval {
         if let Some(expr) = Compiler::can_eval(&ast.0) {

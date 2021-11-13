@@ -1,12 +1,13 @@
 #include "checked_arithmetic.cc"
 #include "neptune-vm.h"
+#include <cstring>
 
 #if defined(__GNUC__) || defined(__clang__)
 #define COMPUTED_GOTO
 #endif
 
 constexpr uint32_t WIDE_OFFSET =
-    static_cast<uint32_t>(neptune_vm::Op::Exit) + 1;
+    static_cast<uint32_t>(neptune_vm::Op::Panic) + 1;
 constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define WIDE(x) (static_cast<uint32_t>(x) + WIDE_OFFSET)
@@ -49,25 +50,37 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #endif
 
 #define READ(type) read<type>(ip)
-#define CLOSE(n) close(&bp[n])
+#define CLOSE(n) task->close(&bp[n])
 
 #define CALL(n)                                                                \
   do {                                                                         \
     constants = f->function_info->constants.data();                            \
-    stack_top = bp + f->function_info->max_registers;                          \
-    if (stack_top > stack.get() + STACK_SIZE)                                  \
-      PANIC("Stack overflow");                                                 \
+    if (size_t(bp - task->stack.get()) + f->function_info->max_registers >     \
+        task->stack_size / sizeof(Value))                                      \
+      bp = task->grow_stack(bp,                                                \
+                            f->function_info->max_registers * sizeof(Value));  \
+    task->stack_top = bp + f->function_info->max_registers;                    \
     ip = f->function_info->bytecode.data();                                    \
     for (size_t i = n; i < f->function_info->max_registers; i++)               \
       bp[i] = Value::empty();                                                  \
-    frames[num_frames++] = Frame{bp, f, ip};                                   \
+    task->frames.push_back(Frame{bp, f, ip});                                  \
+  } while (0)
+
+#define PANIC(fmt)                                                             \
+  do {                                                                         \
+    panic_message << fmt;                                                      \
+    if ((ip = panic(ip)) != nullptr) {                                         \
+      bp = task->frames.back().bp;                                             \
+      auto f = task->frames.back().f;                                          \
+      constants = f->function_info->constants.data();                          \
+      DISPATCH();                                                              \
+    } else {                                                                   \
+      goto panic_end;                                                          \
+    }                                                                          \
   } while (0)
 
 namespace neptune_vm {
-VMStatus VM::run(Function *f) {
-  if (is_running)
-    throw std::runtime_error("Cannot call run() while VM is already running");
-  is_running = true;
+VMStatus VM::run(Task *task, Function *f) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -81,31 +94,16 @@ VMStatus VM::run(Function *f) {
 #undef OP
   };
 #endif
-  stack_trace = "";
-  return_value = Value::null();
+
+  if (is_running)
+    throw std::runtime_error("Cannot call run() while VM is already running");
+  current_task = task;
+  is_running = true;
   Value accumulator = Value::null();
-  Value *bp = &stack[0];
+  Value *bp = &task->stack[0];
   Value *constants;
   const uint8_t *ip = nullptr;
-  static_assert(
-      STACK_SIZE > 65536,
-      "Stack size must be greater than the maximum number of registers");
-#define PANIC(x) unreachable()
   CALL(0);
-#undef PANIC
-
-#define PANIC(fmt)                                                             \
-  do {                                                                         \
-    panic_message << fmt;                                                      \
-    if ((ip = panic(ip)) != nullptr) {                                         \
-      bp = frames[num_frames - 1].bp;                                          \
-      auto f = frames[num_frames - 1].f;                                       \
-      constants = f->function_info->constants.data();                          \
-      DISPATCH();                                                              \
-    } else {                                                                   \
-      goto panic_end;                                                          \
-    }                                                                          \
-  } while (0)
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -181,7 +179,7 @@ panic_end:
   return VMStatus::Error;
 }
 #undef READ
-void VM::close(Value *last) {
+void Task::close(Value *last) {
   while (open_upvalues != nullptr && open_upvalues->location >= last) {
     open_upvalues->closed = *open_upvalues->location;
     open_upvalues->location = &open_upvalues->closed;
@@ -314,10 +312,18 @@ void VM::release(Object *o) {
     auto n = o->as<NativeFunction>();
     if (n->free_data != nullptr)
       n->free_data(n->data);
-    delete o;
+    delete n;
   } break;
   case Type::Module: {
     delete o->as<Module>();
+    break;
+  }
+  case Type::Class: {
+    delete o->as<Class>();
+    break;
+  }
+  case Type::Task: {
+    delete o->as<Task>();
     break;
   }
   default:
@@ -397,10 +403,6 @@ void VM::collect() {
   }
   for (auto t : temp_roots)
     grey(t);
-  for (auto v = stack.get(); v < stack_top; v++) {
-    if (!v->is_empty() && v->is_object())
-      grey(v->as_object());
-  }
   for (auto v : module_variables) {
     if (v.is_object())
       grey(v.as_object());
@@ -408,15 +410,14 @@ void VM::collect() {
   for (auto module : modules) {
     grey(module.second);
   }
-  for (auto frame = frames.get(); frame < frames.get() + num_frames; frame++) {
-    grey(frame->f);
-  }
   if (return_value.is_object())
     grey(return_value.as_object());
   // this might not be necessary since native functions are constants but just
   // in case
   if (last_native_function != nullptr)
     grey(last_native_function);
+  if (current_task != nullptr)
+    grey(current_task);
 
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -496,10 +497,31 @@ void VM::blacken(Object *o) {
     break;
   case Type::Module:
     bytes_allocated += sizeof(Module);
-    for (auto pair : o->as<Module>()->module_variables) {
+    for (auto &pair : o->as<Module>()->module_variables) {
       grey(pair.first);
     }
     break;
+  case Type::Class:
+    bytes_allocated += sizeof(Class);
+    for (auto pair : o->as<Class>()->methods) {
+      grey(pair.first);
+      grey(pair.second);
+    }
+    break;
+  case Type::Task: {
+    bytes_allocated += sizeof(Task);
+    auto task = o->as<Task>();
+    for (auto v = task->stack.get(); v < task->stack_top; v++)
+      if (!v->is_empty() && v->is_object())
+        grey(v->as_object());
+    for (auto frame : task->frames)
+      grey(frame.f);
+    auto upvalue = task->open_upvalues;
+    while (upvalue != nullptr) {
+      grey(upvalue);
+      upvalue = upvalue->next;
+    }
+  } break;
   default:
     break;
   }
@@ -530,11 +552,11 @@ std::string VM::generate_stack_trace() {
        << last_native_function->module_name << ")\n";
     last_native_function = nullptr;
   }
-  for (size_t i = num_frames; i-- > 0;) {
-    auto frame = frames[i];
-    os << "at " << frame.f->function_info->name << " ("
-       << frame.f->function_info->module << ':'
-       << get_line_number(frame.f->function_info, frame.ip - 1) << ")\n";
+  for (auto frame = current_task->frames.rbegin();
+       frame != current_task->frames.rend(); frame++) {
+    os << "at " << frame->f->function_info->name << " ("
+       << frame->f->function_info->module << ':'
+       << get_line_number(frame->f->function_info, frame->ip - 1) << ")\n";
   }
   return os.str();
 }
@@ -546,10 +568,11 @@ const uint8_t *VM::panic(const uint8_t *ip) {
 }
 
 const uint8_t *VM::panic(const uint8_t *ip, Value v) {
-  frames[num_frames - 1].ip = ip;
+  auto task = current_task;
+  task->frames.back().ip = ip;
   stack_trace = generate_stack_trace();
   do {
-    auto frame = frames[num_frames - 1];
+    auto frame = task->frames.back();
     auto bytecode = frame.f->function_info->bytecode.data();
     auto handlers = frame.f->function_info->exception_handlers;
     auto ip = frame.ip;
@@ -559,14 +582,14 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
           ip <= bytecode + handler.try_end) {
         CLOSE(handler.error_reg);
         bp[handler.error_reg] = v;
-        stack_top = frame.f->function_info->max_registers + bp;
+        task->stack_top = frame.f->function_info->max_registers + bp;
         return bytecode + handler.catch_begin;
       }
     }
     CLOSE(0);
-    num_frames--;
-  } while (num_frames != 0);
-  stack_top = stack.get();
+    task->frames.pop_back();
+  } while (!task->frames.empty());
+  task->stack_top = task->stack.get();
   return_value = v;
   return nullptr;
 }
@@ -631,14 +654,14 @@ bool _getModule(FunctionContext ctx, void *) {
 }
 
 bool _getCallerModule(FunctionContext ctx, void *) {
-  if (ctx.vm->num_frames < 2) {
+  if (ctx.vm->current_task->frames.size() < 2) {
     ctx.vm->return_value =
         Value(ctx.vm->manage(String::from(StringSlice("No caller exists"))));
     return false;
   } else {
-    ctx.vm->return_value = Value(
-        ctx.vm->manage(String::from(ctx.vm->frames.get()[ctx.vm->num_frames - 2]
-                                        .f->function_info->module)));
+    ctx.vm->return_value = Value(ctx.vm->manage(String::from(
+        ctx.vm->current_task->frames[ctx.vm->current_task->frames.size() - 2]
+            .f->function_info->module)));
     return true;
   }
 }
@@ -657,21 +680,20 @@ void VM::declare_native_builtins() {
                           native_builtins::_getCallerModule);
 }
 
-Value VM::make_function(Value *bp, Value constant) {
-  auto info = constant.as_object()->as<FunctionInfo>();
-  auto function = (Function *)malloc(sizeof(Function) +
-                                     sizeof(UpValue *) * info->upvalues.size());
-  function->function_info = info;
+Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
+  auto function = (Function *)malloc(
+      sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size());
+  function->function_info = function_info;
   if (function == nullptr)
     throw std::bad_alloc();
   function->num_upvalues = 0;
   temp_roots.push_back(static_cast<Object *>(manage(function)));
-  for (auto upvalue : info->upvalues) {
+  for (auto upvalue : function_info->upvalues) {
     if (upvalue.is_local) {
       auto loc = &bp[upvalue.index];
       UpValue *prev = nullptr;
       UpValue *upval;
-      auto curr = open_upvalues;
+      auto curr = current_task->open_upvalues;
       while (curr != nullptr && curr->location > loc) {
         prev = curr;
         curr = curr->next;
@@ -681,8 +703,8 @@ Value VM::make_function(Value *bp, Value constant) {
       } else {
         upval = manage(new UpValue(loc));
         upval->next = curr;
-        if (open_upvalues == nullptr) {
-          open_upvalues = upval;
+        if (current_task->open_upvalues == nullptr) {
+          current_task->open_upvalues = upval;
         } else {
           prev->next = upval;
         }
@@ -690,11 +712,11 @@ Value VM::make_function(Value *bp, Value constant) {
       function->upvalues[function->num_upvalues++] = upval;
     } else {
       function->upvalues[function->num_upvalues++] =
-          frames[num_frames - 1].f->upvalues[upvalue.index];
+          current_task->frames.back().f->upvalues[upvalue.index];
     }
   }
   temp_roots.pop_back();
-  return Value(static_cast<Object *>(function));
+  return function;
 }
 
 bool VM::module_exists(StringSlice module_name) const {
@@ -718,7 +740,7 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
     this_->modules.insert(
         {std::string(module_name.data, module_name.len), module});
     auto prelude = modules.find(StringSlice("<prelude>"))->second;
-    for (auto pair : prelude->module_variables)
+    for (auto &pair : prelude->module_variables)
       if (pair.second.exported) {
         module->module_variables.insert(
             {pair.first,
@@ -735,5 +757,32 @@ Module *VM::get_module(StringSlice module_name) const {
     return nullptr;
   else
     return module_iter->second;
+}
+
+static size_t power_of_two_ceil(size_t n) {
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+  return n;
+}
+
+Value *Task::grow_stack(Value *bp, size_t extra_needed) {
+  size_t needed = stack_size + extra_needed;
+  size_t new_capacity = power_of_two_ceil(needed);
+  auto old_stack = std::move(stack);
+  stack = std::unique_ptr<Value[]>(new Value[new_capacity / sizeof(Value)]);
+  memcpy(stack.get(), old_stack.get(), stack_size);
+  stack_size = new_capacity;
+  for (auto &frame : frames) {
+    frame.bp = stack.get() + (frame.bp - old_stack.get());
+  }
+  for (auto upvalue = open_upvalues; upvalue != NULL; upvalue = upvalue->next) {
+    upvalue->location = stack.get() + (upvalue->location - old_stack.get());
+  }
+  return stack.get() + (bp - old_stack.get());
 }
 } // namespace neptune_vm

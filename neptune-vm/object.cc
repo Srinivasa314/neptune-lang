@@ -82,6 +82,10 @@ const char *Object::type_string() const {
     return "native function";
   case Type::Module:
     return "module";
+  case Type::Class:
+    return "class";
+  case Type::Task:
+    return "task";
   default:
     unreachable();
   }
@@ -155,13 +159,13 @@ void operator<<(ValueFormatter vf, Object *obj) {
   }
   case Type::Map: {
     if (vf.depth > MAX_DEPTH) {
-      vf.os << "{ ... }";
+      vf.os << "Map { ... }";
     } else {
       auto new_vf = vf.inc_depth();
       auto &o = obj->as<Map>()->inner;
       auto it = o.begin();
       if (it != o.end()) {
-        vf.os << "{ ";
+        vf.os << "Map { ";
         new_vf << it->first;
         new_vf.os << ": ";
         new_vf << it->second;
@@ -174,7 +178,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
         }
         vf.os << " }";
       } else {
-        vf.os << "{}";
+        vf.os << "Map {}";
       }
     }
     break;
@@ -193,6 +197,12 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::Module:
     vf.os << "<module " << obj->as<Module>()->name << '>';
+    break;
+  case Type::Class:
+    vf.os << "<class " << obj->as<Class>()->name << '>';
+    break;
+  case Type::Task:
+    vf.os << "<task>";
     break;
   default:
     unreachable();

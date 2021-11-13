@@ -91,7 +91,11 @@ void FunctionInfoWriter::release() {
 VMStatus FunctionInfoWriter::run() {
   auto function = vm->manage(new Function(hf->object));
   function->num_upvalues = 0;
-  return vm->run(function);
+  auto stack_size = hf->object->max_registers * sizeof(Value);
+  if (stack_size == 0)
+    stack_size = 1 * sizeof(Value);
+  auto task = vm->manage(new Task(stack_size));
+  return vm->run(task, function);
 }
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
@@ -449,8 +453,6 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(Return);
       break;
       CASE(Panic);
-      break;
-      CASE(Exit);
       break;
 
       CASE(LoadR0);

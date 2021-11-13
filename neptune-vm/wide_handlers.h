@@ -97,9 +97,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
         PANIC("Function " << f->function_info->name << " takes "               \
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(n) << " were given");       \
-      if (num_frames == MAX_FRAMES)                                            \
-        PANIC("Recursion depth exceeded");                                     \
-      frames[num_frames - 1].ip = ip;                                          \
+      task->frames.back().ip = ip;                                             \
       bp += offset;                                                            \
       CALL(n);                                                                 \
     } else if (accumulator.as_object()->is<NativeFunction>()) {                \
@@ -110,9 +108,10 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(n) << " were given");       \
       bp += offset;                                                            \
-      if (bp + f->max_slots > stack.get() + STACK_SIZE)                        \
-        PANIC("Stack overflow");                                               \
-      stack_top = bp + f->max_slots;                                           \
+      if (size_t(bp - task->stack.get()) + f->max_slots >                      \
+          task->stack_size / sizeof(Value))                                    \
+        bp = task->grow_stack(bp, f->max_slots);                               \
+      task->stack_top = bp + f->max_slots;                                     \
       for (auto v = bp + arity; v < bp + f->max_slots; v++)                    \
         *v = Value::null();                                                    \
       last_native_function = f;                                                \
@@ -121,8 +120,8 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
       return_value = Value::null();                                            \
       if (!ok) {                                                               \
         if ((ip = panic(ip, accumulator)) != nullptr) {                        \
-          bp = frames[num_frames - 1].bp;                                      \
-          auto f = frames[num_frames - 1].f;                                   \
+          bp = task->frames.back().bp;                                         \
+          auto f = task->frames.back().f;                                      \
           constants = f->function_info->constants.data();                      \
           DISPATCH();                                                          \
         } else                                                                 \
@@ -130,7 +129,8 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
       }                                                                        \
       last_native_function = nullptr;                                          \
       bp -= offset;                                                            \
-      stack_top = bp + frames[num_frames - 1].f->function_info->max_registers; \
+      task->stack_top =                                                        \
+          bp + task->frames.back().f->function_info->max_registers;            \
     } else {                                                                   \
       PANIC(accumulator.type_string() << " is not callable");                  \
     }                                                                          \
@@ -307,16 +307,14 @@ handler(BeginForLoopConstant, {
 });
 
 handler(MakeFunction, {
-  auto constant = constants[READ(utype)];
-  accumulator = make_function(bp, constant);
+  auto function = constants[READ(utype)].as_object()->as<FunctionInfo>();
+  accumulator = Value(make_function(bp, function));
 });
 
-handler(
-    LoadUpvalue,
-    accumulator = *frames[num_frames - 1].f->upvalues[READ(utype)]->location;);
-handler(
-    StoreUpvalue,
-    *frames[num_frames - 1].f->upvalues[READ(utype)]->location = accumulator;);
+handler(LoadUpvalue,
+        accumulator = *task->frames.back().f->upvalues[READ(utype)]->location;);
+handler(StoreUpvalue,
+        *task->frames.back().f->upvalues[READ(utype)]->location = accumulator;);
 handler(Close, CLOSE(READ(utype)););
 
 handler(LoadProperty, {

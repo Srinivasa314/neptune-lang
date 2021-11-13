@@ -23,7 +23,6 @@ pub enum TokenType {
     RightBrace,
     Comma,
     Dot,
-    DotDot,
     Minus,
     Mod,
     ModEqual,
@@ -68,7 +67,6 @@ pub enum TokenType {
     For,
     Fun,
     If,
-    In,
     Null,
     Or,
     Return,
@@ -80,6 +78,7 @@ pub enum TokenType {
     Try,
     Catch,
     Panic,
+    Map,
     //Other types
     Interpolation, // It stores
     Error(String),
@@ -97,7 +96,6 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "for" => TokenType::For,
     "fun" => TokenType::Fun,
     "if" => TokenType::If,
-    "in" => TokenType::In,
     "null" => TokenType::Null,
     "or" => TokenType::Or,
     "return" => TokenType::Return,
@@ -106,9 +104,10 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "true" => TokenType::True,
     "let" => TokenType::Let,
     "while" => TokenType::While,
-    "try"=>TokenType::Try,
-    "panic"=>TokenType::Panic,
-    "catch"=>TokenType::Catch,
+    "try" => TokenType::Try,
+    "panic" => TokenType::Panic,
+    "catch" => TokenType::Catch,
+    "Map"=> TokenType::Map,
 };
 
 //Returns corresponding keyword tokens for string
@@ -198,7 +197,7 @@ impl<'src> Scanner<'src> {
                 self.brackets.pop();
             }
             b',' => self.add_token(TokenType::Comma),
-            b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
+            b'.' => self.add_token(TokenType::Dot),
             b'-' => self.add_token_if_match(b'=', TokenType::MinusEqual, TokenType::Minus),
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),

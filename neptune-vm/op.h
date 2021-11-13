@@ -96,7 +96,6 @@
   OP(Close)                                                                    \
   OP(Return)                                                                   \
   OP(Panic)                                                                    \
-  OP(Exit)
 
 #define OP(x) x,
 namespace neptune_vm {

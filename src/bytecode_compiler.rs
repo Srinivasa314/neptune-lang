@@ -17,16 +17,14 @@ pub struct Compiler<'vm> {
     module_name: String,
     errors: Vec<CompileError>,
     vm: &'vm VM,
-    exit: bool,
 }
 
 impl<'vm> Compiler<'vm> {
-    pub fn new(vm: &'vm VM, module_name: String, exit: bool) -> Self {
+    pub fn new(vm: &'vm VM, module_name: String) -> Self {
         Self {
             vm,
             module_name,
             errors: vec![],
-            exit,
         }
     }
 
@@ -35,14 +33,9 @@ impl<'vm> Compiler<'vm> {
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         self.register_module_variables(&ast);
-        let exit = self.exit;
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.evaluate_statments(&ast);
-        if exit {
-            b.bytecode.write_u8(Op::Exit.repr);
-        } else {
-            b.bytecode.write_u8(Op::Return.repr);
-        }
+        b.bytecode.write_u8(Op::Return.repr);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -71,7 +64,6 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let exit = self.exit;
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
@@ -83,11 +75,7 @@ impl<'vm> Compiler<'vm> {
         }
         b.bytecode.shrink();
         b.bytecode.set_max_registers(b.max_registers);
-        if exit {
-            b.bytecode.write_u8(Op::Exit.repr);
-        } else {
-            b.bytecode.write_u8(Op::Return.repr);
-        }
+        b.bytecode.write_u8(Op::Return.repr);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
             Ok(bytecode)
@@ -96,58 +84,53 @@ impl<'vm> Compiler<'vm> {
         }
     }
 
+    fn register_module_variable(&mut self, name: &str, mutable: bool, exported: bool, line: u32) {
+        if name.chars().next().unwrap() == '_' {
+            self.errors.push(CompileError {
+                message: format!("Exported variable {} cannot start with _", name),
+                line,
+            })
+        }
+        if !self.vm.add_module_variable(
+            self.module_name.as_str().into(),
+            name.into(),
+            mutable,
+            exported,
+        ) {
+            self.errors.push(CompileError {
+                message: format!("Cannot redeclare module variable {}", name),
+                line,
+            })
+        }
+    }
+
     fn register_module_variables(&mut self, ast: &[Statement]) {
         for statement in ast {
             match statement {
+                Statement::DestructuringVarDeclaration {
+                    names,
+                    mutable,
+                    line,
+                    exported,
+                    ..
+                } => {
+                    for name in names {
+                        self.register_module_variable(name, *mutable, *exported, *line)
+                    }
+                }
                 Statement::VarDeclaration {
                     name,
                     mutable,
                     line,
                     exported,
                     ..
-                } => {
-                    if name.chars().next().unwrap() == '_' {
-                        self.errors.push(CompileError {
-                            message: format!("Exported variable {} cannot start with _", name),
-                            line: *line,
-                        })
-                    }
-                    if !self.vm.add_module_variable(
-                        self.module_name.as_str().into(),
-                        name.as_str().into(),
-                        *mutable,
-                        *exported,
-                    ) {
-                        self.errors.push(CompileError {
-                            message: format!("Cannot redeclare global {}", name),
-                            line: *line,
-                        })
-                    }
-                }
+                } => self.register_module_variable(name, *mutable, *exported, *line),
                 Statement::Function {
                     name,
                     line,
                     exported,
                     ..
-                } => {
-                    if name.chars().next().unwrap() == '_' {
-                        self.errors.push(CompileError {
-                            message: format!("Exported variable {} cannot start with _", name),
-                            line: *line,
-                        })
-                    }
-                    if !self.vm.add_module_variable(
-                        self.module_name.as_str().into(),
-                        name.as_str().into(),
-                        false,
-                        *exported,
-                    ) {
-                        self.errors.push(CompileError {
-                            message: format!("Cannot redeclare global {}", name),
-                            line: *line,
-                        })
-                    }
-                }
+                } => self.register_module_variable(name, false, *exported, *line),
                 _ => {}
             }
         }
@@ -665,6 +648,28 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Ok(())
     }
 
+    fn create_variable_and_store_accumulator(
+        &mut self,
+        name: &str,
+        mutable: bool,
+        line: u32,
+    ) -> CompileResult<()> {
+        if self.bctype == BytecodeType::Script && self.locals.is_empty() {
+            let g = self.get_global(name).unwrap();
+            self.write1(Op::StoreModuleVariable, g.position, line);
+        } else {
+            if self.locals.last().unwrap().contains_key(name) {
+                return Err(CompileError {
+                    message: format!("Cannot redeclare variable {} in the same scope", name),
+                    line,
+                });
+            }
+            let reg = self.new_local(line, name.into(), mutable)?;
+            self.write_op_store_register(reg, line);
+        }
+        Ok(())
+    }
+
     fn evaluate_statement(&mut self, statement: &Statement) {
         if let Err(e) = (|| -> CompileResult<()> {
             match statement {
@@ -751,6 +756,38 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.evaluate_expr(expr)?;
                     }
                 },
+                Statement::DestructuringVarDeclaration {
+                    names,
+                    expr,
+                    mutable,
+                    exported,
+                    line,
+                } => {
+                    if *exported && (self.bctype != BytecodeType::Script || !self.locals.is_empty())
+                    {
+                        self.error(CompileError {
+                            message: "Cannot export non module variable".to_string(),
+                            line: *line,
+                        });
+                    }
+                    let object_res = self.evaluate_expr(expr)?;
+                    let reg = self.store_in_register(object_res, *line)?;
+                    for name in names {
+                        let property = self
+                            .bytecode
+                            .symbol_constant(name.as_str().into())
+                            .map_err(|_| CompileError {
+                                line: *line,
+                                message: "Cannot have more than 65535 constants per function"
+                                    .into(),
+                            })?;
+                        self.write2(Op::LoadProperty, reg, property, *line);
+                        self.create_variable_and_store_accumulator(name, *mutable, *line)?;
+                    }
+                    if !matches!(object_res, ExprResult::Register(_)) {
+                        self.pop_register();
+                    }
+                }
                 Statement::VarDeclaration {
                     name,
                     expr,
@@ -943,22 +980,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         &ClosureBody::Block(body.clone()),
                         *last_line,
                     )?;
-                    if self.bctype == BytecodeType::Script && self.locals.is_empty() {
-                        let g = self.get_global(name).unwrap();
-                        self.write1(Op::StoreModuleVariable, g.position, *last_line);
-                    } else {
-                        if self.locals.last().unwrap().contains_key(name) {
-                            return Err(CompileError {
-                                message: format!(
-                                    "Cannot redeclare variable {} in the same scope",
-                                    name
-                                ),
-                                line: *line,
-                            });
-                        }
-                        let reg = self.new_local(*line, name.into(), false)?;
-                        self.write_op_store_register(reg, *last_line);
-                    }
+                    self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
                 Statement::Return { line, expr } => {
                     if self.bctype == BytecodeType::Script {

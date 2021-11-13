@@ -71,7 +71,6 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::For => Precedence::None,
         TokenType::Fun => Precedence::None,
         TokenType::If => Precedence::None,
-        TokenType::In => Precedence::None,
         TokenType::Null => Precedence::None,
         TokenType::Or => Precedence::Or,
         TokenType::Return => Precedence::None,
@@ -92,11 +91,11 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::TildeEqual => Precedence::Assignment,
         TokenType::EqualEqualEqual => Precedence::Comparison,
         TokenType::BangEqualEqual => Precedence::Comparison,
-        TokenType::DotDot => Precedence::None,
         TokenType::Pipe => Precedence::None,
         TokenType::Try => Precedence::None,
         TokenType::Catch => Precedence::None,
         TokenType::Panic => Precedence::None,
+        TokenType::Map => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -188,6 +187,13 @@ pub enum Statement {
     Expr(Expr),
     VarDeclaration {
         name: String,
+        expr: Expr,
+        mutable: bool,
+        exported: bool,
+        line: u32,
+    },
+    DestructuringVarDeclaration {
+        names: Vec<String>,
         expr: Expr,
         mutable: bool,
         exported: bool,
@@ -355,7 +361,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::RightParen => None,
             TokenType::LeftSquareBracket => Some(self.array()),
             TokenType::RightSquareBracket => None,
-            TokenType::LeftBrace => Some(self.map()),
+            TokenType::LeftBrace => Some(todo!()),
             TokenType::RightBrace => None,
             TokenType::Comma => None,
             TokenType::Dot => None,
@@ -391,7 +397,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::For => None,
             TokenType::Fun => None,
             TokenType::If => None,
-            TokenType::In => None,
             TokenType::Null => Some(self.literal()),
             TokenType::Or => None,
             TokenType::Return => None,
@@ -412,11 +417,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => None,
             TokenType::EqualEqualEqual => None,
             TokenType::BangEqualEqual => None,
-            TokenType::DotDot => None,
             TokenType::Pipe => Some(self.closure()),
             TokenType::Try => None,
             TokenType::Catch => None,
             TokenType::Panic => None,
+            TokenType::Map => Some(self.map()),
         }
     }
 
@@ -462,7 +467,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::For => unreachable!(),
             TokenType::Fun => unreachable!(),
             TokenType::If => unreachable!(),
-            TokenType::In => self.binary(left),
             TokenType::Null => unreachable!(),
             TokenType::Or => self.binary(left),
             TokenType::Return => unreachable!(),
@@ -483,11 +487,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::TildeEqual => self.binary(left),
             TokenType::EqualEqualEqual => self.binary(left),
             TokenType::BangEqualEqual => self.binary(left),
-            TokenType::DotDot => unreachable!(),
             TokenType::Pipe => unreachable!(),
             TokenType::Try => unreachable!(),
             TokenType::Catch => unreachable!(),
             TokenType::Panic => unreachable!(),
+            TokenType::Map => unreachable!(),
         }
     }
 
@@ -562,28 +566,35 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     }
 
     fn map(&mut self) -> CompileResult<Expr> {
-        let mut ret = vec![];
-        let line = self.previous.line;
-        loop {
-            if self.current.token_type == TokenType::RightBrace {
-                self.advance();
-                break;
+        if self.match_token(TokenType::LeftBrace) {
+            let mut ret = vec![];
+            let line = self.previous.line;
+            loop {
+                if self.current.token_type == TokenType::RightBrace {
+                    self.advance();
+                    break;
+                }
+                self.ignore_newline();
+                let e1 = self.expression()?;
+                self.ignore_newline();
+                self.consume(TokenType::Colon, "Expect colon after map key".into())?;
+                self.ignore_newline();
+                let e2 = self.expression()?;
+                self.ignore_newline();
+                ret.push((e1, e2));
+                if self.match_token(TokenType::RightBrace) {
+                    break;
+                }
+                self.consume(TokenType::Comma, "Expect comma after map value".into())?;
+                self.ignore_newline();
             }
-            self.ignore_newline();
-            let e1 = self.expression()?;
-            self.ignore_newline();
-            self.consume(TokenType::Colon, "Expect colon after map key".into())?;
-            self.ignore_newline();
-            let e2 = self.expression()?;
-            self.ignore_newline();
-            ret.push((e1, e2));
-            if self.match_token(TokenType::RightBrace) {
-                break;
-            }
-            self.consume(TokenType::Comma, "Expect comma after map value".into())?;
-            self.ignore_newline();
+            Ok(Expr::Map { inner: ret, line })
+        } else {
+            Ok(Expr::Variable {
+                line: self.previous.line,
+                name: "Map".into(),
+            })
         }
-        Ok(Expr::Map { inner: ret, line })
     }
 
     fn function(&mut self, exported: bool) -> CompileResult<Statement> {
@@ -754,10 +765,39 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     }
 
     fn var_declaration(&mut self, mutable: bool, exported: bool) -> CompileResult<Statement> {
-        if TokenType::Identifier == self.current.token_type {
-            self.advance();
+        let line = self.previous.line;
+        if self.match_token(TokenType::LeftBrace) {
+            let mut names = vec![];
+            loop {
+                if self.current.token_type == TokenType::RightBrace {
+                    self.advance();
+                    break;
+                }
+                self.consume(
+                    TokenType::Identifier,
+                    "Expect identifier for variable name".into(),
+                )?;
+                names.push(self.previous.inner.into());
+                if self.match_token(TokenType::RightBrace) {
+                    break;
+                }
+                self.consume(TokenType::Comma, "Expect comma after variable name".into())?;
+            }
+            self.consume(TokenType::Equal, "Variable must be initialized".into())?;
+            let expr = self.expression()?;
+            Ok(Statement::DestructuringVarDeclaration {
+                names,
+                expr,
+                line,
+                mutable,
+                exported,
+            })
+        } else {
+            self.consume(
+                TokenType::Identifier,
+                "Expect identifier for variable name".into(),
+            )?;
             let name = self.previous.inner.into();
-            let line = self.previous.line;
             self.consume(TokenType::Equal, "Variable must be initialized".into())?;
             let expr = self.expression()?;
             Ok(Statement::VarDeclaration {
@@ -767,8 +807,6 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 mutable,
                 exported,
             })
-        } else {
-            Err(self.error_at_current("Expect identifier".into()))
         }
     }
 
@@ -888,9 +926,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let begin_line = self.previous.line;
         self.consume(TokenType::Identifier, "Expect identifier after for".into())?;
         let iter = self.previous.inner.to_string();
-        self.consume(TokenType::In, "Expect in after loop variable".into())?;
+        self.consume(TokenType::Equal, "Expect equal after loop variable".into())?;
         let start = self.expression()?;
-        self.consume(TokenType::DotDot, "Expect ..".into())?;
+        self.consume(
+            TokenType::Comma,
+            "Expect comma between initial and final values".into(),
+        )?;
         let end = self.expression()?;
         self.ignore_newline();
         self.consume(

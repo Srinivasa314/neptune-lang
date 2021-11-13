@@ -34,7 +34,9 @@ enum class Type : uint8_t {
   Function,
   UpValue,
   NativeFunction,
-  Module
+  Module,
+  Class,
+  Task
 };
 
 class Object {
@@ -126,6 +128,9 @@ template <typename T>
 using ValueMap = tsl::robin_map<Value, T, ValueHasher, ValueStrictEquality,
                                 std::allocator<std::pair<Value, Value>>, true>;
 
+template <typename T>
+using SymbolMap = tsl::robin_map<Symbol *, T, StringHasher, StringEquality>;
+
 class Map : public Object {
 public:
   Map() = default;
@@ -141,13 +146,21 @@ struct ModuleVariable {
 };
 
 class Module : public Object {
-  tsl::robin_map<Symbol *, ModuleVariable, StringHasher, StringEquality>
-      module_variables;
+  SymbolMap<ModuleVariable> module_variables;
 
 public:
   std::string name;
   Module(std::string name_) : name(name_) {}
   static constexpr Type type = Type::Module;
+  friend class VM;
+};
+
+class Class : public Object {
+  SymbolMap<Object *> methods;
+
+public:
+  std::string name;
+  static constexpr Type type = Type::Class;
   friend class VM;
 };
 } // namespace neptune_vm

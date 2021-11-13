@@ -59,28 +59,26 @@ handler(EmptyArray, accumulator = Value{manage(new Array)};);
 handler(EmptyMap, accumulator = Value{manage(new Map)};);
 handler(Return, {
   CLOSE(0);
-  num_frames--;
-  auto frame = frames[num_frames - 1];
-  bp = frame.bp;
-  ip = frame.ip;
-  auto f = frame.f;
-  constants = f->function_info->constants.data();
-  stack_top = bp + f->function_info->max_registers;
+  task->frames.pop_back();
+  if (unlikely(task->frames.empty())) {
+    task->stack_top = task->stack.get();
+    goto end;
+  } else {
+    auto frame = task->frames.back();
+    bp = frame.bp;
+    ip = frame.ip;
+    auto f = frame.f;
+    constants = f->function_info->constants.data();
+    task->stack_top = bp + f->function_info->max_registers;
+  }
 });
 
 handler(Panic, {
   if ((ip = panic(ip, accumulator)) != nullptr) {
-    bp = frames[num_frames - 1].bp;
-    auto f = frames[num_frames - 1].f;
+    bp = task->frames.back().bp;
+    auto f = task->frames.back().f;
     constants = f->function_info->constants.data();
   } else {
     goto panic_end;
   }
-});
-
-handler(Exit, {
-  CLOSE(0);
-  num_frames = 0;
-  stack_top = stack.get();
-  goto end;
 });

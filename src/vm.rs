@@ -185,7 +185,6 @@ mod ffi {
         Close,
         Return,
         Panic,
-        Exit,
     }
 
     #[repr(u8)]

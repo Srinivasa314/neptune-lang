@@ -62,12 +62,6 @@ template <typename T> static size_t header_size() {
     return 1;
 }
 
-#define TODO()                                                                 \
-  do {                                                                         \
-    std::cout << "TODO at: " << __FILE__ << ":" << __LINE__ << std::endl;      \
-    exit(1);                                                                   \
-  } while (0)
-
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)

@@ -198,7 +198,7 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
   }
 #endif
 }
-ALWAYS_INLINE const char *Value::type_string() const {
+const char *Value::type_string() const {
   if (is_int())
     return "int";
   else if (is_float())
