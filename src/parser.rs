@@ -71,6 +71,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::For => Precedence::None,
         TokenType::Fun => Precedence::None,
         TokenType::If => Precedence::None,
+        TokenType::New => Precedence::None,
         TokenType::Null => Precedence::None,
         TokenType::Or => Precedence::Or,
         TokenType::Return => Precedence::None,
@@ -160,6 +161,19 @@ pub enum Expr {
         line: u32,
         inner: Vec<(String, Expr)>,
     },
+    New {
+        line: u32,
+        class: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
+    This {
+        line: u32,
+    },
+    MemberCall {
+        object: Box<Expr>,
+        property: String,
+        arguments: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -183,10 +197,21 @@ impl Expr {
             Expr::Closure { line, .. } => *line,
             Expr::Member { object, .. } => object.line(),
             Expr::ObjectLiteral { line, .. } => *line,
+            Expr::New { line, .. } => *line,
+            Expr::This { line } => *line,
+            Expr::MemberCall { object, .. } => object.line(),
         }
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Function {
+    pub line: u32,
+    pub last_line: u32,
+    pub name: String,
+    pub arguments: Vec<String>,
+    pub body: Vec<Statement>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
@@ -234,11 +259,7 @@ pub enum Statement {
         line: u32,
     },
     Function {
-        line: u32,
-        last_line: u32,
-        name: String,
-        arguments: Vec<String>,
-        body: Vec<Statement>,
+        body: Function,
         exported: bool,
     },
     Return {
@@ -252,6 +273,12 @@ pub enum Statement {
         error_var: String,
         catch_block: Vec<Statement>,
         catch_end: u32,
+    },
+    Class {
+        line: u32,
+        exported: bool,
+        name: String,
+        methods: Vec<Function>,
     },
 }
 
@@ -402,11 +429,14 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::For => None,
             TokenType::Fun => None,
             TokenType::If => None,
+            TokenType::New => Some(self.new_()),
             TokenType::Null => Some(self.literal()),
             TokenType::Or => None,
             TokenType::Return => None,
             TokenType::Super => todo!(),
-            TokenType::This => todo!(),
+            TokenType::This => Some(Ok(Expr::This {
+                line: self.previous.line,
+            })),
             TokenType::True => Some(self.literal()),
             TokenType::Let => None,
             TokenType::While => None,
@@ -472,6 +502,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::For => unreachable!(),
             TokenType::Fun => unreachable!(),
             TokenType::If => unreachable!(),
+            TokenType::New => unreachable!(),
             TokenType::Null => unreachable!(),
             TokenType::Or => self.binary(left),
             TokenType::Return => unreachable!(),
@@ -553,6 +584,29 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Expr::Call {
             line,
             function,
+            arguments,
+        })
+    }
+
+    fn new_(&mut self) -> CompileResult<Expr> {
+        let line = self.previous.line;
+        let class = self.parse_precedence(Precedence::Primary)?;
+        self.consume(TokenType::LeftParen, "Expect ( after class".to_string())?;
+        let mut arguments: Vec<Expr> = vec![];
+        loop {
+            if self.current.token_type == TokenType::RightParen {
+                self.advance();
+                break;
+            }
+            arguments.push(self.expression()?);
+            if self.match_token(TokenType::RightParen) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after argument".into())?;
+        }
+        Ok(Expr::New {
+            line,
+            class: Box::new(class),
             arguments,
         })
     }
@@ -640,7 +694,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         Ok(Expr::ObjectLiteral { inner: ret, line })
     }
 
-    fn function(&mut self, exported: bool) -> CompileResult<Statement> {
+    fn function_body(&mut self) -> CompileResult<Function> {
         self.consume(
             TokenType::Identifier,
             "Expect identifier for function name".into(),
@@ -670,13 +724,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         )?;
         let body = self.block()?;
         let last_line = self.previous.line;
-        Ok(Statement::Function {
+        Ok(Function {
             line,
             last_line,
             name,
             arguments,
             body,
-            exported,
         })
     }
 
@@ -754,6 +807,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.while_loop()
             } else if self.match_token(TokenType::For) {
                 self.for_loop()
+            } else if self.match_token(TokenType::Class) {
+                self.class(false)
             } else if self.match_token(TokenType::Break) {
                 Ok(Statement::Break {
                     line: self.previous.line,
@@ -763,7 +818,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                     line: self.previous.line,
                 })
             } else if self.match_token(TokenType::Fun) {
-                self.function(false)
+                Ok(Statement::Function {
+                    body: self.function_body()?,
+                    exported: false,
+                })
             } else if self.match_token(TokenType::Return) {
                 self.return_stmt()
             } else if self.match_token(TokenType::Panic) {
@@ -772,7 +830,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 self.try_catch()
             } else if self.match_token(TokenType::Export) {
                 if self.match_token(TokenType::Fun) {
-                    self.function(true)
+                    Ok(Statement::Function {
+                        body: self.function_body()?,
+                        exported: true,
+                    })
+                } else if self.match_token(TokenType::Class) {
+                    self.class(true)
                 } else if self.match_token(TokenType::Let) {
                     self.var_declaration(true, true)
                 } else if self.match_token(TokenType::Const) {
@@ -989,6 +1052,38 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         })
     }
 
+    fn class(&mut self, exported: bool) -> CompileResult<Statement> {
+        let line = self.previous.line;
+        self.consume(
+            TokenType::Identifier,
+            "Expect identifier after class".into(),
+        )?;
+        let name = self.previous.inner.to_string();
+        self.ignore_newline();
+        self.consume(TokenType::LeftBrace, "Expect { after name in class".into())?;
+        self.ignore_newline();
+        let mut methods = vec![];
+        loop {
+            if self.match_token(TokenType::Eof) {
+                return Err(CompileError {
+                    message: "Expect } after class".to_string(),
+                    line: self.current.line,
+                });
+            } else if self.match_token(TokenType::RightBrace) {
+                break;
+            } else {
+                methods.push(self.function_body()?);
+                self.ignore_newline();
+            }
+        }
+        Ok(Statement::Class {
+            line,
+            exported,
+            name,
+            methods,
+        })
+    }
+
     fn closure(&mut self) -> CompileResult<Expr> {
         let line = self.previous.line;
         let mut args: Vec<String> = vec![];
@@ -1052,9 +1147,29 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn dot(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
         self.consume(TokenType::Identifier, "Expect property name after .".into())?;
         let property = self.previous.inner.into();
-        Ok(Expr::Member {
-            object: left,
-            property,
-        })
+        if self.match_token(TokenType::LeftParen) {
+            let mut arguments: Vec<Expr> = vec![];
+            loop {
+                if self.current.token_type == TokenType::RightParen {
+                    self.advance();
+                    break;
+                }
+                arguments.push(self.expression()?);
+                if self.match_token(TokenType::RightParen) {
+                    break;
+                }
+                self.consume(TokenType::Comma, "Expect comma after argument".into())?;
+            }
+            Ok(Expr::MemberCall {
+                object: left,
+                property,
+                arguments,
+            })
+        } else {
+            Ok(Expr::Member {
+                object: left,
+                property,
+            })
+        }
     }
 }

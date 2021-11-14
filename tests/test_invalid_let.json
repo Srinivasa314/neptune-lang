@@ -1,6 +1,6 @@
 [
   {
-    "message": "Expect identifier at token 1",
+    "message": "Expect identifier for variable name at token 1",
     "line": 1
   }
 ]

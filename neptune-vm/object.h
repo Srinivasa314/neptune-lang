@@ -158,9 +158,8 @@ public:
 };
 
 class Class : public Object {
-  SymbolMap<Object *> methods;
-
 public:
+  SymbolMap<Object *> methods;
   std::string name;
   Class *super;
   static constexpr Type type = Type::Class;

@@ -163,10 +163,8 @@ mod ffi {
         GreaterThanOrEqual,
         LesserThanOrEqual,
         Call,
-        Call0Argument,
-        Call1Argument,
-        Call2Argument,
-        Call3Argument,
+        CallMember,
+        Construct,
         ToString,
         NewArray,
         NewMap,
@@ -175,6 +173,7 @@ mod ffi {
         EmptyMap,
         EmptyObject,
         MakeFunction,
+        MakeClass,
         ForLoop,
         Jump,
         JumpIfFalseOrNull,
@@ -237,6 +236,16 @@ mod ffi {
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
+        fn class_constant<'vm, 's>(
+            self: &mut FunctionInfoWriter<'vm>,
+            s: StringSlice<'s>,
+        ) -> Result<u16>;
+        fn add_method<'vm, 's>(
+            self: &mut FunctionInfoWriter<'vm>,
+            class_: u16,
+            name: StringSlice<'s>,
+            f: FunctionInfoWriter,
+        );
         fn add_module_variable<'vm, 's>(
             self: &'vm VM,
             module: StringSlice<'s>,

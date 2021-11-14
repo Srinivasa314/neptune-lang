@@ -32,23 +32,22 @@ a[0]=a
 assert_eq("\(a)","[ [ [ [ [ [ [ [ [ [ [ [ ... ] ] ] ] ] ] ] ] ] ] ] ]")
 
 let m=null
-for i in 0..50 {
-    m={@next:m}
+for i=0,50 {
+    m=Map {@next:m}
 }
-assert_eq("\(m)","{ @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { @next: { ... } } } } } } } } } } } }")
-
-assert_failed(||{let x=2147483647;x+1},"Cannot add 2147483647 and 1 as the result does not fit in an int")
-assert_failed(||{let x=-2147483647;x-5},"Cannot subtract -2147483647 and 5 as the result does not fit in an int")
-assert_failed(||{let x=1000000;x*1000000},"Cannot multiply 1000000 and 1000000 as the result does not fit in an int")
-assert_failed(||{let x=1;x/0},"Cannot divide 1 and 0 as the result does not fit in an int")
-assert_failed(||{let x=-2147483647-1;x=-x},"Cannot negate -2147483648 as the result cannot be stored in an int")
-assert_failed(||'a'+'b',"Cannot add types string and string")
+assert_eq("\(m)","Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { @next: Map { ... } } } } } } } } } } } }")
+assert_failed(||{let x=2147483647;x+1},"Cannot add 2147483647 and 1 as the result does not fit in an Int")
+assert_failed(||{let x=-2147483647;x-5},"Cannot subtract -2147483647 and 5 as the result does not fit in an Int")
+assert_failed(||{let x=1000000;x*1000000},"Cannot multiply 1000000 and 1000000 as the result does not fit in an Int")
+assert_failed(||{let x=1;x/0},"Cannot divide 1 and 0 as the result does not fit in an Int")
+assert_failed(||{let x=-2147483647-1;x=-x},"Cannot negate -2147483648 as the result cannot be stored in an Int")
+assert_failed(||'a'+'b',"Cannot add types String and String")
 
 assert_eq(1==1.0,true)
 assert_eq(!![],true)
 assert_eq("a"~"b","ab")
 
-m={@a:5,'b':10}
+m=Map {@a:5,'b':10}
 assert_eq(m[@a],5)
 assert_eq(m['b'],10)
 assert_failed(||m[0],"Key 0 does not exist in map")
@@ -56,17 +55,31 @@ assert_failed(||m[0],"Key 0 does not exist in map")
 a=[]
 assert_failed(||a[0], "Array index out of range")
 assert_failed(||a[-1], "Array index out of range")
-assert_failed(||a[0.0], "Array indices must be int not float")
+assert_failed(||a[0.0], "Array indices must be Int not Float")
 
 let i=0
+if i==2{
+    i=7
+} else{
+    i=8
+}
+assert_eq(i,8)
+
+if i==8{
+    i=6
+}else{
+    i=7
+}
+assert_eq(i,6)
+
 while i<10 {
     i=i+1
 }
 assert_eq(i,10)
 
-assert_failed(||{for i in 'a'..1{}},"Expected int and int for the start and end of for loop got string and int instead")
+assert_failed(||{for i='a',1{}},"Expected Int and Int for the start and end of for loop got String and Int instead")
 let g=null
-for i in 1..10{
+for i=1,10{
     g=i
     if i==7{
         break
@@ -75,7 +88,7 @@ for i in 1..10{
 assert_eq(g,7)
 
 g=0
-for i in 1..10{
+for i=1,10{
     if i==7{
         continue
     }
@@ -104,7 +117,7 @@ fun f1(){
 assert_eq(f1()(),10)
 
 a=[null,null,null]
-for i in 0..3{
+for i=0,3{
     a[i]=||i
 }
 assert_eq(a[0](),0)

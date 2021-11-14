@@ -1,6 +1,7 @@
 use cxx::Exception;
 
 use crate::parser::ClosureBody;
+use crate::parser::Function;
 use crate::parser::Statement;
 use crate::parser::Substring;
 use crate::vm::FunctionInfoWriter;
@@ -126,11 +127,17 @@ impl<'vm> Compiler<'vm> {
                     ..
                 } => self.register_module_variable(name, *mutable, *exported, *line),
                 Statement::Function {
+                    body: Function { name, line, .. },
+                    exported,
+                    ..
+                } => self.register_module_variable(name, false, *exported, *line),
+                Statement::Class {
                     name,
                     line,
                     exported,
                     ..
                 } => self.register_module_variable(name, false, *exported, *line),
+
                 _ => {}
             }
         }
@@ -150,10 +157,12 @@ struct BytecodeCompiler<'c, 'vm> {
     upvalues: Vec<UpValue>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 enum BytecodeType {
     Script,
     Function,
+    Method,
+    Constructor,
 }
 
 enum Loop {
@@ -270,6 +279,24 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 self.bytecode.write_u8(op.repr);
                 self.bytecode.write_u16(u1);
                 self.bytecode.write_u16(u2)
+            }
+        }
+    }
+
+    fn write3(&mut self, op: Op, u1: u16, u2: u16, u3: u16, line: u32) {
+        match (u8::try_from(u1), u8::try_from(u2), u8::try_from(u3)) {
+            (Ok(u1), Ok(u2), Ok(u3)) => {
+                self.write0(op, line);
+                self.bytecode.write_u8(u1);
+                self.bytecode.write_u8(u2);
+                self.bytecode.write_u8(u3)
+            }
+            _ => {
+                self.write0(Op::Wide, line);
+                self.bytecode.write_u8(op.repr);
+                self.bytecode.write_u16(u1);
+                self.bytecode.write_u16(u2);
+                self.bytecode.write_u16(u3)
             }
         }
     }
@@ -433,7 +460,7 @@ macro_rules! binary_op {
                     Ok(ExprResult::Int(i1.$op_checked_fn(i2).ok_or(
                         CompileError {
                             message: format!(
-                                "Cannot {} {} and {} as the result cannot be stored in an int",
+                                "Cannot {} {} and {} as the result cannot be stored in an Int",
                                 $op_name, i1, i2
                             ),
                             line,
@@ -959,12 +986,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,
                 Statement::Function {
-                    line,
-                    name,
-                    arguments,
-                    body,
-                    last_line,
+                    body:
+                        Function {
+                            name,
+                            line,
+                            arguments,
+                            body,
+                            last_line,
+                            ..
+                        },
                     exported,
+                    ..
                 } => {
                     if *exported && (self.bctype != BytecodeType::Script || !self.locals.is_empty())
                     {
@@ -973,13 +1005,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                         });
                     }
-                    self.closure(
+                    let bytecode = self.closure(
                         name,
                         *line,
                         arguments,
                         &ClosureBody::Block(body.clone()),
+                        BytecodeType::Function,
                         *last_line,
                     )?;
+                    let c = self.bytecode.fun_constant(bytecode);
+                    self.write1(
+                        Op::MakeFunction,
+                        c.map_err(|_| CompileError {
+                            line: *line,
+                            message: "Cannot have more than 65535 constants per function".into(),
+                        })? as u32,
+                        *last_line,
+                    );
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
                 Statement::Return { line, expr } => {
@@ -990,10 +1032,20 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         });
                     }
                     if let Some(expr) = expr {
+                        if self.bctype == BytecodeType::Constructor {
+                            return Err(CompileError {
+                                message: "Cannot return expression from a constructor".to_string(),
+                                line: *line,
+                            });
+                        }
                         let expr_res = self.evaluate_expr(expr)?;
                         self.store_in_accumulator(expr_res, *line)?;
                     } else {
-                        self.write0(Op::LoadNull, *line);
+                        if self.bctype == BytecodeType::Constructor {
+                            self.write0(Op::LoadR0, *line);
+                        } else {
+                            self.write0(Op::LoadNull, *line);
+                        }
                     }
                     self.write0(Op::Return, *line);
                 }
@@ -1043,6 +1095,58 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         error_reg,
                         catch_start_pos as u32,
                     );
+                }
+                Statement::Class {
+                    line,
+                    name,
+                    methods,
+                    exported,
+                } => {
+                    if *exported && (self.bctype != BytecodeType::Script || !self.locals.is_empty())
+                    {
+                        self.error(CompileError {
+                            message: "Cannot export non module variable".to_string(),
+                            line: *line,
+                        });
+                    }
+                    let class = self.bytecode.class_constant(name.as_str().into());
+                    if let Err(_) = class {
+                        self.error(CompileError {
+                            line: *line,
+                            message: "Cannot have more than 65535 constants per function".into(),
+                        });
+                    }
+                    for method in methods {
+                        let bytecode = self.closure(
+                            &method.name,
+                            method.line,
+                            &method.arguments,
+                            &ClosureBody::Block(method.body.clone()),
+                            if method.name == "construct" {
+                                BytecodeType::Constructor
+                            } else {
+                                BytecodeType::Method
+                            },
+                            method.last_line,
+                        );
+
+                        match bytecode {
+                            Ok(bytecode) => {
+                                if let Ok(class) = class {
+                                    self.bytecode.add_method(
+                                        class,
+                                        method.name.as_str().into(),
+                                        bytecode,
+                                    )
+                                }
+                            }
+                            Err(e) => self.error(e),
+                        }
+                    }
+                    if let Ok(class) = class {
+                        self.write1(Op::MakeClass, class as u32, *line);
+                    }
+                    self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
             };
             Ok(())
@@ -1385,17 +1489,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 let expr = self.evaluate_expr(function)?;
                 self.store_in_accumulator(expr, *line)?;
-                let call_op = match arguments.len() {
-                    0 => Op::Call0Argument,
-                    1 => Op::Call1Argument,
-                    2 => Op::Call2Argument,
-                    3 => Op::Call3Argument,
-                    _ => Op::Call,
-                };
-                self.write1(call_op, start as u32, *line);
-                if arguments.len() > 3 {
-                    self.bytecode.write_u8(arguments.len() as u8);
-                }
+                self.write1(Op::Call, start as u32, *line);
+                self.bytecode.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
@@ -1406,7 +1501,26 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 args,
                 body,
                 last_line,
-            } => self.closure("<closure>", *line, args, body, *last_line),
+            } => {
+                let bytecode = self.closure(
+                    "<closure>",
+                    *line,
+                    args,
+                    body,
+                    BytecodeType::Function,
+                    *last_line,
+                )?;
+                let c = self.bytecode.fun_constant(bytecode);
+                self.write1(
+                    Op::MakeFunction,
+                    c.map_err(|_| CompileError {
+                        line: *line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })? as u32,
+                    *last_line,
+                );
+                Ok(ExprResult::Accumulator)
+            }
             Expr::Member { object, property } => {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
@@ -1462,6 +1576,85 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     Ok(ExprResult::Register(obj_reg))
                 }
             }
+            Expr::New {
+                line,
+                class,
+                arguments,
+            } => {
+                let start = self.regcount;
+                if arguments.len() >= 25 {
+                    return Err(CompileError {
+                        message: "Cannot have more than 25 arguments".to_string(),
+                        line: *line,
+                    });
+                }
+                self.push_register(*line)?;
+                for arg in arguments {
+                    let reg = self.push_register(*line)?;
+                    let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
+                    self.store_in_specific_register(expr, reg, *line)?;
+                }
+                let expr = self.evaluate_expr(class)?;
+                self.store_in_accumulator(expr, *line)?;
+                self.write1(Op::Construct, start as u32, *line);
+                self.bytecode.write_u8(arguments.len() as u8);
+                for _ in 0..arguments.len() {
+                    self.pop_register();
+                }
+                self.pop_register();
+                Ok(ExprResult::Accumulator)
+            }
+            Expr::This { line } => {
+                if self.bctype == BytecodeType::Method || self.bctype == BytecodeType::Constructor {
+                    Ok(ExprResult::Register(
+                        self.resolve_local("this").unwrap().reg,
+                    ))
+                } else {
+                    Err(CompileError {
+                        message: "Cannot use this outside method".to_string(),
+                        line: *line,
+                    })
+                }
+            }
+            Expr::MemberCall {
+                object,
+                property,
+                arguments,
+            } => {
+                let line = object.line();
+                let object_res = self.evaluate_expr(object)?;
+                let reg = self.store_in_register(object_res, line)?;
+                let property = self
+                    .bytecode
+                    .symbol_constant(property.as_str().into())
+                    .map_err(|_| CompileError {
+                        line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })?;
+                let start = self.regcount;
+                if arguments.len() >= 25 {
+                    return Err(CompileError {
+                        message: "Cannot have more than 25 arguments".to_string(),
+                        line,
+                    });
+                }
+                self.push_register(line)?;
+                for arg in arguments {
+                    let reg = self.push_register(line)?;
+                    let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
+                    self.store_in_specific_register(expr, reg, line)?;
+                }
+                self.write3(Op::CallMember, reg, property, start, line);
+                self.bytecode.write_u8(arguments.len() as u8);
+                for _ in 0..arguments.len() {
+                    self.pop_register();
+                }
+                self.pop_register();
+                if !matches!(object_res, ExprResult::Register(_)) {
+                    self.pop_register();
+                }
+                Ok(ExprResult::Accumulator)
+            }
         }
     }
 
@@ -1471,8 +1664,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         line: u32,
         args: &[String],
         body: &ClosureBody,
+        bctype: BytecodeType,
         last_line: u32,
-    ) -> CompileResult<ExprResult> {
+    ) -> CompileResult<FunctionInfoWriter<'vm>> {
         if args.len() >= 25 {
             return Err(CompileError {
                 message: "Cannot have more than 25 arguments".to_string(),
@@ -1482,11 +1676,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         let bc = BytecodeCompiler::new(
             self.compiler.take().unwrap(),
             name,
-            BytecodeType::Function,
+            bctype,
             args.len() as u8,
         );
         let parent = std::mem::replace(self, bc);
         self.parent = Some(Box::new(parent));
+        if bctype == BytecodeType::Method || bctype == BytecodeType::Constructor {
+            self.new_local(line, "this".to_string(), false)?;
+        }
         for arg in args {
             self.new_local(line, arg.clone(), true)?;
         }
@@ -1494,7 +1691,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ClosureBody::Block(body) => {
                 self.evaluate_statments(body);
                 if !matches!(body.last(), Some(Statement::Return { .. })) {
-                    self.write0(Op::LoadNull, last_line);
+                    if bctype == BytecodeType::Constructor {
+                        self.write0(Op::LoadR0, last_line);
+                    } else {
+                        self.write0(Op::LoadNull, last_line);
+                    }
                     self.write0(Op::Return, last_line);
                 }
             }
@@ -1513,16 +1714,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         let parent = *self.parent.take().unwrap();
         let mut bc = std::mem::replace(self, parent);
         self.compiler = bc.compiler.take();
-        let c = self.bytecode.fun_constant(bc.bytecode);
-        self.write1(
-            Op::MakeFunction,
-            c.map_err(|_| CompileError {
-                line,
-                message: "Cannot have more than 65535 constants per function".into(),
-            })? as u32,
-            last_line,
-        );
-        Ok(ExprResult::Accumulator)
+        Ok(bc.bytecode)
     }
 
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
@@ -1548,7 +1740,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ExprResult::Int(i) => Ok(ExprResult::Int(i.checked_neg().ok_or_else(|| {
                 CompileError {
                     message: format!(
-                        "Cannot negate {} as the result cannot be stored in an int",
+                        "Cannot negate {} as the result cannot be stored in an Int",
                         i
                     ),
                     line,

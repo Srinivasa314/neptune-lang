@@ -67,6 +67,7 @@ pub enum TokenType {
     For,
     Fun,
     If,
+    New,
     Null,
     Or,
     Return,
@@ -88,6 +89,7 @@ pub enum TokenType {
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
     "break" => TokenType::Break,
+    "class" => TokenType::Class,
     "continue" => TokenType::Continue,
     "const" => TokenType::Const,
     "else" => TokenType::Else,
@@ -96,6 +98,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "for" => TokenType::For,
     "fun" => TokenType::Fun,
     "if" => TokenType::If,
+    "new" => TokenType::New,
     "null" => TokenType::Null,
     "or" => TokenType::Or,
     "return" => TokenType::Return,

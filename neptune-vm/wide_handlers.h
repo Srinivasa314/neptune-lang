@@ -16,7 +16,7 @@ handler(Move, {
       if (unlikely(!intfn(bp[reg].as_int(), accumulator.as_int(), res)))       \
         PANIC("Cannot " #opname " "                                            \
               << bp[reg].as_int() << " and " << accumulator.as_int()           \
-              << " as the result does not fit in an int");                     \
+              << " as the result does not fit in an Int");                     \
       accumulator = Value(res);                                                \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
       accumulator = Value(bp[reg].as_float() op accumulator.as_float());       \
@@ -57,7 +57,7 @@ handler(ModRegister, {
     int res;
     if (unlikely(!SafeModulus(bp[reg].as_int(), accumulator.as_int(), res)))
       PANIC("Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
-                          << " as the result does not fit in an int");
+                          << " as the result does not fit in an Int");
     accumulator = Value(res);
   } else if (accumulator.is_float() && bp[reg].is_float()) {
     accumulator = Value(fmod(bp[reg].as_float(), accumulator.as_float()));
@@ -138,20 +138,61 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
     PANIC(accumulator.type_string() << " is not callable");                    \
   }
 
-#define CALLNARGUMENT(n)                                                       \
-  do {                                                                         \
-    auto offset = READ(utype);                                                 \
-    CALLOP(n)                                                                  \
-  } while (0)
-
-handler(Call0Argument, CALLNARGUMENT(0););
-handler(Call1Argument, CALLNARGUMENT(1););
-handler(Call2Argument, CALLNARGUMENT(2););
-handler(Call3Argument, CALLNARGUMENT(3););
 handler(Call, {
   auto offset = READ(utype);
   auto n = READ(uint8_t);
   CALLOP(n)
+});
+handler(CallMember, {
+  auto object = bp[READ(utype)];
+  auto member = constants[READ(utype)].as_object()->as<Symbol>();
+  auto offset = READ(utype);
+  auto n = READ(uint8_t);
+
+  auto class_ = get_class(object);
+  if (class_->methods.find(member) != class_->methods.end()) {
+    auto f = class_->methods[member]->as<Function>();
+    auto arity = f->function_info->arity;
+    if (unlikely(arity != n))
+      PANIC("Function " << f->function_info->name << " takes "
+                        << static_cast<uint32_t>(arity) << " arguments but "
+                        << static_cast<uint32_t>(n) << " were given");
+    task->frames.back().ip = ip;
+    bp += offset;
+    *bp = object;
+    CALL(n + 1);
+  } else {
+    PANIC("Object does not have method named " << static_cast<StringSlice>(*member));
+  }
+});
+handler(Construct, {
+  auto offset = READ(utype);
+  auto n = READ(uint8_t);
+  if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
+    auto construct = intern(StringSlice("construct"));
+    auto class_ = accumulator.as_object()->as<Class>();
+    temp_roots.push_back(class_);
+    auto obj = manage(new Instance());
+    obj->class_ = class_;
+    temp_roots.pop_back();
+    if (class_->methods.find(construct) != class_->methods.end()) {
+      auto f = class_->methods[construct]->as<Function>();
+      auto arity = f->function_info->arity;
+      if (unlikely(arity != n))
+        PANIC("Function " << f->function_info->name << " takes "
+                          << static_cast<uint32_t>(arity) << " arguments but "
+                          << static_cast<uint32_t>(n) << " were given");
+      task->frames.back().ip = ip;
+      bp += offset;
+      *bp = Value(obj);
+      CALL(n + 1);
+    } else {
+      accumulator = Value(obj);
+    }
+  } else {
+    PANIC("new can be called only on classes not "
+          << accumulator.type_string());
+  }
 });
 
 handler(NewArray, {
@@ -173,7 +214,7 @@ handler(LoadSubscript, {
         else
           accumulator = a->inner[static_cast<size_t>(i)];
       } else {
-        PANIC("Array indices must be int not " << accumulator.type_string());
+        PANIC("Array indices must be Int not " << accumulator.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto &m = obj.as_object()->as<Map>()->inner;
@@ -210,7 +251,7 @@ handler(StoreSubscript, {
         else
           a[static_cast<size_t>(i)] = accumulator;
       } else {
-        PANIC("Array indices must be int not" << subscript.type_string());
+        PANIC("Array indices must be Int not" << subscript.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto m = obj.as_object()->as<Map>();
@@ -292,7 +333,7 @@ handler(BeginForLoop, {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
-    PANIC("Expected int and int for the start and end of for loop got "
+    PANIC("Expected Int and Int for the start and end of for loop got "
           << bp[iter].type_string() << " and " << bp[end].type_string()
           << " instead");
   }
@@ -306,7 +347,7 @@ handler(BeginForLoopConstant, {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
-    PANIC("Expected int and int for the start and end of for loop got "
+    PANIC("Expected Int and Int for the start and end of for loop got "
           << bp[iter].type_string() << " and " << bp[end].type_string()
           << " instead");
   }
@@ -315,6 +356,13 @@ handler(BeginForLoopConstant, {
 handler(MakeFunction, {
   auto function = constants[READ(utype)].as_object()->as<FunctionInfo>();
   accumulator = Value(make_function(bp, function));
+});
+
+handler(MakeClass, {
+  auto class_ = constants[READ(utype)].as_object()->as<Class>();
+  for (auto p : class_->methods)
+    class_->methods[p.first] = make_function(bp, p.second->as<FunctionInfo>());
+  accumulator = Value(class_);
 });
 
 handler(LoadUpvalue,

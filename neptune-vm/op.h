@@ -74,10 +74,8 @@
   OP(GreaterThanOrEqual)                                                       \
   OP(LesserThanOrEqual)                                                        \
   OP(Call)                                                                     \
-  OP(Call0Argument)                                                            \
-  OP(Call1Argument)                                                            \
-  OP(Call2Argument)                                                            \
-  OP(Call3Argument)                                                            \
+  OP(CallMember)                                                               \
+  OP(Construct)                                                                \
   OP(ToString)                                                                 \
   OP(NewArray)                                                                 \
   OP(NewMap)                                                                   \
@@ -86,6 +84,7 @@
   OP(EmptyMap)                                                                 \
   OP(EmptyObject)                                                              \
   OP(MakeFunction)                                                             \
+  OP(MakeClass)                                                                \
   OP(ForLoop)                                                                  \
   OP(Jump)                                                                     \
   OP(JumpIfFalseOrNull)                                                        \

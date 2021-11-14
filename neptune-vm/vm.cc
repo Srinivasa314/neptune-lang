@@ -717,9 +717,9 @@ bool _getCallerModule(FunctionContext ctx, void *) {
 
 void VM::declare_native_builtins() {
 #define DEFCLASS(Name)                                                         \
-  builtin_classes.Name = manage(new Class());                                   \
-  builtin_classes.Name->name = #Name;                                           \
-  builtin_classes.Name->super = builtin_classes.Object;                          \
+  builtin_classes.Name = manage(new Class());                                  \
+  builtin_classes.Name->name = #Name;                                          \
+  builtin_classes.Name->super = builtin_classes.Object;                        \
   add_module_variable(StringSlice("<prelude>"), StringSlice(#Name), false,     \
                       true);                                                   \
   module_variables[module_variables.size() - 1] = Value(builtin_classes.Name);
@@ -835,7 +835,9 @@ Module *VM::get_module(StringSlice module_name) const {
 }
 
 Class *VM::get_class(Value v) const {
-  if (v.is_int())
+  if (v.is_object())
+    return v.as_object()->class_;
+  else if (v.is_int())
     return builtin_classes.Int;
   else if (v.is_float())
     return builtin_classes.Float;
@@ -845,9 +847,7 @@ Class *VM::get_class(Value v) const {
     return builtin_classes.Bool;
   else if (v.is_false())
     return builtin_classes.Bool;
-  else if (v.is_object()) {
-    return v.as_object()->class_;
-  } else
+  else
     unreachable();
 }
 

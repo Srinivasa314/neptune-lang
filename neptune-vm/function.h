@@ -67,6 +67,8 @@ public:
   uint16_t string_constant(StringSlice s);
   uint16_t symbol_constant(StringSlice s);
   uint16_t fun_constant(FunctionInfoWriter f);
+  uint16_t class_constant(StringSlice s);
+  void add_method(uint16_t class_, StringSlice name, FunctionInfoWriter f);
   void shrink();
   void pop_last_op(size_t last_op_pos);
   void release();

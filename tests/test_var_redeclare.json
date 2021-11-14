@@ -1,6 +1,6 @@
 [
   {
-    "message": "Cannot redeclare global var1",
+    "message": "Cannot redeclare module variable var1",
     "line": 2
   },
   {

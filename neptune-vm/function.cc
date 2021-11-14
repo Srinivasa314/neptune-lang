@@ -153,6 +153,22 @@ void FunctionInfoWriter::add_exception_handler(uint32_t try_begin,
   hf->object->exception_handlers.push_back(
       ExceptionHandler{try_begin, try_end, error_reg, catch_begin});
 }
+uint16_t FunctionInfoWriter::class_constant(StringSlice s) {
+  Class *c = vm->manage(new Class());
+  c->name = std::string(s.data, s.len);
+  return constant(Value{static_cast<Object *>(c)});
+}
+void FunctionInfoWriter::add_method(uint16_t class_, StringSlice name,
+                                    FunctionInfoWriter f) {
+  if (class_ >= hf->object->constants.size())
+    throw std::runtime_error("Index out of bounds");
+  auto val = hf->object->constants[class_];
+  if (!val.is_object() || !val.as_object()->is<Class>())
+    throw std::runtime_error("Expected class");
+  val.as_object()->as<Class>()->methods.insert(
+      {vm->intern(name), f.hf->object});
+  f.release();
+}
 
 #define CASE(x)                                                                \
   case Op::x:                                                                  \
@@ -282,14 +298,6 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
             << f.constants[READ(uint16_t)] << ' ' << REG(uint16_t);
         break;
         CASE(ForLoop) << READ(uint16_t) << ' ' << REG(uint16_t);
-        break;
-        CASE(Call0Argument) << REG(uint16_t);
-        break;
-        CASE(Call1Argument) << REG(uint16_t);
-        break;
-        CASE(Call2Argument) << REG(uint16_t);
-        break;
-        CASE(Call3Argument) << REG(uint16_t);
         break;
         CASE(MakeFunction) << f.constants[READ(uint16_t)];
         break;
@@ -530,14 +538,6 @@ static void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(StoreR14);
       break;
       CASE(StoreR15);
-      break;
-      CASE(Call0Argument) << REG(uint8_t);
-      break;
-      CASE(Call1Argument) << REG(uint8_t);
-      break;
-      CASE(Call2Argument) << REG(uint8_t);
-      break;
-      CASE(Call3Argument) << REG(uint8_t);
       break;
     default:
       os << "Invalid op here!";

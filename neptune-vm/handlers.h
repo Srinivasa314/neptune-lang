@@ -41,7 +41,7 @@ handler(
       int result;
       if (unlikely(!SafeNegation(accumulator.as_int(), result))) {
         PANIC("Cannot negate " << accumulator.as_int()
-                               << " as the result cannot be stored in an int");
+                               << " as the result cannot be stored in an Int");
       }
       accumulator = Value(result);
     } else if (accumulator.is_float()) {
