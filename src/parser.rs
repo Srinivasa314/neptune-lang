@@ -169,9 +169,14 @@ pub enum Expr {
     This {
         line: u32,
     },
-    MemberCall {
+    MethodCall {
         object: Box<Expr>,
         property: String,
+        arguments: Vec<Expr>,
+    },
+    SuperCall {
+        line: u32,
+        method: String,
         arguments: Vec<Expr>,
     },
 }
@@ -199,7 +204,8 @@ impl Expr {
             Expr::ObjectLiteral { line, .. } => *line,
             Expr::New { line, .. } => *line,
             Expr::This { line } => *line,
-            Expr::MemberCall { object, .. } => object.line(),
+            Expr::MethodCall { object, .. } => object.line(),
+            Expr::SuperCall { line, .. } => *line,
         }
     }
 }
@@ -278,6 +284,7 @@ pub enum Statement {
         line: u32,
         exported: bool,
         name: String,
+        parent: Option<Expr>,
         methods: Vec<Function>,
     },
 }
@@ -433,7 +440,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Null => Some(self.literal()),
             TokenType::Or => None,
             TokenType::Return => None,
-            TokenType::Super => todo!(),
+            TokenType::Super => Some(self.super_call()),
             TokenType::This => Some(Ok(Expr::This {
                 line: self.previous.line,
             })),
@@ -1059,6 +1066,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             "Expect identifier after class".into(),
         )?;
         let name = self.previous.inner.to_string();
+        let parent = if self.match_token(TokenType::Extends) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
         self.ignore_newline();
         self.consume(TokenType::LeftBrace, "Expect { after name in class".into())?;
         self.ignore_newline();
@@ -1080,6 +1092,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             line,
             exported,
             name,
+            parent,
             methods,
         })
     }
@@ -1160,7 +1173,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 }
                 self.consume(TokenType::Comma, "Expect comma after argument".into())?;
             }
-            Ok(Expr::MemberCall {
+            Ok(Expr::MethodCall {
                 object: left,
                 property,
                 arguments,
@@ -1171,5 +1184,32 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 property,
             })
         }
+    }
+    fn super_call(&mut self) -> CompileResult<Expr> {
+        let line = self.previous.line;
+        self.consume(TokenType::Dot, "Expect . after super".into())?;
+        self.consume(TokenType::Identifier, "Expect method name after .".into())?;
+        let method = self.previous.inner.into();
+        self.consume(
+            TokenType::LeftParen,
+            "Expect ( after method name".to_string(),
+        )?;
+        let mut arguments: Vec<Expr> = vec![];
+        loop {
+            if self.current.token_type == TokenType::RightParen {
+                self.advance();
+                break;
+            }
+            arguments.push(self.expression()?);
+            if self.match_token(TokenType::RightParen) {
+                break;
+            }
+            self.consume(TokenType::Comma, "Expect comma after argument".into())?;
+        }
+        Ok(Expr::SuperCall {
+            line,
+            method,
+            arguments,
+        })
     }
 }

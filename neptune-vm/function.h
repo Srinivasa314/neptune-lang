@@ -99,7 +99,8 @@ public:
   static constexpr Type type = Type::Function;
   FunctionInfo *function_info;
   uint16_t num_upvalues;
+  Class *super_class;
   UpValue *upvalues[];
-  Function(FunctionInfo *f) : function_info(f) {}
+  Function(FunctionInfo *f) : function_info(f), super_class(nullptr) {}
 };
 } // namespace neptune_vm

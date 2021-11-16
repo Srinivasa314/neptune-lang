@@ -668,8 +668,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     line,
                 });
             }
-            let reg = self.new_local(line, name.into(), mutable)?;
+            let reg = self.push_register(line)?;
             let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
+            self.pop_register();
+            let reg = self.new_local(line, name.into(), mutable)?;
             self.store_in_specific_register(res, reg, line)?;
         }
         Ok(())
@@ -1099,6 +1101,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Statement::Class {
                     line,
                     name,
+                    parent,
                     methods,
                     exported,
                 } => {
@@ -1115,6 +1118,22 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                             message: "Cannot have more than 65535 constants per function".into(),
                         });
+                    }
+                    if let Some(parent) = parent {
+                        let res = self.evaluate_expr(parent);
+                        if let Ok(res) = res {
+                            if let Err(e) = self.store_in_accumulator(res, *line) {
+                                self.error(e);
+                            }
+                        } else if let Err(e) = res {
+                            self.error(e);
+                        }
+                    } else {
+                        self.write1(
+                            Op::LoadModuleVariable,
+                            self.get_global("Object").unwrap().position,
+                            *line,
+                        );
                     }
                     for method in methods {
                         let bytecode = self.closure(
@@ -1616,7 +1635,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     })
                 }
             }
-            Expr::MemberCall {
+            Expr::MethodCall {
                 object,
                 property,
                 arguments,
@@ -1644,7 +1663,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
                     self.store_in_specific_register(expr, reg, line)?;
                 }
-                self.write3(Op::CallMember, reg, property, start, line);
+                self.write3(Op::CallMethod, reg, property, start, line);
                 self.bytecode.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
@@ -1653,6 +1672,39 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 if !matches!(object_res, ExprResult::Register(_)) {
                     self.pop_register();
                 }
+                Ok(ExprResult::Accumulator)
+            }
+            Expr::SuperCall {
+                line,
+                method,
+                arguments,
+            } => {
+                let property = self
+                    .bytecode
+                    .symbol_constant(method.as_str().into())
+                    .map_err(|_| CompileError {
+                        line: *line,
+                        message: "Cannot have more than 65535 constants per function".into(),
+                    })?;
+                let start = self.regcount;
+                if arguments.len() >= 25 {
+                    return Err(CompileError {
+                        message: "Cannot have more than 25 arguments".to_string(),
+                        line: *line,
+                    });
+                }
+                self.push_register(*line)?;
+                for arg in arguments {
+                    let reg = self.push_register(*line)?;
+                    let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
+                    self.store_in_specific_register(expr, reg, *line)?;
+                }
+                self.write2(Op::SuperCall, property, start, *line);
+                self.bytecode.write_u8(arguments.len() as u8);
+                for _ in 0..arguments.len() {
+                    self.pop_register();
+                }
+                self.pop_register();
                 Ok(ExprResult::Accumulator)
             }
         }

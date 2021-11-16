@@ -94,6 +94,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "const" => TokenType::Const,
     "else" => TokenType::Else,
     "export" => TokenType::Export,
+    "extends" => TokenType::Extends,
     "false" => TokenType::False,
     "for" => TokenType::For,
     "fun" => TokenType::Fun,

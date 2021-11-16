@@ -74,7 +74,8 @@
   OP(GreaterThanOrEqual)                                                       \
   OP(LesserThanOrEqual)                                                        \
   OP(Call)                                                                     \
-  OP(CallMember)                                                               \
+  OP(CallMethod)                                                               \
+  OP(SuperCall)                                                                \
   OP(Construct)                                                                \
   OP(ToString)                                                                 \
   OP(NewArray)                                                                 \

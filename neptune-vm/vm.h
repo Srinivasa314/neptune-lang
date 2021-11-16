@@ -60,6 +60,7 @@ private:
   std::ostringstream panic_message;
   NativeFunction *last_native_function;
   BuiltinClasses builtin_classes;
+  BuiltinSymbols builtin_symbols;
 
 public:
   Value return_value;
@@ -106,6 +107,7 @@ public:
         last_native_function(nullptr), return_value(Value::null()) {
     create_module(StringSlice("<prelude>"));
     declare_native_builtins();
+    builtin_symbols.construct = intern(StringSlice("construct"));
   }
   ~VM();
 };

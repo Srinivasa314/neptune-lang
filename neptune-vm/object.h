@@ -156,14 +156,17 @@ public:
   static constexpr Type type = Type::Module;
   friend class VM;
 };
-
+class FunctionInfoWriter;
 class Class : public Object {
-public:
   SymbolMap<Object *> methods;
+
+public:
   std::string name;
   Class *super;
+  Object *find_method(Symbol *method);
   static constexpr Type type = Type::Class;
   friend class VM;
+  friend class FunctionInfoWriter;
 };
 
 class Instance : public Object {
@@ -177,5 +180,8 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task;
+};
+struct BuiltinSymbols {
+  Symbol *construct;
 };
 } // namespace neptune_vm

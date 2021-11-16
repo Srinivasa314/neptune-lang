@@ -88,25 +88,25 @@ handler(LesserThan, COMPARE_OP_REGISTER(<););
 handler(GreaterThanOrEqual, COMPARE_OP_REGISTER(>=););
 handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
-#define CALLOP(n)                                                              \
+#define CALLOP(n, nargs)                                                       \
   if (likely(accumulator.is_object())) {                                       \
     if (accumulator.as_object()->is<Function>()) {                             \
       auto f = accumulator.as_object()->as<Function>();                        \
       auto arity = f->function_info->arity;                                    \
-      if (unlikely(arity != n))                                                \
+      if (unlikely(arity != nargs))                                            \
         PANIC("Function " << f->function_info->name << " takes "               \
                           << static_cast<uint32_t>(arity) << " arguments but " \
-                          << static_cast<uint32_t>(n) << " were given");       \
+                          << static_cast<uint32_t>(nargs) << " were given");   \
       task->frames.back().ip = ip;                                             \
       bp += offset;                                                            \
       CALL(n);                                                                 \
     } else if (accumulator.as_object()->is<NativeFunction>()) {                \
       auto f = accumulator.as_object()->as<NativeFunction>();                  \
       auto arity = f->arity;                                                   \
-      if (unlikely(arity != n))                                                \
+      if (unlikely(arity != nargs))                                            \
         PANIC("Function " << f->name << " takes "                              \
                           << static_cast<uint32_t>(arity) << " arguments but " \
-                          << static_cast<uint32_t>(n) << " were given");       \
+                          << static_cast<uint32_t>(nargs) << " were given");   \
       bp += offset;                                                            \
       if (size_t(bp - task->stack.get()) + f->max_slots >                      \
           task->stack_size / sizeof(Value))                                    \
@@ -141,35 +141,67 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 handler(Call, {
   auto offset = READ(utype);
   auto n = READ(uint8_t);
-  CALLOP(n)
+  CALLOP(n, n)
 });
-handler(CallMember, {
+
+handler(CallMethod, {
   auto object = bp[READ(utype)];
   auto member = constants[READ(utype)].as_object()->as<Symbol>();
   auto offset = READ(utype);
   auto n = READ(uint8_t);
 
   auto class_ = get_class(object);
-  if (class_->methods.find(member) != class_->methods.end()) {
-    auto f = class_->methods[member]->as<Function>();
-    auto arity = f->function_info->arity;
-    if (unlikely(arity != n))
-      PANIC("Function " << f->function_info->name << " takes "
-                        << static_cast<uint32_t>(arity) << " arguments but "
-                        << static_cast<uint32_t>(n) << " were given");
-    task->frames.back().ip = ip;
-    bp += offset;
-    *bp = object;
-    CALL(n + 1);
+  auto method = class_->find_method(member);
+  if (method != nullptr) {
+    accumulator = Value(method);
+    bp[offset] = object;
+    CALLOP(n + 1, n)
+  } else if (object.is_object() && object.as_object()->is<Module>()) {
+    auto module = object.as_object()->as<Module>();
+    auto iter = module->module_variables.find(member);
+    if (iter == module->module_variables.end() || !iter->second.exported)
+      PANIC("Module " << module->name << " does not export any variable named "
+                      << static_cast<StringSlice>(*member));
+    else
+      accumulator = module_variables[iter->second.position];
+    CALLOP(n, n)
+  } else if (object.is_object() && object.as_object()->is<Instance>()) {
+    auto instance = object.as_object()->as<Instance>();
+    if (instance->properties.find(member) == instance->properties.end())
+      PANIC("Object does not have any property named "
+            << static_cast<StringSlice>(*member));
+    else
+      accumulator = instance->properties[member];
+    CALLOP(n, n)
   } else {
-    PANIC("Object does not have method named " << static_cast<StringSlice>(*member));
+    PANIC("Object does not have method named "
+          << static_cast<StringSlice>(*member));
   }
 });
+
+handler(SuperCall, {
+  auto object = bp[0];
+  auto member = constants[READ(utype)].as_object()->as<Symbol>();
+  auto offset = READ(utype);
+  auto n = READ(uint8_t);
+
+  auto class_ = task->frames.back().f->super_class;
+  auto method = class_->find_method(member);
+  if (method != nullptr) {
+    accumulator = Value(method);
+    bp[offset] = object;
+    CALLOP(n + 1, n)
+  } else {
+    PANIC("Object does not have method named "
+          << static_cast<StringSlice>(*member));
+  }
+});
+
 handler(Construct, {
   auto offset = READ(utype);
   auto n = READ(uint8_t);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
-    auto construct = intern(StringSlice("construct"));
+    auto construct = builtin_symbols.construct;
     auto class_ = accumulator.as_object()->as<Class>();
     temp_roots.push_back(class_);
     auto obj = manage(new Instance());
@@ -359,9 +391,21 @@ handler(MakeFunction, {
 });
 
 handler(MakeClass, {
-  auto class_ = constants[READ(utype)].as_object()->as<Class>();
+  auto class_ =
+      manage(new Class(*constants[READ(utype)].as_object()->as<Class>()));
+  temp_roots.push_back(class_);
+  if (accumulator.is_object() && accumulator.as_object()->is<Class>())
+    class_->super = accumulator.as_object()->as<Class>();
+  else
+    PANIC("Expected to inherit from Class got " << accumulator.type_string());
   for (auto p : class_->methods)
-    class_->methods[p.first] = make_function(bp, p.second->as<FunctionInfo>());
+    if (p.second->is<FunctionInfo>()) {
+      class_->methods[p.first] =
+          make_function(bp, p.second->as<FunctionInfo>());
+      class_->methods[p.first]->as<Function>()->super_class =
+          accumulator.as_object()->as<Class>();
+    }
+  temp_roots.pop_back();
   accumulator = Value(class_);
 });
 
