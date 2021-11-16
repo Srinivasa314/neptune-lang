@@ -1679,6 +1679,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 method,
                 arguments,
             } => {
+                if !(self.bctype == BytecodeType::Method
+                    || self.bctype == BytecodeType::Constructor)
+                {
+                    return Err(CompileError {
+                        message: "Super calls can be done only in methods".to_string(),
+                        line: *line,
+                    });
+                }
                 let property = self
                     .bytecode
                     .symbol_constant(method.as_str().into())
