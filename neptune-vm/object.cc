@@ -213,8 +213,6 @@ void operator<<(ValueFormatter vf, Object *obj) {
       }
     }
     break;
-
-    break;
   }
   default:
     unreachable();

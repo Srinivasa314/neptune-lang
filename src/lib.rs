@@ -1,10 +1,12 @@
+use std::fmt::Display;
+
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
-use vm::{new_vm, FunctionContext, FunctionInfoWriter, VM};
+use vm::{new_vm, FunctionInfoWriter, VM};
 
 mod bytecode_compiler;
 mod parser;
@@ -22,6 +24,25 @@ pub enum InterpretError {
     CompileError(Vec<CompileError>),
     UncaughtPanic { error: String, stack_trace: String },
 }
+
+impl Display for InterpretError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InterpretError::CompileError(c) => {
+                for error in c {
+                    write!(f, "line {}: {}", error.line, error.message)?;
+                }
+            }
+            InterpretError::UncaughtPanic { error, stack_trace } => {
+                write!(f, "Uncaught Panic: {}", error)?;
+                write!(f, "{}", stack_trace)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for InterpretError {}
 
 pub type CompileResult<T> = Result<T, CompileError>;
 
@@ -57,7 +78,7 @@ impl ModuleLoader for NoopModuleLoader {
 impl Neptune {
     pub fn new<M: ModuleLoader + 'static + Clone>(module_loader: M) -> Self {
         let vm = new_vm();
-        vm.declare_native_rust_function("<prelude>", "_compileModule", false, 1, 0, {
+        /*vm.declare_native_rust_function("<prelude>", "_compileModule", false, 1, 0, {
             let module_loader = module_loader.clone();
             move |ctx| {
                 let vm = ctx.vm();
@@ -114,7 +135,7 @@ impl Neptune {
                     Err(0)
                 }
             }
-        });
+        });*/
         let n = Self { vm };
         n.exec("<prelude>", include_str!("prelude.np")).unwrap();
         n
@@ -153,27 +174,6 @@ impl Neptune {
                 _ => unreachable!(),
             },
             Err(e) => Err(InterpretError::CompileError(e)),
-        }
-    }
-
-    pub fn create_function(
-        &self,
-        module: &str,
-        name: &str,
-        arity: u8,
-        extra_slots: u16,
-        callback: impl FnMut(FunctionContext) -> Result<u16, u16> + 'static,
-    ) -> Result<(), NeptuneError> {
-        if !self.vm.module_exists(module.into()) {
-            return Err(NeptuneError::ModuleNotFound);
-        }
-        if self
-            .vm
-            .declare_native_rust_function(module, name, true, arity, extra_slots, callback)
-        {
-            Ok(())
-        } else {
-            Err(NeptuneError::FunctionAlreadyExists)
         }
     }
 

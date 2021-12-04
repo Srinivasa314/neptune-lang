@@ -70,21 +70,6 @@ unsafe impl ExternType for ModuleVariable {
     type Kind = cxx::kind::Trivial;
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct FunctionContextInner {
-    vm: *mut ffi::VM,
-    slots: *mut c_void,
-    max_slots: u16,
-}
-
-unsafe impl ExternType for FunctionContextInner {
-    type Id = type_id!("neptune_vm::FunctionContext");
-    type Kind = cxx::kind::Trivial;
-}
-
-pub struct FunctionContext(FunctionContextInner);
-
 #[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
 mod ffi {
@@ -196,13 +181,6 @@ mod ffi {
         Error,
     }
 
-    #[repr(u8)]
-    enum NativeFunctionStatus {
-        Ok,
-        InvalidSlotError,
-        TypeError,
-    }
-
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
@@ -210,12 +188,7 @@ mod ffi {
         type Op;
         type VMStatus;
         type VM;
-        type Data;
-        type NativeFunctionCallback;
-        type FreeDataCallback;
-        type NativeFunctionStatus;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
-        type FunctionContext = super::FunctionContextInner;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
         unsafe fn run(self: &mut FunctionInfoWriter) -> VMStatus;
@@ -278,134 +251,11 @@ mod ffi {
             catch_begin: u32,
         );
         fn size(self: &FunctionInfoWriter) -> usize;
-        unsafe fn declare_native_function(
-            self: &VM,
-            module: StringSlice,
-            name: StringSlice,
-            exported: bool,
-            arity: u8,
-            extra_slots: u16,
-            callback: *mut NativeFunctionCallback,
-            data: *mut Data,
-            free_data: *mut FreeDataCallback,
-        ) -> bool;
         fn get_stack_trace(self: &VM) -> String;
         fn get_result(self: &VM) -> String;
-        fn return_value(self: &FunctionContext, slot: u16) -> NativeFunctionStatus;
-        fn as_string(self: &FunctionContext, slot: u16, s: &mut String) -> NativeFunctionStatus;
-        fn to_string(self: &FunctionContext, dest: u16, source: u16) -> NativeFunctionStatus;
-        fn null(self: &FunctionContext, slot: u16) -> NativeFunctionStatus;
-        // For safety whenever control is returned to the VM, the bytecode must be valid
-        unsafe fn function(
-            self: &FunctionContext,
-            slot: u16,
-            fw: FunctionInfoWriter,
-        ) -> NativeFunctionStatus;
-        fn string(self: &FunctionContext, slot: u16, s: StringSlice) -> NativeFunctionStatus;
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
-    }
-}
-
-use ffi::{Data, FreeDataCallback, NativeFunctionCallback, NativeFunctionStatus};
-
-impl VM {
-    pub fn declare_native_rust_function<F>(
-        &self,
-        module: &str,
-        name: &str,
-        exported: bool,
-        arity: u8,
-        extra_slots: u16,
-        callback: F,
-    ) -> bool
-    where
-        F: FnMut(FunctionContext) -> Result<u16, u16> + 'static,
-    {
-        let data = Box::into_raw(Box::new(callback));
-        unsafe {
-            self.declare_native_function(
-                module.into(),
-                name.into(),
-                exported,
-                arity,
-                extra_slots,
-                trampoline::<F> as *mut NativeFunctionCallback,
-                data as *mut Data,
-                free_data::<F> as *mut FreeDataCallback,
-            )
-        }
-    }
-}
-
-unsafe extern "C" fn trampoline<F>(ctx: FunctionContextInner, data: *mut Data) -> bool
-where
-    F: FnMut(FunctionContext) -> Result<u16, u16> + 'static,
-{
-    let callback = data as *mut F;
-    let callback = &mut *callback;
-    //https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        match callback(FunctionContext(ctx)) {
-            Ok(slot) => {
-                if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
-                    panic!("Attempt to return invalid slot");
-                }
-                true
-            }
-            Err(slot) => {
-                if ctx.return_value(slot) == NativeFunctionStatus::InvalidSlotError {
-                    panic!("Attempt to return invalid slot");
-                }
-                false
-            }
-        }
-    }))
-    .unwrap_or_else(|_| std::process::abort())
-}
-
-unsafe extern "C" fn free_data<F>(data: *mut Data) {
-    Box::from_raw(data as *mut F);
-}
-
-impl FunctionContext {
-    pub fn as_string(&self, slot: u16) -> Option<String> {
-        let mut s = String::new();
-        match self.0.as_string(slot, &mut s) {
-            NativeFunctionStatus::InvalidSlotError => panic!("Attempt to access invalid slot"),
-            NativeFunctionStatus::TypeError => None,
-            _ => Some(s),
-        }
-    }
-
-    pub fn to_string(&self, dest: u16, source: u16) {
-        if self.0.to_string(dest, source) == NativeFunctionStatus::InvalidSlotError {
-            panic!("Attempt to access invalid slot")
-        }
-    }
-
-    pub fn null(&self, slot: u16) {
-        if self.0.null(slot) == NativeFunctionStatus::InvalidSlotError {
-            panic!("Attempt to access invalid slot")
-        }
-    }
-
-    pub fn string(&self, slot: u16, string: &str) {
-        if self.0.string(slot, string.into()) == NativeFunctionStatus::InvalidSlotError {
-            panic!("Attempt to access invalid slot")
-        }
-    }
-
-    pub(crate) fn vm(&self) -> &VM {
-        unsafe { &*self.0.vm }
-    }
-
-    // For safety whenever control is returned to the VM, the bytecode must be valid
-    pub(crate) unsafe fn function(self: &FunctionContext, slot: u16, fw: FunctionInfoWriter) {
-        if self.0.function(slot, fw) == NativeFunctionStatus::InvalidSlotError {
-            panic!("Attempt to access invalid slot")
-        }
     }
 }
 

@@ -5,39 +5,53 @@
 namespace neptune_vm {
 class VM;
 
-enum class NativeFunctionStatus : uint8_t {
-  Ok,
-  InvalidSlotError,
-  TypeError,
-};
-
-struct FunctionContext {
-  VM *vm;
-  Value *slots;
-  uint16_t max_slots;
-  NativeFunctionStatus return_value(uint16_t slot) const;
-  NativeFunctionStatus as_string(uint16_t slot, rust::String &s) const;
-  NativeFunctionStatus to_string(uint16_t dest, uint16_t source) const;
-  NativeFunctionStatus null(uint16_t slot) const;
-  NativeFunctionStatus function(uint16_t slot, FunctionInfoWriter fw) const;
-  NativeFunctionStatus string(uint16_t slot, StringSlice string) const;
-};
-
-using Data = void; // Can be anything
-using NativeFunctionCallback = bool(FunctionContext ctx, void *data);
-using FreeDataCallback = void(Data *data);
+using NativeFunctionCallback = bool(VM *vm, Value *slots);
 
 class NativeFunction : public Object {
   uint8_t arity;
-  uint16_t max_slots;
   NativeFunctionCallback *inner;
-  Data *data;
-  FreeDataCallback *free_data;
 
 public:
   static constexpr Type type = Type::NativeFunction;
   std::string name;
   std::string module_name;
   friend class VM;
+};
+
+enum class EFuncStatus : uint8_t { Ok, TypeError, Underflow };
+
+class Task;
+struct FunctionContext {
+  VM *vm;
+  Task *task;
+  void push_int(int32_t i);
+  void push_float(double f);
+  void push_bool(bool b);
+  void push_null();
+  void push_string(StringSlice s);
+  void push_symbol(StringSlice s);
+  void push_empty_array();
+  EFuncStatus push_to_array();
+  void push_empty_object();
+  EFuncStatus set_object_property(StringSlice s);
+  EFuncStatus as_int(int32_t &i);
+  EFuncStatus as_float(int32_t &i);
+  EFuncStatus as_bool(int32_t &i);
+  EFuncStatus is_null();
+  EFuncStatus as_string(StringSlice &s);
+  EFuncStatus as_symbol(StringSlice &s);
+  EFuncStatus get_array_length(int32_t &i);
+  EFuncStatus get_array_element(size_t s);
+  EFuncStatus is_object();
+  EFuncStatus get_object_property(StringSlice prop);
+  bool pop();
+};
+
+using EFuncCallback = bool(FunctionContext *ctx);
+using FreeDataCallback = void(void *data);
+struct EFunc {
+  EFuncCallback callback;
+  void *data;
+  FreeDataCallback free_data;
 };
 }; // namespace neptune_vm

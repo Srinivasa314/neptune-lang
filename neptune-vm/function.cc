@@ -187,7 +187,7 @@ static std::ostream &operator<<(std::ostream &os, uint8_t i) {
 } // namespace numerical_chars
 
 #define READ(type) checked_read<type>(ip, end)
-static void disassemble(std::ostream &os, const FunctionInfo &f) {
+void disassemble(std::ostream &os, const FunctionInfo &f) {
   using namespace numerical_chars;
   os << "Bytecode for " << f.name << '\n';
   auto ip = f.bytecode.data();

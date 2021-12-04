@@ -13,9 +13,6 @@ constexpr bool STRESS_GC = false;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
-namespace native_builtins {
-bool disassemble(FunctionContext ctx, void *data);
-} // namespace native_builtins
 struct Frame {
   Value *bp;
   Function *f;
@@ -85,9 +82,7 @@ public:
   const uint8_t *panic(const uint8_t *ip);
   bool declare_native_function(StringSlice module, StringSlice name,
                                bool exported, uint8_t arity,
-                               uint16_t extra_slots,
-                               NativeFunctionCallback *callback, Data *data,
-                               FreeDataCallback *free_data) const;
+                               NativeFunctionCallback *callback) const;
   void declare_native_builtins();
   Function *make_function(Value *bp, FunctionInfo *function_info);
   rust::String get_stack_trace() const { return rust::String(stack_trace); }

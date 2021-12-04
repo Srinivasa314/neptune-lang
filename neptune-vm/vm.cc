@@ -344,8 +344,6 @@ void VM::release(Object *o) {
     break;
   case Type::NativeFunction: {
     auto n = o->as<NativeFunction>();
-    if (n->free_data != nullptr)
-      n->free_data(n->data);
     delete n;
   } break;
   case Type::Module: {
@@ -644,18 +642,12 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
 
 bool VM::declare_native_function(StringSlice module, StringSlice name,
                                  bool exported, uint8_t arity,
-                                 uint16_t extra_slots,
-                                 NativeFunctionCallback *callback,
-                                 Data *data = nullptr,
-                                 FreeDataCallback *free_data = nullptr) const {
+                                 NativeFunctionCallback *callback) const {
   if (!add_module_variable(module, name, false, exported))
     return false;
   auto n = new NativeFunction();
   n->arity = arity;
-  n->max_slots = arity + extra_slots;
   n->inner = callback;
-  n->data = data;
-  n->free_data = free_data;
   n->name = std::string{name.data, name.len};
   n->module_name = std::string{module.data, module.len};
   module_variables[module_variables.size() - 1] = Value(n);
@@ -664,51 +656,51 @@ bool VM::declare_native_function(StringSlice module, StringSlice name,
 }
 
 namespace native_builtins {
-bool disassemble(FunctionContext ctx, void *) {
-  auto fn = ctx.slots[0];
+bool disassemble(VM *vm, Value *slots) {
+  auto fn = slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
     std::ostringstream os;
-    disassemble(os, *fn.as_object()->as<Function>()->function_info);
+    neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
     auto str = os.str();
-    ctx.vm->return_value = Value(ctx.vm->manage(String::from(str)));
+    vm->return_value = Value(vm->manage(String::from(str)));
     return true;
   } else {
     std::ostringstream os;
     os << "Cannot disassemble " << fn.type_string();
-    ctx.vm->return_value = Value(ctx.vm->manage(String::from(os.str())));
+    vm->return_value = Value(vm->manage(String::from(os.str())));
     return false;
   }
 }
 
-bool gc(FunctionContext ctx, void *) {
-  ctx.vm->collect();
+bool gc(VM *vm, Value *) {
+  vm->collect();
   return true;
 }
 
-bool _getModule(FunctionContext ctx, void *) {
-  if (ctx.slots[0].is_object() && ctx.slots[0].as_object()->is<String>()) {
-    auto module = ctx.vm->get_module(
-        StringSlice(*ctx.slots[0].as_object()->as<String>()));
+bool _getModule(VM *vm, Value *slots) {
+  if (slots[0].is_object() && slots[0].as_object()->is<String>()) {
+    auto module =
+        vm->get_module(StringSlice(*slots[0].as_object()->as<String>()));
     if (module == nullptr)
-      ctx.vm->return_value = Value::null();
+      vm->return_value = Value::null();
     else
-      ctx.vm->return_value = Value(module);
+      vm->return_value = Value(module);
     return true;
   } else {
-    ctx.vm->return_value = Value(ctx.vm->manage(
+    vm->return_value = Value(vm->manage(
         String::from(StringSlice("First argument must be a string"))));
     return false;
   }
 }
 
-bool _getCallerModule(FunctionContext ctx, void *) {
-  if (ctx.vm->current_task->frames.size() < 2) {
-    ctx.vm->return_value =
-        Value(ctx.vm->manage(String::from(StringSlice("No caller exists"))));
+bool _getCallerModule(VM *vm, Value *) {
+  if (vm->current_task->frames.size() < 2) {
+    vm->return_value =
+        Value(vm->manage(String::from(StringSlice("No caller exists"))));
     return false;
   } else {
-    ctx.vm->return_value = Value(ctx.vm->manage(String::from(
-        ctx.vm->current_task->frames[ctx.vm->current_task->frames.size() - 2]
+    vm->return_value = Value(vm->manage(String::from(
+        vm->current_task->frames[vm->current_task->frames.size() - 2]
             .f->function_info->module)));
     return true;
   }
@@ -745,13 +737,13 @@ void VM::declare_native_builtins() {
 
   create_module(StringSlice("vm"));
   declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
-                          1, 0, native_builtins::disassemble);
-  declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0, 0,
+                          1, native_builtins::disassemble);
+  declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0,
                           native_builtins::gc);
   declare_native_function(StringSlice("<prelude>"), StringSlice("_getModule"),
-                          false, 1, 0, native_builtins::_getModule);
+                          false, 1, native_builtins::_getModule);
   declare_native_function(StringSlice("<prelude>"),
-                          StringSlice("_getCallerModule"), false, 0, 0,
+                          StringSlice("_getCallerModule"), false, 0,
                           native_builtins::_getCallerModule);
 }
 

@@ -28,7 +28,7 @@ fn main() {
                 s,
             ) {
                 Ok(()) => {}
-                Err(e) => report_error(e),
+                Err(e) => eprintln!("{}", e),
             },
             Err(e) => {
                 eprintln!("{}", e);
@@ -103,7 +103,7 @@ fn repl(n: &Neptune) {
                         println!("{}", val);
                     }
                     Ok(None) => {}
-                    Err(e) => report_error(e),
+                    Err(e) => eprintln!("{}", e),
                 };
                 rl.add_history_entry(lines);
             }
@@ -196,20 +196,6 @@ pub fn are_brackets_balanced(s: &str) -> bool {
         index += 1;
     }
     depths.len() == 1 && depths[0] == 0
-}
-
-fn report_error(i: InterpretError) {
-    match i {
-        InterpretError::CompileError(c) => {
-            for error in c {
-                eprintln!("line {}: {}", error.line, error.message)
-            }
-        }
-        InterpretError::UncaughtPanic { error, stack_trace } => {
-            eprintln!("Uncaught Panic: {}", error);
-            eprintln!("{}", stack_trace);
-        }
-    }
 }
 
 #[cfg(test)]

@@ -107,15 +107,8 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
         PANIC("Function " << f->name << " takes "                              \
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(nargs) << " were given");   \
-      bp += offset;                                                            \
-      if (size_t(bp - task->stack.get()) + f->max_slots >                      \
-          task->stack_size / sizeof(Value))                                    \
-        bp = task->grow_stack(bp, f->max_slots);                               \
-      task->stack_top = bp + f->max_slots;                                     \
-      for (auto v = bp + arity; v < bp + f->max_slots; v++)                    \
-        *v = Value::null();                                                    \
       last_native_function = f;                                                \
-      auto ok = f->inner(FunctionContext{this, bp, f->max_slots}, f->data);    \
+      auto ok = f->inner(this, bp + offset);                                   \
       accumulator = return_value;                                              \
       return_value = Value::null();                                            \
       if (!ok) {                                                               \
@@ -128,9 +121,6 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
           goto panic_end;                                                      \
       }                                                                        \
       last_native_function = nullptr;                                          \
-      bp -= offset;                                                            \
-      task->stack_top =                                                        \
-          bp + task->frames.back().f->function_info->max_registers;            \
     } else {                                                                   \
       PANIC(accumulator.type_string() << " is not callable");                  \
     }                                                                          \
