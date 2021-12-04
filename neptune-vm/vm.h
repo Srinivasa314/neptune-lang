@@ -35,6 +35,7 @@ public:
       : stack(std::unique_ptr<Value[]>(new Value[stack_size_ / sizeof(Value)])),
         stack_size(stack_size_), stack_top(stack.get()),
         open_upvalues(nullptr) {}
+  friend struct FunctionContext;
 };
 
 class VM {

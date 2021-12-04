@@ -18,12 +18,14 @@ public:
   friend class VM;
 };
 
-enum class EFuncStatus : uint8_t { Ok, TypeError, Underflow };
+enum class EFuncStatus : uint8_t { Ok, TypeError, Underflow, OutOfBounds };
 
 class Task;
 struct FunctionContext {
+  Value *arg;
   VM *vm;
   Task *task;
+  void push(Value v);
   void push_int(int32_t i);
   void push_float(double f);
   void push_bool(bool b);
@@ -40,8 +42,8 @@ struct FunctionContext {
   EFuncStatus is_null();
   EFuncStatus as_string(StringSlice &s);
   EFuncStatus as_symbol(StringSlice &s);
-  EFuncStatus get_array_length(int32_t &i);
-  EFuncStatus get_array_element(size_t s);
+  EFuncStatus get_array_length(size_t &len);
+  EFuncStatus get_array_element(size_t pos);
   EFuncStatus is_object();
   EFuncStatus get_object_property(StringSlice prop);
   bool pop();
