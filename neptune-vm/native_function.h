@@ -37,8 +37,8 @@ struct FunctionContext {
   void push_empty_object();
   EFuncStatus set_object_property(StringSlice s);
   EFuncStatus as_int(int32_t &i);
-  EFuncStatus as_float(int32_t &i);
-  EFuncStatus as_bool(int32_t &i);
+  EFuncStatus as_float(double &d);
+  EFuncStatus as_bool(bool &b);
   EFuncStatus is_null();
   EFuncStatus as_string(StringSlice &s);
   EFuncStatus as_symbol(StringSlice &s);
