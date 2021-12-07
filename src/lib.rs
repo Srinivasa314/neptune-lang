@@ -34,7 +34,7 @@ impl Display for InterpretError {
                 }
             }
             InterpretError::UncaughtPanic { error, stack_trace } => {
-                write!(f, "Uncaught Panic: {}", error)?;
+                write!(f, "Uncaught Panic: {}\n", error)?;
                 write!(f, "{}", stack_trace)?;
             }
         }

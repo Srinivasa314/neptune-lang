@@ -41,6 +41,7 @@ String *String::concat(String *s) {
 }
 
 String::operator rust::String() const { return rust::String(data, len); }
+Symbol::operator rust::String() const { return rust::String(data, len); }
 
 uint32_t StringHasher::operator()(StringSlice s) const {
   // FNV-1a hash. http://www.isthe.com/chongo/tech/comp/fnv/

@@ -1,7 +1,7 @@
 #include "neptune-vm.h"
 
 #define CHECK_STACK_UNDERFLOW                                                  \
-  if (task->stack_top == arg + 1)                                              \
+  if (task->stack_top == arg)                                                  \
   return EFuncStatus::Underflow
 
 namespace neptune_vm {
@@ -11,6 +11,14 @@ void FunctionContext::push(Value v) {
   *task->stack_top = v;
   task->stack_top++;
 }
+
+Value FunctionContext::pop_value() {
+  task->stack_top--;
+  return *task->stack_top;
+}
+
+Value FunctionContext::peek() { return task->stack_top[-1]; }
+
 void FunctionContext::push_int(int32_t i) { push(Value(i)); }
 
 void FunctionContext::push_float(double d) { push(Value(d)); }
@@ -25,14 +33,14 @@ void FunctionContext::push_string(StringSlice s) {
 
 void FunctionContext::push_symbol(StringSlice s) { push(Value(vm->intern(s))); }
 
-void FunctionContext::push_empty_array() { push(Value(new Array())); }
+void FunctionContext::push_empty_array() {
+  push(Value(vm->manage(new Array())));
+}
 
 EFuncStatus FunctionContext::push_to_array() {
   CHECK_STACK_UNDERFLOW;
-  auto elem = *task->stack_top;
-  task->stack_top--;
-  CHECK_STACK_UNDERFLOW;
-  auto v = *task->stack_top;
+  auto elem = pop_value();
+  auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
     array.push_back(elem);
@@ -43,16 +51,18 @@ EFuncStatus FunctionContext::push_to_array() {
 
 EFuncStatus FunctionContext::set_object_property(StringSlice s) {
   CHECK_STACK_UNDERFLOW;
-  auto elem = *task->stack_top;
-  task->stack_top--;
-  CHECK_STACK_UNDERFLOW;
-  auto obj = *task->stack_top;
+  auto elem = pop_value();
+  vm->temp_roots.push_back(elem);
+  auto obj = peek();
   if (obj.is_object() && obj.as_object()->is<Instance>()) {
     auto &map = obj.as_object()->as<Instance>()->properties;
     map.insert({vm->intern(s), elem});
+    vm->temp_roots.pop_back();
     return EFuncStatus::Ok;
-  } else
+  } else {
+    vm->temp_roots.pop_back();
     return EFuncStatus::TypeError;
+  }
 }
 
 void FunctionContext::push_empty_object() {
@@ -61,8 +71,9 @@ void FunctionContext::push_empty_object() {
 
 EFuncStatus FunctionContext::as_int(int32_t &i) {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_int()) {
-    i = task->stack_top->as_int();
+  Value v = pop_value();
+  if (v.is_int()) {
+    i = v.as_int();
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
@@ -70,8 +81,9 @@ EFuncStatus FunctionContext::as_int(int32_t &i) {
 
 EFuncStatus FunctionContext::as_float(double &d) {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_float()) {
-    d = task->stack_top->as_float();
+  Value v = pop_value();
+  if (v.is_float()) {
+    d = v.as_float();
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
@@ -79,8 +91,9 @@ EFuncStatus FunctionContext::as_float(double &d) {
 
 EFuncStatus FunctionContext::as_bool(bool &b) {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_bool()) {
-    b = task->stack_top->is_true();
+  Value v = pop_value();
+  if (v.is_bool()) {
+    b = v.is_true();
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
@@ -88,42 +101,42 @@ EFuncStatus FunctionContext::as_bool(bool &b) {
 
 EFuncStatus FunctionContext::is_null() {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_null()) {
+  Value v = pop_value();
+  if (v.is_null()) {
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
 EFuncStatus FunctionContext::is_object() {
-  CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_object()) {
+  if (peek().is_object()) {
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::as_string(StringSlice &s) {
+EFuncStatus FunctionContext::as_string(rust::String &s) {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_object() &&
-      task->stack_top->as_object()->is<String>()) {
-    s = StringSlice(*task->stack_top->as_object()->as<String>());
+  Value v = pop_value();
+  if (v.is_object() && v.as_object()->is<String>()) {
+    s = rust::String(*v.as_object()->as<String>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::as_symbol(StringSlice &s) {
+EFuncStatus FunctionContext::as_symbol(rust::String &s) {
   CHECK_STACK_UNDERFLOW;
-  if (task->stack_top->is_object() &&
-      task->stack_top->as_object()->is<Symbol>()) {
-    s = StringSlice(*task->stack_top->as_object()->as<Symbol>());
+  Value v = pop_value();
+  if (v.is_object() && v.as_object()->is<Symbol>()) {
+    s = rust::String(*v.as_object()->as<Symbol>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
 bool FunctionContext::pop() {
-  if (task->stack_top == task->stack.get())
+  if (task->stack_top == arg)
     return false;
   else {
     task->stack_top--;
@@ -131,8 +144,7 @@ bool FunctionContext::pop() {
   }
 }
 EFuncStatus FunctionContext::get_array_length(size_t &len) {
-  CHECK_STACK_UNDERFLOW;
-  auto v = *task->stack_top;
+  auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
     len = array.size();
@@ -140,9 +152,9 @@ EFuncStatus FunctionContext::get_array_length(size_t &len) {
   } else
     return EFuncStatus::TypeError;
 }
+
 EFuncStatus FunctionContext::get_array_element(size_t pos) {
-  CHECK_STACK_UNDERFLOW;
-  auto v = *task->stack_top;
+  auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
     if (pos >= array.size())
@@ -156,13 +168,12 @@ EFuncStatus FunctionContext::get_array_element(size_t pos) {
 }
 
 EFuncStatus FunctionContext::get_object_property(StringSlice prop) {
-  CHECK_STACK_UNDERFLOW;
-  auto obj = *task->stack_top;
+  auto obj = peek();
   if (obj.is_object() && obj.as_object()->is<Instance>()) {
     auto &map = obj.as_object()->as<Instance>()->properties;
     auto key = vm->intern(prop);
     if (map.find(key) == map.end())
-      return EFuncStatus::OutOfBounds;
+      return EFuncStatus::PropertyError;
     else {
       push(map[key]);
       return EFuncStatus::Ok;

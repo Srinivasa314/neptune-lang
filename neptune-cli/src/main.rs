@@ -10,13 +10,13 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
     let n = Neptune::new(FileSystemModuleLoader);
-    n.create_function("<prelude>", "print", 1, 0, |ctx| {
+    /*n.create_function("<prelude>", "print", 1, 0, |ctx| {
         ctx.to_string(0, 0);
         println!("{}", ctx.as_string(0).unwrap());
         ctx.null(0);
         Ok(0)
     })
-    .unwrap();
+    .unwrap();*/
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {

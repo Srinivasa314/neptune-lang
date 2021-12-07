@@ -381,6 +381,9 @@ VM::~VM() {
     first_obj = first_obj->next;
     release(old);
   }
+
+  for (auto efunc : efuncs)
+    efunc.second.free_data(efunc.second.data);
 }
 
 Value VM::to_string(Value val) {
@@ -437,8 +440,9 @@ void VM::collect() {
     grey(current_handle->object);
     current_handle = current_handle->next;
   }
-  for (auto t : temp_roots)
-    grey(t);
+  for (auto root : temp_roots)
+    if (root.is_object())
+      grey(root.as_object());
   for (auto v : module_variables) {
     if (v.is_object())
       grey(v.as_object());
@@ -454,6 +458,8 @@ void VM::collect() {
     grey(last_native_function);
   if (current_task != nullptr)
     grey(current_task);
+  for (auto efunc : efuncs)
+    grey(efunc.first);
 
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -705,6 +711,35 @@ bool _getCallerModule(VM *vm, Value *) {
     return true;
   }
 }
+
+bool ecall(VM *vm, Value *slots) {
+  if (slots[0].is_object() && slots[0].as_object()->is<Symbol>()) {
+    auto efunc_iter = vm->efuncs.find(slots[0].as_object()->as<Symbol>());
+    if (efunc_iter == vm->efuncs.end()) {
+      vm->return_value = Value(vm->manage(
+          String::from(StringSlice("Attempt to call unknown efunc"))));
+      return false;
+    } else {
+      auto task = vm->current_task;
+      auto efunc = efunc_iter->second;
+      auto old_stack_top = task->stack_top;
+      task->stack_top = slots + 2;
+      FunctionContext ctx(vm, task, slots + 1);
+      efunc.callback(&ctx, efunc.data);
+      if (task->stack_top == slots + 1)
+        vm->return_value = Value::null();
+      else {
+        vm->return_value = slots[1];
+      }
+      task->stack_top = old_stack_top;
+      return true;
+    }
+  } else {
+    vm->return_value = Value(vm->manage(
+        String::from(StringSlice("First argument must be a symbol"))));
+    return false;
+  }
+}
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
@@ -740,11 +775,24 @@ void VM::declare_native_builtins() {
                           1, native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0,
                           native_builtins::gc);
+  declare_native_function(StringSlice("vm"), StringSlice("ecall"), true, 2,
+                          native_builtins::ecall);
   declare_native_function(StringSlice("<prelude>"), StringSlice("_getModule"),
                           false, 1, native_builtins::_getModule);
   declare_native_function(StringSlice("<prelude>"),
                           StringSlice("_getCallerModule"), false, 0,
                           native_builtins::_getCallerModule);
+  create_efunc(
+      StringSlice("print"),
+      [](FunctionContext *ctx, void *) {
+        auto s = rust::String();
+        assert(ctx->as_string(s) == EFuncStatus::Ok);
+        std::cout.write(s.data(), s.length());
+        std::cout << std::endl;
+        ctx->pop();
+        return true;
+      },
+      nullptr, [](void *) {});
 }
 
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
@@ -754,7 +802,7 @@ Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
   if (function == nullptr)
     throw std::bad_alloc();
   function->num_upvalues = 0;
-  temp_roots.push_back(static_cast<Object *>(manage(function)));
+  temp_roots.push_back(Value(manage(function)));
   for (auto upvalue : function_info->upvalues) {
     if (upvalue.is_local) {
       auto loc = &bp[upvalue.index];
@@ -870,4 +918,15 @@ Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   }
   return stack.get() + (bp - old_stack.get());
 }
+
+bool VM::create_efunc(StringSlice name, EFuncCallback callback, void *data,
+                      FreeDataCallback free_data) const {
+  if (efuncs.find(name) != efuncs.end())
+    return false;
+  auto this_ = const_cast<VM *>(this);
+  auto name_sym = this_->intern(name);
+  this_->efuncs.insert({name_sym, EFunc{callback, data, free_data}});
+  return true;
+}
+
 } // namespace neptune_vm

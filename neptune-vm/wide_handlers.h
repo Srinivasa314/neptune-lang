@@ -193,7 +193,7 @@ handler(Construct, {
   if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
     auto construct = builtin_symbols.construct;
     auto class_ = accumulator.as_object()->as<Class>();
-    temp_roots.push_back(class_);
+    temp_roots.push_back(Value(class_));
     auto obj = manage(new Instance());
     obj->class_ = class_;
     temp_roots.pop_back();
@@ -383,7 +383,7 @@ handler(MakeFunction, {
 handler(MakeClass, {
   auto class_ =
       manage(new Class(*constants[READ(utype)].as_object()->as<Class>()));
-  temp_roots.push_back(class_);
+  temp_roots.push_back(Value(class_));
   if (accumulator.is_object() && accumulator.as_object()->is<Class>())
     class_->super = accumulator.as_object()->as<Class>();
   else

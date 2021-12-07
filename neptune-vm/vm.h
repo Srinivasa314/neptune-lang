@@ -1,4 +1,5 @@
 #pragma once
+#include "native_function.h"
 #include "rust/cxx.h"
 #include <memory>
 #include <sstream>
@@ -20,22 +21,20 @@ struct Frame {
 };
 
 class Task : public Object {
+public:
   std::unique_ptr<Value[]> stack;
+  UpValue *open_upvalues;
   size_t stack_size;
   Value *stack_top;
-  UpValue *open_upvalues;
-
-public:
   std::vector<Frame> frames;
+
   static constexpr Type type = Type::Task;
-  friend class VM;
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
   Task(size_t stack_size_)
       : stack(std::unique_ptr<Value[]>(new Value[stack_size_ / sizeof(Value)])),
-        stack_size(stack_size_), stack_top(stack.get()),
-        open_upvalues(nullptr) {}
-  friend struct FunctionContext;
+        open_upvalues(nullptr), stack_size(stack_size_),
+        stack_top(stack.get()) {}
 };
 
 class VM {
@@ -43,7 +42,6 @@ public:
   Task *current_task;
 
 private:
-  std::vector<Object *> temp_roots;
   tsl::robin_map<std::string, Module *, StringHasher, StringEquality> modules;
   mutable std::vector<Value> module_variables;
   size_t bytes_allocated;
@@ -61,6 +59,8 @@ private:
   BuiltinSymbols builtin_symbols;
 
 public:
+  std::vector<Value> temp_roots;
+  SymbolMap<EFunc> efuncs;
   Value return_value;
   Value to_string(Value val);
   VMStatus run(Task *task, Function *f);
@@ -95,6 +95,8 @@ public:
   bool module_exists(StringSlice module_name) const;
   void create_module(StringSlice module_name) const;
   void create_module_with_prelude(StringSlice module_name) const;
+  bool create_efunc(StringSlice name, EFuncCallback callback, void *data,
+                    FreeDataCallback free_data) const;
   Module *get_module(StringSlice module_name) const;
   Class *get_class(Value v) const;
   VM()

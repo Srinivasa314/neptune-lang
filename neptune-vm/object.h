@@ -17,8 +17,8 @@ template <typename T> size_t size(T *t) {
 struct StringSlice {
   const char *data;
   size_t len;
-  explicit StringSlice(const char *data_, size_t len_)
-      : data(data_), len(len_) {}
+  explicit StringSlice(const char *data, size_t len)
+      : data(data), len(len) {}
   explicit StringSlice(const char *cstring)
       : data(cstring), len(strlen(cstring)) {}
 };
@@ -81,6 +81,7 @@ class Symbol : public Object {
 public:
   static constexpr Type type = Type::Symbol;
   operator StringSlice() const;
+  operator rust::String() const;
 };
 
 template <> size_t size(Symbol *s);
@@ -152,7 +153,7 @@ class Module : public Object {
 
 public:
   std::string name;
-  Module(std::string name_) : name(name_) {}
+  Module(std::string name) : name(name) {}
   static constexpr Type type = Type::Module;
   friend class VM;
 };

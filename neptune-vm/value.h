@@ -99,8 +99,8 @@ class ValueFormatter {
   uint32_t depth;
 
 public:
-  ValueFormatter(std::ostream &os_, uint32_t _depth) : os(os_), depth(_depth) {}
-  explicit ValueFormatter(std::ostream &os_) : os(os_), depth(0) {}
+  ValueFormatter(std::ostream &os, uint32_t depth) : os(os), depth(depth) {}
+  explicit ValueFormatter(std::ostream &os) : os(os), depth(0) {}
   friend void operator<<(ValueFormatter vf, Object *obj);
   friend void operator<<(ValueFormatter vf, Value v);
   ValueFormatter inc_depth() { return ValueFormatter(os, depth + 1); }

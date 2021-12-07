@@ -8,7 +8,7 @@ template <typename O> class Handle {
 
 public:
   O *object;
-  Handle(Handle *previous_, O *object_, Handle *next_)
-      : previous(previous_), next(next_), object(object_) {}
+  Handle(Handle *previous, O *object, Handle *next)
+      : previous(previous), next(next), object(object) {}
 };
 } // namespace neptune_vm
