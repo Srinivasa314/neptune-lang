@@ -50,13 +50,13 @@ struct FunctionContext {
   EFuncStatus is_null();
   EFuncStatus as_string(rust::String &s);
   EFuncStatus as_symbol(rust::String &s);
-  EFuncStatus get_array_length(size_t &len);
+  EFuncStatus get_array_length(size_t &len) const;
   EFuncStatus get_array_element(size_t pos);
-  EFuncStatus is_object();
+  EFuncStatus is_object() const;
   EFuncStatus get_object_property(StringSlice prop);
   bool pop();
   Value pop_value();
-  Value peek();
+  Value peek() const;
 };
 
 using EFuncCallback = bool (*)(FunctionContext *ctx, void *data);

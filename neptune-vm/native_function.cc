@@ -17,7 +17,7 @@ Value FunctionContext::pop_value() {
   return *task->stack_top;
 }
 
-Value FunctionContext::peek() { return task->stack_top[-1]; }
+Value FunctionContext::peek() const { return task->stack_top[-1]; }
 
 void FunctionContext::push_int(int32_t i) { push(Value(i)); }
 
@@ -108,7 +108,7 @@ EFuncStatus FunctionContext::is_null() {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::is_object() {
+EFuncStatus FunctionContext::is_object() const {
   if (peek().is_object()) {
     return EFuncStatus::Ok;
   } else
@@ -143,7 +143,7 @@ bool FunctionContext::pop() {
     return true;
   }
 }
-EFuncStatus FunctionContext::get_array_length(size_t &len) {
+EFuncStatus FunctionContext::get_array_length(size_t &len) const {
   auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;

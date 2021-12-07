@@ -69,6 +69,18 @@ unsafe impl ExternType for ModuleVariable {
     type Id = type_id!("neptune_vm::ModuleVariable");
     type Kind = cxx::kind::Trivial;
 }
+#[repr(C)]
+pub struct FunctionContext<'a> {
+    vm: *const c_void,
+    task: *const c_void,
+    value: *const c_void,
+    _marker: PhantomData<&'a ()>,
+}
+
+unsafe impl<'a> ExternType for FunctionContext<'a> {
+    type Id = type_id!("neptune_vm::FunctionContext");
+    type Kind = cxx::kind::Trivial;
+}
 
 #[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
@@ -181,14 +193,25 @@ mod ffi {
         Error,
     }
 
+    #[repr(u8)]
+    enum EFuncStatus {
+        Ok,
+        TypeError,
+        Underflow,
+        OutOfBounds,
+        PropertyError,
+    }
+
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
         type ModuleVariable = super::ModuleVariable;
         type Op;
         type VMStatus;
+        type EFuncStatus;
         type VM;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
+        type FunctionContext<'a> = super::FunctionContext<'a>;
         fn write_op(self: &mut FunctionInfoWriter, op: Op, line: u32) -> usize;
         // The bytecode should be valid
         unsafe fn run(self: &mut FunctionInfoWriter) -> VMStatus;
@@ -256,6 +279,28 @@ mod ffi {
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
+
+        fn push_int(self: &mut FunctionContext, i: i32);
+        fn push_float(self: &mut FunctionContext, f: f64);
+        fn push_bool(self: &mut FunctionContext, b: bool);
+        fn push_null(self: &mut FunctionContext);
+        fn push_string(self: &mut FunctionContext, s: StringSlice);
+        fn push_symbol(self: &mut FunctionContext, s: StringSlice);
+        fn push_empty_array(self: &mut FunctionContext);
+        fn push_to_array(self: &mut FunctionContext) -> EFuncStatus;
+        fn push_empty_object(self: &mut FunctionContext);
+        fn set_object_property(self: &mut FunctionContext, s: StringSlice) -> EFuncStatus;
+        fn as_int(self: &mut FunctionContext, i: &mut i32) -> EFuncStatus;
+        fn as_float(self: &mut FunctionContext, d: &mut f64) -> EFuncStatus;
+        fn as_bool(self: &mut FunctionContext, b: &mut bool) -> EFuncStatus;
+        fn is_null(self: &mut FunctionContext) -> EFuncStatus;
+        fn as_string(self: &mut FunctionContext, s: &mut String) -> EFuncStatus;
+        fn as_symbol(self: &mut FunctionContext, s: &mut String) -> EFuncStatus;
+        fn get_array_length(self: &FunctionContext, len: &mut usize) -> EFuncStatus;
+        fn get_array_element(self: &mut FunctionContext, pos: usize) -> EFuncStatus;
+        fn is_object(self: &FunctionContext) -> EFuncStatus;
+        fn get_object_property(self: &mut FunctionContext, prop: StringSlice) -> EFuncStatus;
+        fn pop(self: &mut FunctionContext) -> bool;
     }
 }
 
