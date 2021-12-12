@@ -486,6 +486,9 @@ impl<'src> Scanner<'src> {
                 errors.push("Expect number after .".to_string());
             }
         } else if self.peek() == Some(b'e') {
+            if self.peek_next() == Some(b'+') || self.peek_next() == Some(b'-') {
+                self.advance();
+            }
             handled_e = true;
             if !can_float {
                 errors.push("Can use floating numbers only in decimals".to_string());
@@ -507,6 +510,9 @@ impl<'src> Scanner<'src> {
             self.advance();
         }
         if self.peek() == Some(b'e') && !handled_e && !is_range {
+            if self.peek_next() == Some(b'+') || self.peek_next() == Some(b'-') {
+                self.advance();
+            }
             if !can_float {
                 errors.push("Can use floating numbers only in decimals".to_string());
                 self.advance();

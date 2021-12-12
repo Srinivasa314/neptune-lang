@@ -88,66 +88,79 @@ handler(LesserThan, COMPARE_OP_REGISTER(<););
 handler(GreaterThanOrEqual, COMPARE_OP_REGISTER(>=););
 handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
-#define CALLOP(n, nargs)                                                       \
-  if (likely(accumulator.is_object())) {                                       \
-    if (accumulator.as_object()->is<Function>()) {                             \
-      auto f = accumulator.as_object()->as<Function>();                        \
-      auto arity = f->function_info->arity;                                    \
-      if (unlikely(arity != nargs))                                            \
-        PANIC("Function " << f->function_info->name << " takes "               \
-                          << static_cast<uint32_t>(arity) << " arguments but " \
-                          << static_cast<uint32_t>(nargs) << " were given");   \
-      task->frames.back().ip = ip;                                             \
-      bp += offset;                                                            \
-      CALL(n);                                                                 \
-    } else if (accumulator.as_object()->is<NativeFunction>()) {                \
-      auto f = accumulator.as_object()->as<NativeFunction>();                  \
-      auto arity = f->arity;                                                   \
-      if (unlikely(arity != nargs))                                            \
-        PANIC("Function " << f->name << " takes "                              \
-                          << static_cast<uint32_t>(arity) << " arguments but " \
-                          << static_cast<uint32_t>(nargs) << " were given");   \
-      last_native_function = f;                                                \
-      auto old_stack_top = task->stack_top;                                    \
-      auto ok = f->inner(this, bp + offset);                                   \
-      accumulator = return_value;                                              \
-      return_value = Value::null();                                            \
-      bp = bp + (task->stack_top - old_stack_top);                             \
-      if (!ok) {                                                               \
-        if ((ip = panic(ip, accumulator)) != nullptr) {                        \
-          bp = task->frames.back().bp;                                         \
-          auto f = task->frames.back().f;                                      \
-          constants = f->function_info->constants.data();                      \
-          DISPATCH();                                                          \
-        } else                                                                 \
-          goto panic_end;                                                      \
-      }                                                                        \
-      last_native_function = nullptr;                                          \
-    } else {                                                                   \
-      PANIC(accumulator.type_string() << " is not callable");                  \
-    }                                                                          \
-  } else {                                                                     \
-    PANIC(accumulator.type_string() << " is not callable");                    \
+#ifndef CALLOP
+#define CALLOP
+uint32_t callop_n, callop_nargs, callop_offset;
+callop : {
+  if (likely(accumulator.is_object())) {
+    if (accumulator.as_object()->is<Function>()) {
+      auto f = accumulator.as_object()->as<Function>();
+      auto arity = f->function_info->arity;
+      if (unlikely(arity != callop_nargs))
+        PANIC("Function " << f->function_info->name << " takes "
+                          << static_cast<uint32_t>(arity) << " arguments but "
+                          << static_cast<uint32_t>(callop_nargs)
+                          << " were given");
+      task->frames.back().ip = ip;
+      bp += callop_offset;
+      CALL(callop_n);
+    } else if (accumulator.as_object()->is<NativeFunction>()) {
+      auto f = accumulator.as_object()->as<NativeFunction>();
+      auto arity = f->arity;
+      if (unlikely(arity != callop_nargs))
+        PANIC("Function " << f->name << " takes "
+                          << static_cast<uint32_t>(arity) << " arguments but "
+                          << static_cast<uint32_t>(callop_nargs)
+                          << " were given");
+      last_native_function = f;
+      auto old_stack_top = task->stack_top;
+      auto ok = f->inner(this, bp + callop_offset);
+      accumulator = return_value;
+      return_value = Value::null();
+      bp = bp + (task->stack_top - old_stack_top);
+      if (!ok) {
+        if ((ip = panic(ip, accumulator)) != nullptr) {
+          bp = task->frames.back().bp;
+          auto f = task->frames.back().f;
+          constants = f->function_info->constants.data();
+          DISPATCH();
+        } else
+          goto panic_end;
+      }
+      last_native_function = nullptr;
+    } else {
+      PANIC(accumulator.type_string() << " is not callable");
+    }
+  } else {
+    PANIC(accumulator.type_string() << " is not callable");
   }
+  DISPATCH();
+}
+#endif
 
 handler(Call, {
-  auto offset = READ(utype);
+  callop_offset = READ(utype);
   auto n = READ(uint8_t);
-  CALLOP(n, n)
+  callop_n = n;
+  callop_nargs = n;
+  goto callop;
 });
 
 handler(CallMethod, {
   auto object = bp[READ(utype)];
   auto member = constants[READ(utype)].as_object()->as<Symbol>();
-  auto offset = READ(utype);
+  callop_offset = READ(utype);
   auto n = READ(uint8_t);
 
   auto class_ = get_class(object);
   auto method = class_->find_method(member);
   if (method != nullptr) {
     accumulator = Value(method);
-    bp[offset] = object;
-    CALLOP(n + 1, n)
+    bp[callop_offset] = object;
+    callop_n = n + 1;
+    callop_nargs = n;
+    goto callop;
+
   } else if (object.is_object() && object.as_object()->is<Module>()) {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(member);
@@ -156,7 +169,11 @@ handler(CallMethod, {
                       << static_cast<StringSlice>(*member));
     else
       accumulator = module_variables[iter->second.position];
-    CALLOP(n, n)
+    callop_offset++;
+    callop_n = n;
+    callop_nargs = n;
+    goto callop;
+
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(member) == instance->properties.end())
@@ -164,7 +181,11 @@ handler(CallMethod, {
             << static_cast<StringSlice>(*member));
     else
       accumulator = instance->properties[member];
-    CALLOP(n, n)
+    callop_offset++;
+    callop_n = n;
+    callop_nargs = n;
+    goto callop;
+
   } else {
     PANIC("Object does not have method named "
           << static_cast<StringSlice>(*member));
@@ -174,15 +195,18 @@ handler(CallMethod, {
 handler(SuperCall, {
   auto object = bp[0];
   auto member = constants[READ(utype)].as_object()->as<Symbol>();
-  auto offset = READ(utype);
+  callop_offset = READ(utype);
   auto n = READ(uint8_t);
 
   auto class_ = task->frames.back().f->super_class;
   auto method = class_->find_method(member);
   if (method != nullptr) {
     accumulator = Value(method);
-    bp[offset] = object;
-    CALLOP(n + 1, n)
+    bp[callop_offset] = object;
+    callop_n = n + 1;
+    callop_nargs = n;
+    goto callop;
+
   } else {
     PANIC("Object does not have method named "
           << static_cast<StringSlice>(*member));
@@ -193,14 +217,15 @@ handler(Construct, {
   auto offset = READ(utype);
   auto n = READ(uint8_t);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
-    auto construct = builtin_symbols.construct;
+    auto construct_sym = builtin_symbols.construct;
     auto class_ = accumulator.as_object()->as<Class>();
     temp_roots.push_back(Value(class_));
-    auto obj = manage(new Instance());
-    obj->class_ = class_;
+    Value obj;
+    if (!construct(class_, obj))
+      PANIC("Type " << class_->name << " cannot be constructed");
     temp_roots.pop_back();
-    if (class_->methods.find(construct) != class_->methods.end()) {
-      auto f = class_->methods[construct]->as<Function>();
+    if (class_->methods.find(construct_sym) != class_->methods.end()) {
+      auto f = class_->methods[construct_sym]->as<Function>();
       auto arity = f->function_info->arity;
       if (unlikely(arity != n))
         PANIC("Function " << f->function_info->name << " takes "
@@ -211,6 +236,9 @@ handler(Construct, {
       *bp = Value(obj);
       CALL(n + 1);
     } else {
+      if (n != 0)
+        PANIC("Function construct takes 0 arguments but "
+              << static_cast<uint32_t>(n) << " were given");
       accumulator = Value(obj);
     }
   } else {

@@ -164,7 +164,6 @@ mod ffi {
         CallMethod,
         SuperCall,
         Construct,
-        ToString,
         NewArray,
         NewMap,
         NewObject,

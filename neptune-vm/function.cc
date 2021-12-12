@@ -94,7 +94,9 @@ VMStatus FunctionInfoWriter::run() {
   auto stack_size = hf->object->max_registers * sizeof(Value);
   if (stack_size == 0)
     stack_size = 1 * sizeof(Value);
+  vm->temp_roots.push_back(Value(function));
   auto task = vm->manage(new Task(stack_size));
+  vm->temp_roots.pop_back();
   return vm->run(task, function);
 }
 
@@ -414,9 +416,6 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
 
       CASE(Call) << REG(uint8_t) << ' ' << READ(uint8_t);
-      break;
-
-      CASE(ToString);
       break;
       CASE(NewArray) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
