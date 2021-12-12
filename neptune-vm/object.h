@@ -17,8 +17,7 @@ template <typename T> size_t size(T *t) {
 struct StringSlice {
   const char *data;
   size_t len;
-  explicit StringSlice(const char *data, size_t len)
-      : data(data), len(len) {}
+  explicit StringSlice(const char *data, size_t len) : data(data), len(len) {}
   explicit StringSlice(const char *cstring)
       : data(cstring), len(strlen(cstring)) {}
 };
@@ -181,8 +180,15 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task;
+  BuiltinClasses() {
+    Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
+        Map = Function = Module = Task = nullptr;
+  }
 };
 struct BuiltinSymbols {
   Symbol *construct;
+  BuiltinSymbols(){
+    construct=nullptr;
+  }
 };
 } // namespace neptune_vm

@@ -257,7 +257,7 @@ template <typename O> O *VM::manage(O *t) {
     o->class_ = builtin_classes.Function;
     break;
   case Type::Module:
-    o->class_ = builtin_classes.Function;
+    o->class_ = builtin_classes.Module;
     break;
   case Type::Task:
     o->class_ = builtin_classes.Task;
@@ -435,6 +435,23 @@ void VM::collect() {
   bytes_allocated = 0;
 
   // Mark roots
+  {
+    grey(builtin_classes.Object);
+    grey(builtin_classes.Class_);
+    grey(builtin_classes.Int);
+    grey(builtin_classes.Float);
+    grey(builtin_classes.Bool);
+    grey(builtin_classes.Null);
+    grey(builtin_classes.String);
+    grey(builtin_classes.Symbol);
+    grey(builtin_classes.Array);
+    grey(builtin_classes.Map);
+    grey(builtin_classes.Function);
+    grey(builtin_classes.Module);
+    grey(builtin_classes.Task);
+    grey(builtin_symbols.construct);
+  }
+
   auto current_handle = handles;
   while (current_handle != nullptr) {
     grey(current_handle->object);
@@ -454,10 +471,8 @@ void VM::collect() {
     grey(return_value.as_object());
   // this might not be necessary since native functions are constants but just
   // in case
-  if (last_native_function != nullptr)
-    grey(last_native_function);
-  if (current_task != nullptr)
-    grey(current_task);
+  grey(last_native_function);
+  grey(current_task);
   for (auto efunc : efuncs)
     grey(efunc.first);
 
@@ -485,15 +500,16 @@ void VM::collect() {
 }
 
 void VM::grey(Object *o) {
-  if (o->is_dark)
-    return;
-  o->is_dark = true;
-  greyobjects.push_back(o);
+  if (o != nullptr) {
+    if (o->is_dark)
+      return;
+    o->is_dark = true;
+    greyobjects.push_back(o);
+  }
 }
 
 void VM::blacken(Object *o) {
-  if (o->class_ != nullptr)
-    grey(o->class_);
+  grey(o->class_);
   switch (o->type) {
   case Type::Array:
     for (auto v : o->as<Array>()->inner) {
@@ -656,12 +672,51 @@ bool VM::declare_native_function(StringSlice module, StringSlice name,
   n->inner = callback;
   n->name = std::string{name.data, name.len};
   n->module_name = std::string{module.data, module.len};
-  module_variables[module_variables.size() - 1] = Value(n);
-  const_cast<VM *>(this)->manage(n);
+  module_variables[module_variables.size() - 1] =
+      Value(const_cast<VM *>(this)->manage(n));
   return true;
 }
 
 namespace native_builtins {
+bool object_tostring(VM *vm, Value *slots) {
+  vm->return_value = vm->to_string(slots[0]);
+  return true;
+}
+bool array_pop(VM *vm, Value *slots) {
+  auto &arr = slots[0].as_object()->as<Array>()->inner;
+  if (arr.empty()) {
+    vm->return_value = Value(vm->manage(String::from("Array is empty")));
+    return false;
+  }
+  vm->return_value = arr.back();
+  arr.pop_back();
+  return true;
+}
+bool array_push(VM *vm, Value *slots) {
+  slots[0].as_object()->as<Array>()->inner.push_back(slots[1]);
+  vm->return_value = Value::null();
+  return true;
+}
+bool array_length(VM *vm, Value *slots) {
+  vm->return_value = Value(
+      static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
+  return true;
+}
+bool sqrt(VM *vm, Value *slots) {
+  auto num = slots[0];
+  if (num.is_int()) {
+    vm->return_value = Value(std::sqrt(num.as_int()));
+    return true;
+  } else if (num.is_float()) {
+    vm->return_value = Value(std::sqrt(num.as_float()));
+    return true;
+  } else {
+    std::ostringstream os;
+    os << "Cannot disassemble " << num.type_string();
+    vm->return_value = Value(vm->manage(String::from(os.str())));
+    return false;
+  }
+}
 bool disassemble(VM *vm, Value *slots) {
   auto fn = slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
@@ -680,6 +735,7 @@ bool disassemble(VM *vm, Value *slots) {
 
 bool gc(VM *vm, Value *) {
   vm->collect();
+  vm->return_value = Value::null();
   return true;
 }
 
@@ -769,12 +825,34 @@ void VM::declare_native_builtins() {
   DEFCLASS(Function)
   DEFCLASS(Module)
 #undef DEFCLASS
-
+  temp_roots.push_back(Value(intern(StringSlice("toString"))));
+  builtin_classes.Object->methods.insert(
+      {intern(StringSlice("toString")),
+       manage(new NativeFunction(native_builtins::object_tostring, "toString",
+                                 0))});
+  temp_roots.pop_back();
+  temp_roots.push_back(Value(intern(StringSlice("push"))));
+  builtin_classes.Array->methods.insert(
+      {intern(StringSlice("push")),
+       manage(new NativeFunction(native_builtins::array_push, "push", 1))});
+  temp_roots.pop_back();
+  temp_roots.push_back(Value(intern(StringSlice("pop"))));
+  builtin_classes.Array->methods.insert(
+      {intern(StringSlice("pop")),
+       manage(new NativeFunction(native_builtins::array_pop, "pop", 0))});
+  temp_roots.pop_back();
+  temp_roots.push_back(Value(intern(StringSlice("length"))));
+  builtin_classes.Array->methods.insert(
+      {intern(StringSlice("length")),
+       manage(new NativeFunction(native_builtins::array_length, "length", 0))});
+  temp_roots.pop_back();
   create_module(StringSlice("vm"));
   declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
                           1, native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0,
                           native_builtins::gc);
+  declare_native_function(StringSlice("vm"), StringSlice("sqrt"), true, 1,
+                          native_builtins::sqrt);
   declare_native_function(StringSlice("vm"), StringSlice("ecall"), true, 2,
                           native_builtins::ecall);
   declare_native_function(StringSlice("<prelude>"), StringSlice("_getModule"),
@@ -818,7 +896,7 @@ Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
       } else {
         upval = manage(new UpValue(loc));
         upval->next = curr;
-        if (current_task->open_upvalues == nullptr) {
+        if (prev == nullptr) {
           current_task->open_upvalues = upval;
         } else {
           prev->next = upval;

@@ -94,7 +94,9 @@ VMStatus FunctionInfoWriter::run() {
   auto stack_size = hf->object->max_registers * sizeof(Value);
   if (stack_size == 0)
     stack_size = 1 * sizeof(Value);
+  vm->temp_roots.push_back(Value(function));
   auto task = vm->manage(new Task(stack_size));
+  vm->temp_roots.pop_back();
   return vm->run(task, function);
 }
 
