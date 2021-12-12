@@ -221,8 +221,16 @@ handler(Construct, {
     auto class_ = accumulator.as_object()->as<Class>();
     temp_roots.push_back(Value(class_));
     Value obj;
-    if (!construct(class_, obj))
-      PANIC("Type " << class_->name << " cannot be constructed");
+    if (class_->is_native) {
+      if (class_->construct == nullptr)
+        PANIC("Type " << class_->name << " cannot be constructed");
+      else
+        obj = class_->construct(this);
+    } else {
+      auto instance = manage(new Instance());
+      instance->class_ = class_;
+      obj = Value(instance);
+    }
     temp_roots.pop_back();
     if (class_->methods.find(construct_sym) != class_->methods.end()) {
       auto f = class_->methods[construct_sym]->as<Function>();
@@ -233,7 +241,7 @@ handler(Construct, {
                           << static_cast<uint32_t>(n) << " were given");
       task->frames.back().ip = ip;
       bp += offset;
-      *bp = Value(obj);
+      *bp = obj;
       CALL(n + 1);
     } else {
       if (n != 0)

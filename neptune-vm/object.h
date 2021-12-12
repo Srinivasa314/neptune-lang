@@ -156,10 +156,14 @@ public:
   friend class VM;
 };
 class FunctionInfoWriter;
+class VM;
 class Class : public Object {
   SymbolMap<Object *> methods;
+  using ConstructCallback = Value(*)(VM *vm);
 
 public:
+  ConstructCallback construct = nullptr;
+  bool is_native = false;
   std::string name;
   Class *super;
   Object *find_method(Symbol *method);
@@ -186,8 +190,6 @@ struct BuiltinClasses {
 };
 struct BuiltinSymbols {
   Symbol *construct;
-  BuiltinSymbols(){
-    construct=nullptr;
-  }
+  BuiltinSymbols() { construct = nullptr; }
 };
 } // namespace neptune_vm

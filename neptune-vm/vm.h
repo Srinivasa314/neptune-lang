@@ -55,10 +55,10 @@ private:
   bool is_running;
   std::ostringstream panic_message;
   NativeFunction *last_native_function;
-  BuiltinClasses builtin_classes;
   BuiltinSymbols builtin_symbols;
 
 public:
+  BuiltinClasses builtin_classes;
   std::vector<Value> temp_roots;
   SymbolMap<EFunc> efuncs;
   Value return_value;
@@ -99,7 +99,6 @@ public:
                     FreeDataCallback *free_data) const;
   Module *get_module(StringSlice module_name) const;
   Class *get_class(Value v) const;
-  bool construct(Class *class_, Value &v);
   VM()
       : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
         threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),

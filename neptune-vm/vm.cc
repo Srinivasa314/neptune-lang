@@ -682,6 +682,10 @@ bool object_tostring(VM *vm, Value *slots) {
   vm->return_value = vm->to_string(slots[0]);
   return true;
 }
+bool object_getclass(VM *vm, Value *slots) {
+  vm->return_value = Value(vm->get_class(slots[0]));
+  return true;
+}
 bool array_pop(VM *vm, Value *slots) {
   auto &arr = slots[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
@@ -712,7 +716,7 @@ bool sqrt(VM *vm, Value *slots) {
     return true;
   } else {
     std::ostringstream os;
-    os << "Cannot disassemble " << num.type_string();
+    os << "Cannot find sqrt of " << num.type_string();
     vm->return_value = Value(vm->manage(String::from(os.str())));
     return false;
   }
@@ -796,12 +800,26 @@ bool ecall(VM *vm, Value *slots) {
     return false;
   }
 }
+
+Value object_construct(VM *vm) {
+  auto obj = vm->manage(new Instance());
+  obj->class_ = vm->builtin_classes.Object;
+  return Value(obj);
+}
+Value int_construct(VM *vm) { return Value(0); }
+Value float_construct(VM *vm) { return Value(0.0); }
+Value bool_construct(VM *vm) { return Value(false); }
+Value null_construct(VM *vm) { return Value::null(); }
+Value string_construct(VM *vm) { return Value(vm->manage(String::from(""))); }
+Value array_construct(VM *vm) { return Value(vm->manage(new Array)); }
+Value map_construct(VM *vm) { return Value(vm->manage(new Map)); }
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
 #define DEFCLASS(Name)                                                         \
   builtin_classes.Name = manage(new Class());                                  \
   builtin_classes.Name->name = #Name;                                          \
+  builtin_classes.Name->is_native = true;                                      \
   builtin_classes.Name->super = builtin_classes.Object;                        \
   add_module_variable(StringSlice("<prelude>"), StringSlice(#Name), false,     \
                       true);                                                   \
@@ -811,6 +829,11 @@ void VM::declare_native_builtins() {
   builtin_classes.Class_ = manage(new Class());
   builtin_classes.Class_->name = "Class";
   builtin_classes.Class_->super = builtin_classes.Object;
+  builtin_classes.Class_->is_native = true;
+
+  builtin_classes.Object->class_ = builtin_classes.Class_;
+  builtin_classes.Class_->class_ = builtin_classes.Class_;
+
   add_module_variable(StringSlice("<prelude>"), StringSlice("Class"), false,
                       true);
   module_variables[module_variables.size() - 1] = Value(builtin_classes.Class_);
@@ -824,34 +847,37 @@ void VM::declare_native_builtins() {
   DEFCLASS(Map)
   DEFCLASS(Function)
   DEFCLASS(Module)
+
+  builtin_classes.Object->construct = native_builtins::object_construct;
+  builtin_classes.Int->construct = native_builtins::int_construct;
+  builtin_classes.Float->construct = native_builtins::float_construct;
+  builtin_classes.Bool->construct = native_builtins::bool_construct;
+  builtin_classes.Null->construct = native_builtins::null_construct;
+  builtin_classes.String->construct = native_builtins::string_construct;
+  builtin_classes.Array->construct = native_builtins::array_construct;
+  builtin_classes.Map->construct = native_builtins::map_construct;
+  
 #undef DEFCLASS
-  temp_roots.push_back(Value(intern(StringSlice("toString"))));
-  builtin_classes.Object->methods.insert(
-      {intern(StringSlice("toString")),
-       manage(new NativeFunction(native_builtins::object_tostring, "toString",
-                                 0))});
+#define CLASS_METHOD(class, method, arity, fn)                                 \
+  temp_roots.push_back(Value(intern(StringSlice(#method))));                   \
+  builtin_classes.class->methods.insert(                                       \
+      {intern(StringSlice(#method)),                                           \
+       manage(new NativeFunction(native_builtins::fn, #method, arity))});      \
   temp_roots.pop_back();
-  temp_roots.push_back(Value(intern(StringSlice("push"))));
-  builtin_classes.Array->methods.insert(
-      {intern(StringSlice("push")),
-       manage(new NativeFunction(native_builtins::array_push, "push", 1))});
-  temp_roots.pop_back();
-  temp_roots.push_back(Value(intern(StringSlice("pop"))));
-  builtin_classes.Array->methods.insert(
-      {intern(StringSlice("pop")),
-       manage(new NativeFunction(native_builtins::array_pop, "pop", 0))});
-  temp_roots.pop_back();
-  temp_roots.push_back(Value(intern(StringSlice("length"))));
-  builtin_classes.Array->methods.insert(
-      {intern(StringSlice("length")),
-       manage(new NativeFunction(native_builtins::array_length, "length", 0))});
-  temp_roots.pop_back();
+
+  CLASS_METHOD(Object, toString, 0, object_tostring)
+  CLASS_METHOD(Object, getClass, 0, object_getclass)
+  CLASS_METHOD(Array, push, 1, array_push)
+  CLASS_METHOD(Array, pop, 0, array_pop)
+  CLASS_METHOD(Array, length, 0, array_length)
+
   create_module(StringSlice("vm"));
+  create_module(StringSlice("math"));
   declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
                           1, native_builtins::disassemble);
   declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0,
                           native_builtins::gc);
-  declare_native_function(StringSlice("vm"), StringSlice("sqrt"), true, 1,
+  declare_native_function(StringSlice("math"), StringSlice("sqrt"), true, 1,
                           native_builtins::sqrt);
   declare_native_function(StringSlice("vm"), StringSlice("ecall"), true, 2,
                           native_builtins::ecall);
@@ -956,48 +982,6 @@ Class *VM::get_class(Value v) const {
     return builtin_classes.Bool;
   else
     unreachable();
-}
-bool VM::construct(Class *class_, Value &v) {
-  if (class_ == builtin_classes.Object) {
-    auto obj = manage(new Instance());
-    obj->class_ = class_;
-    v = Value(obj);
-    return true;
-  } else if (class_ == builtin_classes.Class_) {
-    return false;
-  } else if (class_ == builtin_classes.Int) {
-    v = Value(0);
-    return true;
-  } else if (class_ == builtin_classes.Float) {
-    v = Value(0.0);
-    return true;
-  } else if (class_ == builtin_classes.Bool) {
-    v = Value(false);
-    return true;
-  } else if (class_ == builtin_classes.Null) {
-    v = Value::null();
-    return true;
-  } else if (class_ == builtin_classes.String) {
-    v = Value(manage(String::from("")));
-    return true;
-  } else if (class_ == builtin_classes.Array) {
-    v = Value(manage(new Array));
-    return true;
-  } else if (class_ == builtin_classes.Map) {
-    v = Value(manage(new Map));
-    return true;
-  } else if (class_ == builtin_classes.Function) {
-    return false;
-  } else if (class_ == builtin_classes.Module) {
-    return false;
-  } else if (class_ == builtin_classes.Task) {
-    return false;
-  } else {
-    auto obj = manage(new Instance());
-    obj->class_ = class_;
-    v = Value(obj);
-    return true;
-  }
 }
 static size_t power_of_two_ceil(size_t n) {
   n--;
