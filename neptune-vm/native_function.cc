@@ -5,41 +5,42 @@
   return EFuncStatus::Underflow
 
 namespace neptune_vm {
-void FunctionContext::push(Value v) {
+void EFuncContext::push(Value v) {
   if (task->stack_top == task->stack.get() + (task->stack_size / sizeof(Value)))
     arg = task->grow_stack(arg, 1 * sizeof(Value));
   *task->stack_top = v;
   task->stack_top++;
 }
 
-Value FunctionContext::pop_value() {
+Value EFuncContext::pop_value() {
   task->stack_top--;
   return *task->stack_top;
 }
 
-Value FunctionContext::peek() const { return task->stack_top[-1]; }
+Value EFuncContext::peek() const { return task->stack_top[-1]; }
 
-void FunctionContext::push_int(int32_t i) { push(Value(i)); }
+void EFuncContext::push_int(int32_t i) { push(Value(i)); }
 
-void FunctionContext::push_float(double d) { push(Value(d)); }
+void EFuncContext::push_float(double d) { push(Value(d)); }
 
-void FunctionContext::push_bool(bool b) { push(Value(b)); }
+void EFuncContext::push_bool(bool b) { push(Value(b)); }
 
-void FunctionContext::push_null() { push(Value::null()); }
+void EFuncContext::push_null() { push(Value::null()); }
 
-void FunctionContext::push_string(StringSlice s) {
+void EFuncContext::push_string(StringSlice s) {
   push(Value(vm->manage(String::from(s))));
 }
 
-void FunctionContext::push_symbol(StringSlice s) { push(Value(vm->intern(s))); }
+void EFuncContext::push_symbol(StringSlice s) { push(Value(vm->intern(s))); }
 
-void FunctionContext::push_empty_array() {
+void EFuncContext::push_empty_array() {
   push(Value(vm->manage(new Array())));
 }
 
-EFuncStatus FunctionContext::push_to_array() {
+EFuncStatus EFuncContext::push_to_array() {
   CHECK_STACK_UNDERFLOW;
   auto elem = pop_value();
+  CHECK_STACK_UNDERFLOW;
   auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
@@ -49,10 +50,11 @@ EFuncStatus FunctionContext::push_to_array() {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::set_object_property(StringSlice s) {
+EFuncStatus EFuncContext::set_object_property(StringSlice s) {
   CHECK_STACK_UNDERFLOW;
   auto elem = pop_value();
   vm->temp_roots.push_back(elem);
+  CHECK_STACK_UNDERFLOW;
   auto obj = peek();
   if (obj.is_object() && obj.as_object()->is<Instance>()) {
     auto &map = obj.as_object()->as<Instance>()->properties;
@@ -65,11 +67,28 @@ EFuncStatus FunctionContext::set_object_property(StringSlice s) {
   }
 }
 
-void FunctionContext::push_empty_object() {
+void EFuncContext::push_empty_object() {
   push(Value(vm->manage(new Instance())));
 }
 
-EFuncStatus FunctionContext::as_int(int32_t &i) {
+void EFuncContext::push_empty_map() { push(Value(vm->manage(new Map()))); }
+
+EFuncStatus EFuncContext::insert_in_map() {
+  CHECK_STACK_UNDERFLOW;
+  auto value = pop_value();
+  CHECK_STACK_UNDERFLOW;
+  auto key = pop_value();
+  CHECK_STACK_UNDERFLOW;
+  auto m = peek();
+  if (m.is_object() && m.as_object()->is<Map>()) {
+    auto &map = m.as_object()->as<Map>()->inner;
+    map.insert({key, value});
+    return EFuncStatus::Ok;
+  } else
+    return EFuncStatus::TypeError;
+}
+
+EFuncStatus EFuncContext::as_int(int32_t &i) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_int()) {
@@ -79,7 +98,7 @@ EFuncStatus FunctionContext::as_int(int32_t &i) {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::as_float(double &d) {
+EFuncStatus EFuncContext::as_float(double &d) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_float()) {
@@ -89,7 +108,7 @@ EFuncStatus FunctionContext::as_float(double &d) {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::as_bool(bool &b) {
+EFuncStatus EFuncContext::as_bool(bool &b) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_bool()) {
@@ -99,7 +118,7 @@ EFuncStatus FunctionContext::as_bool(bool &b) {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::is_null() {
+EFuncStatus EFuncContext::is_null() {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_null()) {
@@ -108,34 +127,27 @@ EFuncStatus FunctionContext::is_null() {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::is_object() const {
-  if (peek().is_object()) {
-    return EFuncStatus::Ok;
-  } else
-    return EFuncStatus::TypeError;
-}
-
-EFuncStatus FunctionContext::as_string(rust::String &s) {
+EFuncStatus EFuncContext::as_string(StringSlice &s) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_object() && v.as_object()->is<String>()) {
-    s = rust::String(*v.as_object()->as<String>());
+    s = StringSlice(*v.as_object()->as<String>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::as_symbol(rust::String &s) {
+EFuncStatus EFuncContext::as_symbol(StringSlice &s) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
   if (v.is_object() && v.as_object()->is<Symbol>()) {
-    s = rust::String(*v.as_object()->as<Symbol>());
+    s = StringSlice(*v.as_object()->as<Symbol>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
 }
 
-bool FunctionContext::pop() {
+bool EFuncContext::pop() {
   if (task->stack_top == arg)
     return false;
   else {
@@ -143,7 +155,8 @@ bool FunctionContext::pop() {
     return true;
   }
 }
-EFuncStatus FunctionContext::get_array_length(size_t &len) const {
+EFuncStatus EFuncContext::get_array_length(size_t &len) const {
+  CHECK_STACK_UNDERFLOW;
   auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
@@ -153,12 +166,13 @@ EFuncStatus FunctionContext::get_array_length(size_t &len) const {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::get_array_element(size_t pos) {
+EFuncStatus EFuncContext::get_array_element(size_t pos) {
+  CHECK_STACK_UNDERFLOW;
   auto v = peek();
   if (v.is_object() && v.as_object()->is<Array>()) {
     auto &array = v.as_object()->as<Array>()->inner;
     if (pos >= array.size())
-      return EFuncStatus::OutOfBounds;
+      return EFuncStatus::OutOfBoundsError;
     else {
       push(array[pos]);
       return EFuncStatus::Ok;
@@ -167,7 +181,8 @@ EFuncStatus FunctionContext::get_array_element(size_t pos) {
     return EFuncStatus::TypeError;
 }
 
-EFuncStatus FunctionContext::get_object_property(StringSlice prop) {
+EFuncStatus EFuncContext::get_object_property(StringSlice prop) {
+  CHECK_STACK_UNDERFLOW;
   auto obj = peek();
   if (obj.is_object() && obj.as_object()->is<Instance>()) {
     auto &map = obj.as_object()->as<Instance>()->properties;

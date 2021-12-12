@@ -724,15 +724,15 @@ bool ecall(VM *vm, Value *slots) {
       auto efunc = efunc_iter->second;
       auto old_stack_top = task->stack_top;
       task->stack_top = slots + 2;
-      FunctionContext ctx(vm, task, slots + 1);
-      efunc.callback(&ctx, efunc.data);
+      bool result =
+          efunc.callback(EFuncContext(vm, task, slots + 1), efunc.data);
       if (task->stack_top == slots + 1)
         vm->return_value = Value::null();
       else {
         vm->return_value = slots[1];
       }
       task->stack_top = old_stack_top;
-      return true;
+      return result;
     }
   } else {
     vm->return_value = Value(vm->manage(
@@ -782,17 +782,6 @@ void VM::declare_native_builtins() {
   declare_native_function(StringSlice("<prelude>"),
                           StringSlice("_getCallerModule"), false, 0,
                           native_builtins::_getCallerModule);
-  create_efunc(
-      StringSlice("print"),
-      [](FunctionContext *ctx, void *) {
-        auto s = rust::String();
-        assert(ctx->as_string(s) == EFuncStatus::Ok);
-        std::cout.write(s.data(), s.length());
-        std::cout << std::endl;
-        ctx->pop();
-        return true;
-      },
-      nullptr, [](void *) {});
 }
 
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
@@ -919,8 +908,8 @@ Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   return stack.get() + (bp - old_stack.get());
 }
 
-bool VM::create_efunc(StringSlice name, EFuncCallback callback, void *data,
-                      FreeDataCallback free_data) const {
+bool VM::create_efunc(StringSlice name, EFuncCallback *callback, Data *data,
+                      FreeDataCallback *free_data) const {
   if (efuncs.find(name) != efuncs.end())
     return false;
   auto this_ = const_cast<VM *>(this);

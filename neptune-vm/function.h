@@ -81,7 +81,7 @@ public:
   void add_upvalue(uint16_t index, bool is_local);
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
                              uint16_t error_reg, uint32_t catch_begin);
-  friend struct FunctionContext;
+  friend struct EFuncContext;
 };
 
 struct UpValue : public Object {

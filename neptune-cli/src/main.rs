@@ -10,13 +10,11 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
     let n = Neptune::new(FileSystemModuleLoader);
-    /*n.create_function("<prelude>", "print", 1, 0, |ctx| {
-        ctx.to_string(0, 0);
-        println!("{}", ctx.as_string(0).unwrap());
-        ctx.null(0);
-        Ok(0)
+    n.create_efunc("print", |cx| -> Result<(), ()> {
+        println!("{}", cx.as_string().unwrap());
+        Ok(())
     })
-    .unwrap();*/
+    .unwrap();
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
@@ -73,9 +71,9 @@ struct ReplValidator;
 impl Validator for ReplValidator {
     fn validate(
         &self,
-        ctx: &mut validate::ValidationContext,
+        cx: &mut validate::ValidationContext,
     ) -> rustyline::Result<validate::ValidationResult> {
-        Ok(match are_brackets_balanced(ctx.input()) {
+        Ok(match are_brackets_balanced(cx.input()) {
             true => validate::ValidationResult::Valid(None),
             false => validate::ValidationResult::Incomplete,
         })

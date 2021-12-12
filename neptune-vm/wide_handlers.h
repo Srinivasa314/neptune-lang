@@ -108,9 +108,11 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
                           << static_cast<uint32_t>(arity) << " arguments but " \
                           << static_cast<uint32_t>(nargs) << " were given");   \
       last_native_function = f;                                                \
+      auto old_stack_top = task->stack_top;                                    \
       auto ok = f->inner(this, bp + offset);                                   \
       accumulator = return_value;                                              \
       return_value = Value::null();                                            \
+      bp = bp + (task->stack_top - old_stack_top);                             \
       if (!ok) {                                                               \
         if ((ip = panic(ip, accumulator)) != nullptr) {                        \
           bp = task->frames.back().bp;                                         \

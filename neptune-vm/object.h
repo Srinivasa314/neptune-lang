@@ -81,7 +81,6 @@ class Symbol : public Object {
 public:
   static constexpr Type type = Type::Symbol;
   operator StringSlice() const;
-  operator rust::String() const;
 };
 
 template <> size_t size(Symbol *s);

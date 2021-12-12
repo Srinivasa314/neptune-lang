@@ -6,7 +6,7 @@ use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
-use vm::{new_vm, FunctionInfoWriter, VM};
+use vm::{new_vm, EFuncContext, FunctionInfoWriter, ToNeptuneValue, VM};
 
 mod bytecode_compiler;
 mod parser;
@@ -51,6 +51,7 @@ pub enum NeptuneError {
     FunctionAlreadyExists,
     ModuleNotFound,
     ModuleAlreadyExists,
+    EFuncAlreadyExists,
 }
 
 pub struct Neptune {
@@ -80,12 +81,12 @@ impl Neptune {
         let vm = new_vm();
         /*vm.declare_native_rust_function("<prelude>", "_compileModule", false, 1, 0, {
             let module_loader = module_loader.clone();
-            move |ctx| {
-                let vm = ctx.vm();
-                let module = match ctx.as_string(0) {
+            move |cx| {
+                let vm = cx.vm();
+                let module = match cx.as_string(0) {
                     Some(module) => module,
                     None => {
-                        ctx.string(0, "module must be a string");
+                        cx.string(0, "module must be a string");
                         return Err(0);
                     }
                 };
@@ -94,44 +95,44 @@ impl Neptune {
                     match compile(vm, module, &source, false) {
                         Ok((f, _)) => {
                             unsafe {
-                                ctx.function(0, f);
+                                cx.function(0, f);
                             }
                             Ok(0)
                         }
                         Err(e) => {
                             let error = format!("{:?}", e);
-                            ctx.string(0, &error);
+                            cx.string(0, &error);
                             Err(0)
                         }
                     }
                 } else {
-                    ctx.string(0, &format!("cannot get source of module {}", &module));
+                    cx.string(0, &format!("cannot get source of module {}", &module));
                     Err(0)
                 }
             }
         });
-        vm.declare_native_rust_function("<prelude>", "_resolveModule", false, 2, 0, move |ctx| {
-            let caller_module = match ctx.as_string(0) {
+        vm.declare_native_rust_function("<prelude>", "_resolveModule", false, 2, 0, move |cx| {
+            let caller_module = match cx.as_string(0) {
                 Some(module) => module,
                 None => {
-                    ctx.string(0, "callerModule must be a string");
+                    cx.string(0, "callerModule must be a string");
                     return Err(0);
                 }
             };
-            let module_name = match ctx.as_string(1) {
+            let module_name = match cx.as_string(1) {
                 Some(module) => module,
                 None => {
-                    ctx.string(0, "module name must be a string");
+                    cx.string(0, "module name must be a string");
                     return Err(0);
                 }
             };
             match module_loader.resolve(&caller_module, &module_name) {
                 Some(s) => {
-                    ctx.string(0, &s);
+                    cx.string(0, &s);
                     Ok(0)
                 }
                 None => {
-                    ctx.string(0, &format!("module {} does not exist", &module_name));
+                    cx.string(0, &format!("module {} does not exist", &module_name));
                     Err(0)
                 }
             }
@@ -183,6 +184,29 @@ impl Neptune {
         } else {
             self.vm.create_module(name.into());
             Ok(())
+        }
+    }
+
+    pub fn create_efunc<F, T1, T2>(&self, name: &str, mut callback: F) -> Result<(), NeptuneError>
+    where
+        F: FnMut(&mut EFuncContext) -> Result<T1, T2> + 'static,
+        T1: ToNeptuneValue,
+        T2: ToNeptuneValue,
+    {
+        let callback = move |mut cx: EFuncContext| match callback(&mut cx) {
+            Ok(t1) => {
+                t1.to_neptune_value(&mut cx);
+                true
+            }
+            Err(t2) => {
+                t2.to_neptune_value(&mut cx);
+                false
+            }
+        };
+        if self.vm.create_efunc_safe(name, callback) {
+            Ok(())
+        } else {
+            Err(NeptuneError::EFuncAlreadyExists)
         }
     }
 }
