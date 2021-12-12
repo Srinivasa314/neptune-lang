@@ -95,8 +95,8 @@ public:
   bool module_exists(StringSlice module_name) const;
   void create_module(StringSlice module_name) const;
   void create_module_with_prelude(StringSlice module_name) const;
-  bool create_efunc(StringSlice name, EFuncCallback callback, void *data,
-                    FreeDataCallback free_data) const;
+  bool create_efunc(StringSlice name, EFuncCallback *callback, Data *data,
+                    FreeDataCallback *free_data) const;
   Module *get_module(StringSlice module_name) const;
   Class *get_class(Value v) const;
   VM()

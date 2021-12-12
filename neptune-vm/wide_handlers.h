@@ -113,9 +113,11 @@ callop : {
                           << static_cast<uint32_t>(callop_nargs)
                           << " were given");
       last_native_function = f;
+      auto old_stack_top = task->stack_top;
       auto ok = f->inner(this, bp + callop_offset);
       accumulator = return_value;
       return_value = Value::null();
+      bp = bp + (task->stack_top - old_stack_top);    
       if (!ok) {
         if ((ip = panic(ip, accumulator)) != nullptr) {
           bp = task->frames.back().bp;
