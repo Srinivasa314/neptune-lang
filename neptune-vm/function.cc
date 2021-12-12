@@ -417,9 +417,6 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
 
       CASE(Call) << REG(uint8_t) << ' ' << READ(uint8_t);
       break;
-
-      CASE(ToString);
-      break;
       CASE(NewArray) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(StoreSubscript) << REG(uint8_t) << ' ' << REG(uint8_t);

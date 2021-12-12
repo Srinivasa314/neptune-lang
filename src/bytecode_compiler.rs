@@ -800,7 +800,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         });
                     }
                     let object_res = self.evaluate_expr(expr)?;
-                    let reg = self.store_in_register(object_res, *line)?;
+                    let reg = if !(matches!(object_res, ExprResult::Register(_))
+                        || (self.bctype == BytecodeType::Script && self.locals.is_empty()))
+                    {
+                        let target = names.len() + (self.regcount as usize);
+                        if target > (u16::MAX as usize) {
+                            self.error(CompileError {
+                                message: "Cannot have more than 65535 locals and temporaries"
+                                    .into(),
+                                line: *line,
+                            });
+                        }
+                        if (target as u16) > self.max_registers {
+                            self.max_registers = target as u16;
+                        }
+                        self.store_in_specific_register(object_res, target as u16, *line)?;
+                        target as u16
+                    } else {
+                        self.store_in_register(object_res, *line)?
+                    };
                     for name in names {
                         let property = self
                             .bytecode
@@ -810,10 +828,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 message: "Cannot have more than 65535 constants per function"
                                     .into(),
                             })?;
-                        self.write2(Op::LoadProperty, reg, property, *line);
+                        self.write2(Op::LoadProperty, reg as u16, property, *line);
                         self.create_variable_and_store_accumulator(name, *mutable, *line)?;
                     }
-                    if !matches!(object_res, ExprResult::Register(_)) {
+                    if !matches!(object_res, ExprResult::Register(_))
+                        && (self.bctype == BytecodeType::Script && self.locals.is_empty())
+                    {
                         self.pop_register();
                     }
                 }
@@ -1372,8 +1392,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         Substring::Expr(e) => {
                             let expr_res = self.evaluate_expr(e)?;
-                            self.store_in_accumulator(expr_res, *line)?;
-                            self.write0(Op::ToString, *line);
+                            self.to_string(expr_res, *line)?;
                         }
                     }
                     if inner.len() > 1 {
@@ -1391,8 +1410,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 }
                                 Substring::Expr(expr) => {
                                     let expr = self.evaluate_expr(expr)?;
-                                    self.store_in_accumulator(expr, *line)?;
-                                    self.write0(Op::ToString, *line);
+                                    self.to_string(expr, *line)?;
                                 }
                             }
                             self.write1(Op::ConcatRegister, reg as u32, *line);
@@ -1807,6 +1825,26 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             })?)),
         }
+    }
+
+    fn to_string(&mut self, expr_res: ExprResult, line: u32) -> CompileResult<()> {
+        let reg = self.store_in_register(expr_res, line)?;
+        let property = self
+            .bytecode
+            .symbol_constant("toString".into())
+            .map_err(|_| CompileError {
+                line,
+                message: "Cannot have more than 65535 constants per function".into(),
+            })?;
+        let start = self.regcount;
+        self.push_register(line)?;
+        self.write3(Op::CallMethod, reg, property, start, line);
+        self.bytecode.write_u8(0);
+        self.pop_register();
+        if !matches!(expr_res, ExprResult::Register(_)) {
+            self.pop_register();
+        }
+        Ok(())
     }
 
     fn not(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {

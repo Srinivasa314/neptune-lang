@@ -957,7 +957,48 @@ Class *VM::get_class(Value v) const {
   else
     unreachable();
 }
-
+bool VM::construct(Class *class_, Value &v) {
+  if (class_ == builtin_classes.Object) {
+    auto obj = manage(new Instance());
+    obj->class_ = class_;
+    v = Value(obj);
+    return true;
+  } else if (class_ == builtin_classes.Class_) {
+    return false;
+  } else if (class_ == builtin_classes.Int) {
+    v = Value(0);
+    return true;
+  } else if (class_ == builtin_classes.Float) {
+    v = Value(0.0);
+    return true;
+  } else if (class_ == builtin_classes.Bool) {
+    v = Value(false);
+    return true;
+  } else if (class_ == builtin_classes.Null) {
+    v = Value::null();
+    return true;
+  } else if (class_ == builtin_classes.String) {
+    v = Value(manage(String::from("")));
+    return true;
+  } else if (class_ == builtin_classes.Array) {
+    v = Value(manage(new Array));
+    return true;
+  } else if (class_ == builtin_classes.Map) {
+    v = Value(manage(new Map));
+    return true;
+  } else if (class_ == builtin_classes.Function) {
+    return false;
+  } else if (class_ == builtin_classes.Module) {
+    return false;
+  } else if (class_ == builtin_classes.Task) {
+    return false;
+  } else {
+    auto obj = manage(new Instance());
+    obj->class_ = class_;
+    v = Value(obj);
+    return true;
+  }
+}
 static size_t power_of_two_ceil(size_t n) {
   n--;
   n |= n >> 1;

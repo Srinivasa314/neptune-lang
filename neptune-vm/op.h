@@ -77,7 +77,6 @@
   OP(CallMethod)                                                               \
   OP(SuperCall)                                                                \
   OP(Construct)                                                                \
-  OP(ToString)                                                                 \
   OP(NewArray)                                                                 \
   OP(NewMap)                                                                   \
   OP(NewObject)                                                                \

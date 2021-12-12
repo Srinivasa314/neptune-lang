@@ -117,7 +117,7 @@ callop : {
       auto ok = f->inner(this, bp + callop_offset);
       accumulator = return_value;
       return_value = Value::null();
-      bp = bp + (task->stack_top - old_stack_top);    
+      bp = bp + (task->stack_top - old_stack_top);
       if (!ok) {
         if ((ip = panic(ip, accumulator)) != nullptr) {
           bp = task->frames.back().bp;
@@ -217,14 +217,15 @@ handler(Construct, {
   auto offset = READ(utype);
   auto n = READ(uint8_t);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
-    auto construct = builtin_symbols.construct;
+    auto construct_sym = builtin_symbols.construct;
     auto class_ = accumulator.as_object()->as<Class>();
     temp_roots.push_back(Value(class_));
-    auto obj = manage(new Instance());
-    obj->class_ = class_;
+    Value obj;
+    if (!construct(class_, obj))
+      PANIC("Type " << class_->name << " cannot be constructed");
     temp_roots.pop_back();
-    if (class_->methods.find(construct) != class_->methods.end()) {
-      auto f = class_->methods[construct]->as<Function>();
+    if (class_->methods.find(construct_sym) != class_->methods.end()) {
+      auto f = class_->methods[construct_sym]->as<Function>();
       auto arity = f->function_info->arity;
       if (unlikely(arity != n))
         PANIC("Function " << f->function_info->name << " takes "
@@ -235,6 +236,9 @@ handler(Construct, {
       *bp = Value(obj);
       CALL(n + 1);
     } else {
+      if (n != 0)
+        PANIC("Function construct takes 0 arguments but "
+              << static_cast<uint32_t>(n) << " were given");
       accumulator = Value(obj);
     }
   } else {
