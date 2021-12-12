@@ -1,17 +1,17 @@
+const {ecall} = _getModule('vm')
+
 export fun import(moduleName) {
     let module = _getModule(moduleName)
     if module {
         return module
     }else {
-        /*
-        moduleName=_resolveModule(_getCallerModule(),moduleName)
+        moduleName = ecall(@resolveModule,{callerModule: _getCallerModule(), moduleName: moduleName})
         module = _getModule(moduleName)
         if module {
             return module
         } else {
-            _compileModule(moduleName)()
+            ecall(@compileModule, moduleName)()
             return _getModule(moduleName)
         }
-        */
     }
 }

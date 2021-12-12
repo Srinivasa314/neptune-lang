@@ -30,8 +30,7 @@ struct EFuncContext {
   VM *vm;
   Task *task;
   Value *arg;
-  EFuncContext(VM *vm, Task *task, Value *arg)
-      : vm(vm), task(task), arg(arg) {}
+  EFuncContext(VM *vm, Task *task, Value *arg) : vm(vm), task(task), arg(arg) {}
   void push(Value v);
   void push_int(int32_t i);
   void push_float(double f);
@@ -54,6 +53,7 @@ struct EFuncContext {
   EFuncStatus get_array_length(size_t &len) const;
   EFuncStatus get_array_element(size_t pos);
   EFuncStatus get_object_property(StringSlice prop);
+  void push_function(FunctionInfoWriter fw);
   bool pop();
   Value pop_value();
   Value peek() const;

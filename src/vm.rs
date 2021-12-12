@@ -72,7 +72,7 @@ unsafe impl ExternType for ModuleVariable {
 
 #[repr(C)]
 pub struct EFuncContextInner<'a> {
-    vm: *mut c_void,
+    vm: *const VM,
     task: *mut c_void,
     value: *mut c_void,
     _marker: PhantomData<&'a ()>,
@@ -316,6 +316,8 @@ mod ffi {
         fn pop(self: &mut EFuncContext) -> bool;
         fn push_empty_map(self: &mut EFuncContext);
         fn insert_in_map(self: &mut EFuncContext) -> EFuncStatus;
+        //Function must contain valid bytecode
+        unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
     }
 }
 
@@ -323,9 +325,9 @@ use ffi::EFuncStatus;
 pub use ffi::{new_vm, Op, VMStatus, VM};
 
 impl VM {
-    pub fn create_efunc_safe<F>(&self, name: &str, callback: F) -> bool
+    pub fn create_efunc_safe<'vm, F>(&'vm self, name: &str, callback: F) -> bool
     where
-        F: FnMut(EFuncContext) -> bool + 'static,
+        F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
     {
         unsafe {
             self.create_efunc(
@@ -338,13 +340,13 @@ impl VM {
     }
 }
 
-unsafe extern "C" fn trampoline<F>(cx: EFuncContext, data: *mut c_void) -> bool
+unsafe extern "C" fn trampoline<'vm, F>(cx: EFuncContext, data: *mut c_void) -> bool
 where
-    F: FnMut(EFuncContext) -> bool + 'static,
+    F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
 {
     let callback = &mut *(data as *mut F);
     // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(cx)))
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(&*cx.0.vm, cx)))
         .unwrap_or_else(|_| std::process::abort())
 }
 
@@ -523,38 +525,43 @@ impl<'a> EFuncContext<'a> {
             _ => unreachable!(),
         }
     }
+
+    //Function must contain valid bytecode
+    pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
+        self.0.push_function(fw)
+    }
 }
 
 pub trait ToNeptuneValue {
-    fn to_neptune_value(&self, cx: &mut EFuncContext);
+    fn to_neptune_value(self, cx: &mut EFuncContext);
 }
 
 impl ToNeptuneValue for i32 {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.int(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.int(self)
     }
 }
 
 impl ToNeptuneValue for f64 {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.float(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.float(self)
     }
 }
 
 impl ToNeptuneValue for bool {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.bool(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.bool(self)
     }
 }
 
 impl ToNeptuneValue for () {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.null()
     }
 }
 
 impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         match self {
             Some(t) => t.to_neptune_value(cx),
             None => cx.null(),
@@ -562,20 +569,20 @@ impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
     }
 }
 
-impl ToNeptuneValue for str {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+impl ToNeptuneValue for &str {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.string(self)
     }
 }
 
 impl ToNeptuneValue for String {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.string(self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.string(&self)
     }
 }
 
 impl<T: ToNeptuneValue> ToNeptuneValue for Vec<T> {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.array();
         for elem in self {
             elem.to_neptune_value(cx);

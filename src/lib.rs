@@ -79,65 +79,44 @@ impl ModuleLoader for NoopModuleLoader {
 impl Neptune {
     pub fn new<M: ModuleLoader + 'static + Clone>(module_loader: M) -> Self {
         let vm = new_vm();
-        /*vm.declare_native_rust_function("<prelude>", "_compileModule", false, 1, 0, {
+        vm.create_efunc_safe("compileModule", {
             let module_loader = module_loader.clone();
-            move |cx| {
-                let vm = cx.vm();
-                let module = match cx.as_string(0) {
-                    Some(module) => module,
-                    None => {
-                        cx.string(0, "module must be a string");
-                        return Err(0);
-                    }
-                };
+            move |vm, mut cx| {
+                let module = cx.as_string().unwrap().to_string();
                 let source = module_loader.load(&module);
                 if let Some(source) = source {
                     match compile(vm, module, &source, false) {
                         Ok((f, _)) => {
                             unsafe {
-                                cx.function(0, f);
+                                cx.function(f);
                             }
-                            Ok(0)
+                            true
                         }
                         Err(e) => {
                             let error = format!("{:?}", e);
-                            cx.string(0, &error);
-                            Err(0)
+                            cx.string(&error);
+                            false
                         }
                     }
                 } else {
-                    cx.string(0, &format!("cannot get source of module {}", &module));
-                    Err(0)
+                    cx.string(&format!("Cannot get source for module {}", module));
+                    false
                 }
             }
         });
-        vm.declare_native_rust_function("<prelude>", "_resolveModule", false, 2, 0, move |cx| {
-            let caller_module = match cx.as_string(0) {
-                Some(module) => module,
-                None => {
-                    cx.string(0, "callerModule must be a string");
-                    return Err(0);
-                }
-            };
-            let module_name = match cx.as_string(1) {
-                Some(module) => module,
-                None => {
-                    cx.string(0, "module name must be a string");
-                    return Err(0);
-                }
-            };
-            match module_loader.resolve(&caller_module, &module_name) {
-                Some(s) => {
-                    cx.string(0, &s);
-                    Ok(0)
-                }
-                None => {
-                    cx.string(0, &format!("module {} does not exist", &module_name));
-                    Err(0)
-                }
-            }
-        });*/
         let n = Self { vm };
+        n.create_efunc("resolveModule", move |cx| -> Result<String, String> {
+            cx.get_property("callerModule").unwrap();
+            let caller_module = cx.as_string().unwrap().to_string();
+            cx.get_property("moduleName").unwrap();
+            let module_name = cx.as_string().unwrap().to_string();
+            cx.pop().unwrap();
+            match module_loader.resolve(&caller_module, &module_name) {
+                Some(s) => Ok(s),
+                None => Err(format!("Module {} does not exist", &module_name)),
+            }
+        })
+        .unwrap();
         n.exec("<prelude>", include_str!("prelude.np")).unwrap();
         n
     }
@@ -193,7 +172,7 @@ impl Neptune {
         T1: ToNeptuneValue,
         T2: ToNeptuneValue,
     {
-        let callback = move |mut cx: EFuncContext| match callback(&mut cx) {
+        let callback = move |_, mut cx: EFuncContext| match callback(&mut cx) {
             Ok(t1) => {
                 t1.to_neptune_value(&mut cx);
                 true

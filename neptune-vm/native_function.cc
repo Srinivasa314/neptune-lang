@@ -33,8 +33,12 @@ void EFuncContext::push_string(StringSlice s) {
 
 void EFuncContext::push_symbol(StringSlice s) { push(Value(vm->intern(s))); }
 
-void EFuncContext::push_empty_array() {
-  push(Value(vm->manage(new Array())));
+void EFuncContext::push_empty_array() { push(Value(vm->manage(new Array()))); }
+
+void EFuncContext::push_function(FunctionInfoWriter fw) {
+  auto function = vm->manage(new Function(fw.hf->object));
+  push(Value(function));
+  fw.release();
 }
 
 EFuncStatus EFuncContext::push_to_array() {
