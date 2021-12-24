@@ -13,13 +13,13 @@ check_tree=Fn.new{|node|
 }
 
 var min_depth = 4
-var max_depth = 18
+var max_depth = 14
 var stretch_depth = max_depth + 1
 System.print("stretch tree of depth %(stretch_depth)\t check:%(check_tree.call(make_tree.call(stretch_depth)))")
 
 var long_lived_tree = make_tree.call(max_depth)
 
-var iterations = 262144//2**18
+var iterations = 16384//2**14
 
 var depth=min_depth
 

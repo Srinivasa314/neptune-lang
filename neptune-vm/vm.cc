@@ -570,6 +570,7 @@ void VM::blacken(Object *o) {
     }
   } break;
   case Type::Instance:
+    grey(o->as<Instance>()->class_);
     for (auto pair : o->as<Instance>()->properties) {
       grey(pair.first);
       if (pair.second.is_object())
@@ -969,36 +970,26 @@ Class *VM::get_class(Value v) const {
     switch (o->type) {
     case Type::Class:
       return builtin_classes.Class_;
-      break;
     case Type::String:
       return builtin_classes.String;
-      break;
     case Type::Symbol:
       return builtin_classes.Symbol;
-      break;
     case Type::Array:
       return builtin_classes.Array;
-      break;
     case Type::Map:
       return builtin_classes.Map;
-      break;
     case Type::Function:
       return builtin_classes.Function;
-      break;
     case Type::NativeFunction:
       return builtin_classes.Function;
-      break;
     case Type::Module:
       return builtin_classes.Module;
-      break;
     case Type::Task:
       return builtin_classes.Task;
-      break;
     case Type::Instance:
       return o->as<Instance>()->class_;
-      break;
     default:
-      return nullptr;
+      unreachable();
     }
   } else if (v.is_int())
     return builtin_classes.Int;

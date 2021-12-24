@@ -22,7 +22,7 @@ local function ItemCheck(tree)
 end
 
 local mindepth = 4
-local maxdepth = 18
+local maxdepth = 14
 
 do
   local stretchdepth = maxdepth + 1

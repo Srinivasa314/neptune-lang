@@ -23,7 +23,7 @@ def bottom_up_tree(depth)
     end
 end
 
-max_depth = 18
+max_depth = 14
 min_depth = 4
 
 max_depth = [min_depth + 2, max_depth].max
