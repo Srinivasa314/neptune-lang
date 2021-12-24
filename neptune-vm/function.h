@@ -101,7 +101,7 @@ public:
   uint16_t num_upvalues;
   Class *super_class;
   UpValue *upvalues[];
-  Function(FunctionInfo *f) : function_info(f), super_class(nullptr) {}
+  Function() = delete;
 };
 void disassemble(std::ostream &os, const FunctionInfo &f);
 } // namespace neptune_vm

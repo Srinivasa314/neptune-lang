@@ -15,3 +15,7 @@ export fun import(moduleName) {
         }
     }
 }
+
+export fun print(x) {
+    ecall(@print, '\(x)')
+}

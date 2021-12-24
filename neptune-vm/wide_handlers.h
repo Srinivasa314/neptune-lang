@@ -74,8 +74,8 @@ handler(ConcatRegister, {
   auto reg = READ(utype);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<String>() &&
              bp[reg].is_object() && bp[reg].as_object()->is<String>())) {
-    accumulator = Value(manage(bp[reg].as_object()->as<String>()->concat(
-        accumulator.as_object()->as<String>())));
+    accumulator = Value(concat(bp[reg].as_object()->as<String>(),
+                               accumulator.as_object()->as<String>()));
   } else {
     PANIC("Cannot concat types " << bp[reg].type_string() << " and "
                                  << accumulator.type_string());
@@ -90,7 +90,7 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
 #ifndef CALLOP
 #define CALLOP
-uint32_t callop_n, callop_nargs, callop_offset;
+uint32_t callop_actual_nargs, callop_nargs, callop_offset;
 callop : {
   if (likely(accumulator.is_object())) {
     if (accumulator.as_object()->is<Function>()) {
@@ -103,7 +103,7 @@ callop : {
                           << " were given");
       task->frames.back().ip = ip;
       bp += callop_offset;
-      CALL(callop_n);
+      CALL(callop_actual_nargs);
     } else if (accumulator.as_object()->is<NativeFunction>()) {
       auto f = accumulator.as_object()->as<NativeFunction>();
       auto arity = f->arity;
@@ -141,7 +141,7 @@ callop : {
 handler(Call, {
   callop_offset = READ(utype);
   auto n = READ(uint8_t);
-  callop_n = n;
+  callop_actual_nargs = n;
   callop_nargs = n;
   goto callop;
 });
@@ -157,7 +157,7 @@ handler(CallMethod, {
   if (method != nullptr) {
     accumulator = Value(method);
     bp[callop_offset] = object;
-    callop_n = n + 1;
+    callop_actual_nargs = n + 1;
     callop_nargs = n;
     goto callop;
 
@@ -170,7 +170,7 @@ handler(CallMethod, {
     else
       accumulator = module_variables[iter->second.position];
     callop_offset++;
-    callop_n = n;
+    callop_actual_nargs = n;
     callop_nargs = n;
     goto callop;
 
@@ -182,7 +182,7 @@ handler(CallMethod, {
     else
       accumulator = instance->properties[member];
     callop_offset++;
-    callop_n = n;
+    callop_actual_nargs = n;
     callop_nargs = n;
     goto callop;
 
@@ -203,7 +203,7 @@ handler(SuperCall, {
   if (method != nullptr) {
     accumulator = Value(method);
     bp[callop_offset] = object;
-    callop_n = n + 1;
+    callop_actual_nargs = n + 1;
     callop_nargs = n;
     goto callop;
 
@@ -214,7 +214,7 @@ handler(SuperCall, {
 });
 
 handler(Construct, {
-  auto offset = READ(utype);
+  callop_offset = READ(utype);
   auto n = READ(uint8_t);
   if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
     auto construct_sym = builtin_symbols.construct;
@@ -222,32 +222,21 @@ handler(Construct, {
     temp_roots.push_back(Value(class_));
     Value obj;
     if (class_->is_native) {
-      if (class_->construct == nullptr)
-        PANIC("Type " << class_->name << " cannot be constructed");
-      else
-        obj = class_->construct(this);
+      obj = Value::null();
     } else {
-      auto instance = manage(new Instance());
+      auto instance = allocate<Instance>();
       instance->class_ = class_;
       obj = Value(instance);
     }
     temp_roots.pop_back();
     if (class_->methods.find(construct_sym) != class_->methods.end()) {
-      auto f = class_->methods[construct_sym]->as<Function>();
-      auto arity = f->function_info->arity;
-      if (unlikely(arity != n))
-        PANIC("Function " << f->function_info->name << " takes "
-                          << static_cast<uint32_t>(arity) << " arguments but "
-                          << static_cast<uint32_t>(n) << " were given");
-      task->frames.back().ip = ip;
-      bp += offset;
-      *bp = obj;
-      CALL(n + 1);
+      accumulator = Value(class_->methods[construct_sym]);
+      bp[callop_offset] = obj;
+      callop_actual_nargs = n + 1;
+      callop_nargs = n;
+      goto callop;
     } else {
-      if (n != 0)
-        PANIC("Function construct takes 0 arguments but "
-              << static_cast<uint32_t>(n) << " were given");
-      accumulator = Value(obj);
+      PANIC("Class " << class_->name << " does not have a constructor");
     }
   } else {
     PANIC("new can be called only on classes not "
@@ -259,7 +248,7 @@ handler(NewArray, {
   auto len = READ(utype);
   auto reg = READ(utype);
 
-  bp[reg] = Value(manage(new Array(len)));
+  bp[reg] = Value(allocate<Array>(len));
 });
 
 handler(LoadSubscript, {
@@ -327,13 +316,13 @@ handler(StoreSubscript, {
 handler(NewMap, {
   auto len = READ(utype);
   auto reg = READ(utype);
-  bp[reg] = Value(manage(new Map(len)));
+  bp[reg] = Value(allocate<Map>(len));
 });
 
 handler(NewObject, {
   auto len = READ(utype);
   auto reg = READ(utype);
-  bp[reg] = Value(manage(new Instance(len)));
+  bp[reg] = Value(allocate<Instance>(len));
 });
 
 handler(StrictEqual, accumulator = Value(ValueStrictEquality{}(bp[READ(utype)],
@@ -420,11 +409,14 @@ handler(MakeFunction, {
 
 handler(MakeClass, {
   auto class_ =
-      manage(new Class(*constants[READ(utype)].as_object()->as<Class>()));
+      allocate<Class>(*constants[READ(utype)].as_object()->as<Class>());
   temp_roots.push_back(Value(class_));
-  if (accumulator.is_object() && accumulator.as_object()->is<Class>())
-    class_->super = accumulator.as_object()->as<Class>();
-  else
+  if (accumulator.is_object() && accumulator.as_object()->is<Class>()) {
+    auto parent = accumulator.as_object()->as<Class>();
+    if (parent->is_native)
+      PANIC("Cannot inherit from native class " << parent->name);
+    class_->super = parent;
+  } else
     PANIC("Expected to inherit from Class got " << accumulator.type_string());
   for (auto p : class_->methods)
     if (p.second->is<FunctionInfo>()) {

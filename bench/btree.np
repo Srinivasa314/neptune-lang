@@ -18,7 +18,7 @@ fun check_tree(node){
 let min_depth = 4
 let max_depth = 18
 let stretch_depth = max_depth + 1
-print 'stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(stretch_depth)))'
+print('stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(stretch_depth)))')
 
 let long_lived_tree = make_tree(max_depth)
 
@@ -28,13 +28,13 @@ let depth=min_depth
 
 while depth < stretch_depth{
     let check = 0
-    for i in 0..iterations{
+    for i=0,iterations{
         check += check_tree(make_tree(depth))
     }
 
-    print '\(iterations)\t trees of depth \(depth)\t check:\(check)'
+    print('\(iterations)\t trees of depth \(depth)\t check:\(check)')
     iterations /= 4
     depth+=2
 }
 
-print 'long lived tree of depth \(max_depth) \t check \(check_tree(long_lived_tree))'
+print('long lived tree of depth \(max_depth) \t check \(check_tree(long_lived_tree))')

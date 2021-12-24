@@ -1421,10 +1421,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::Array { inner, line } => {
-                if inner.is_empty() {
-                    self.write0(Op::EmptyArray, *line);
-                    return Ok(ExprResult::Accumulator);
-                }
                 let array_reg = match dest {
                     Some(r) => r,
                     None => self.push_register(*line)?,
@@ -1472,10 +1468,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::Map { inner, line } => {
-                if inner.is_empty() {
-                    self.write0(Op::EmptyMap, *line);
-                    return Ok(ExprResult::Accumulator);
-                }
                 let map_reg = match dest {
                     Some(r) => r,
                     None => self.push_register(*line)?,
@@ -1576,10 +1568,6 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 Ok(ExprResult::Accumulator)
             }
             Expr::ObjectLiteral { line, inner } => {
-                if inner.is_empty() {
-                    self.write0(Op::EmptyObject, *line);
-                    return Ok(ExprResult::Accumulator);
-                }
                 let obj_reg = match dest {
                     Some(r) => r,
                     None => self.push_register(*line)?,

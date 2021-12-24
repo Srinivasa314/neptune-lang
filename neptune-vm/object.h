@@ -18,8 +18,8 @@ struct StringSlice {
   const char *data;
   size_t len;
   explicit StringSlice(const char *data, size_t len) : data(data), len(len) {}
-  explicit StringSlice(const char *cstring)
-      : data(cstring), len(strlen(cstring)) {}
+  StringSlice(const char *cstring) : data(cstring), len(strlen(cstring)) {}
+  StringSlice(const std::string &s) : data(s.data()), len(s.size()) {}
 };
 
 std::ostream &operator<<(std::ostream &os, StringSlice s);
@@ -59,12 +59,11 @@ class String : public Object {
   template <typename T> friend size_t size(T *t);
 
 public:
+  String() = delete;
   static constexpr Type type = Type::String;
-  static String *from(StringSlice s);
-  static String *from(const std::string &s);
   operator StringSlice() const;
   operator rust::String() const;
-  String *concat(String *s);
+  friend class VM;
 };
 
 template <> size_t size(String *s);
@@ -78,6 +77,7 @@ class Symbol : public Object {
   template <typename T> friend size_t size(T *t);
 
 public:
+  Symbol() = delete;
   static constexpr Type type = Type::Symbol;
   operator StringSlice() const;
 };
@@ -157,12 +157,11 @@ public:
 };
 class FunctionInfoWriter;
 class VM;
+class Function;
 class Class : public Object {
   SymbolMap<Object *> methods;
-  using ConstructCallback = Value(*)(VM *vm);
 
 public:
-  ConstructCallback construct = nullptr;
   bool is_native = false;
   std::string name;
   Class *super;
@@ -190,6 +189,5 @@ struct BuiltinClasses {
 };
 struct BuiltinSymbols {
   Symbol *construct;
-  BuiltinSymbols() { construct = nullptr; }
 };
 } // namespace neptune_vm

@@ -11,10 +11,9 @@ class NativeFunction : public Object {
   NativeFunctionCallback *inner;
 
 public:
-  NativeFunction() {}
   NativeFunction(NativeFunctionCallback *function, std::string name,
-                 uint8_t arity)
-      : inner(function), name(name), arity(arity) {}
+                 std::string module_name, uint8_t arity)
+      : arity(arity), inner(function), name(name), module_name(module_name) {}
   static constexpr Type type = Type::NativeFunction;
   std::string name;
   std::string module_name;

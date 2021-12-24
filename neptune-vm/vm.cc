@@ -221,9 +221,30 @@ std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
 FunctionInfoWriter VM::new_function_info(StringSlice module, StringSlice name,
                                          uint8_t arity) const {
   auto this_ = const_cast<VM *>(this);
-  auto function_info = new FunctionInfo(module, name, arity);
-  this_->manage(function_info);
+  auto function_info = this_->allocate<FunctionInfo>(module, name, arity);
   return FunctionInfoWriter(this_->make_handle(function_info), this);
+}
+
+template <typename O, typename... Args> O *VM::allocate(Args... args) {
+  return manage(new O(args...));
+}
+
+template <> String *VM::allocate<String, StringSlice>(StringSlice s) {
+  String *p = static_cast<String *>(malloc(sizeof(String) + s.len));
+  if (p == nullptr) {
+    throw std::bad_alloc();
+  }
+  memcpy(p->data, s.data, s.len);
+  p->len = s.len;
+  return manage(p);
+}
+
+template <> String *VM::allocate<String, std::string>(std::string s) {
+  return VM::allocate<String>(StringSlice{s.data(), s.length()});
+}
+
+template <> String *VM::allocate<String, const char *>(const char *s) {
+  return VM::allocate<String>(StringSlice(s));
 }
 
 template <typename O> O *VM::manage(O *t) {
@@ -390,12 +411,12 @@ Value VM::to_string(Value val) {
   if (val.is_int()) {
     char buffer[12];
     size_t len = static_cast<size_t>(sprintf(buffer, "%d", val.as_int()));
-    return Value(manage(String::from(StringSlice{buffer, len})));
+    return Value(allocate<String>(StringSlice{buffer, len}));
   } else if (val.is_float()) {
     auto f = val.as_float();
     if (std::isnan(f)) {
       const char *result = std::signbit(f) ? "-nan" : "nan";
-      return Value(manage(String::from(StringSlice(result))));
+      return Value(allocate<String>(StringSlice(result)));
     } else {
       char buffer[24];
       size_t len = static_cast<size_t>(sprintf(buffer, "%.14g", f));
@@ -404,25 +425,26 @@ Value VM::to_string(Value val) {
         buffer[len + 1] = '0';
         len += 2;
       }
-      return Value(manage(String::from(StringSlice{buffer, len})));
+      return Value(allocate<String>(StringSlice{buffer, len}));
     }
   } else if (val.is_object()) {
     if (val.as_object()->is<String>()) {
       return val;
     } else if (val.as_object()->is<Symbol>()) {
-      return Value(manage(String::from(*val.as_object()->as<Symbol>())));
+      return Value(
+          allocate<String>(StringSlice(*val.as_object()->as<Symbol>())));
     } else {
       std::ostringstream os;
       os << val;
       auto s = os.str();
-      return Value(manage(String::from(StringSlice{s.data(), s.length()})));
+      return Value(allocate<String>(StringSlice{s.data(), s.length()}));
     }
   } else if (val.is_true()) {
-    return Value(manage(String::from(StringSlice("true"))));
+    return Value(allocate<String>("true"));
   } else if (val.is_false()) {
-    return Value(manage(String::from(StringSlice("false"))));
+    return Value(allocate<String>("false"));
   } else if (val.is_null()) {
-    return Value(manage(String::from(StringSlice("null"))));
+    return Value(allocate<String>("null"));
   } else {
     unreachable();
   }
@@ -632,7 +654,7 @@ std::string VM::generate_stack_trace() {
 const uint8_t *VM::panic(const uint8_t *ip) {
   auto message = panic_message.str();
   panic_message.str("");
-  return panic(ip, Value(manage(String::from(message))));
+  return panic(ip, Value(allocate<String>(std::move(message))));
 }
 
 const uint8_t *VM::panic(const uint8_t *ip, Value v) {
@@ -662,18 +684,14 @@ const uint8_t *VM::panic(const uint8_t *ip, Value v) {
   return nullptr;
 }
 
-bool VM::declare_native_function(StringSlice module, StringSlice name,
+bool VM::declare_native_function(std::string module, std::string name,
                                  bool exported, uint8_t arity,
                                  NativeFunctionCallback *callback) const {
   if (!add_module_variable(module, name, false, exported))
     return false;
-  auto n = new NativeFunction();
-  n->arity = arity;
-  n->inner = callback;
-  n->name = std::string{name.data, name.len};
-  n->module_name = std::string{module.data, module.len};
-  module_variables[module_variables.size() - 1] =
-      Value(const_cast<VM *>(this)->manage(n));
+  auto n = const_cast<VM *>(this)->allocate<NativeFunction>(
+      callback, std::move(name), std::move(module), arity);
+  module_variables[module_variables.size() - 1] = Value(n);
   return true;
 }
 
@@ -689,7 +707,7 @@ bool object_getclass(VM *vm, Value *slots) {
 bool array_pop(VM *vm, Value *slots) {
   auto &arr = slots[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
-    vm->return_value = Value(vm->manage(String::from("Array is empty")));
+    vm->return_value = Value(vm->allocate<String>("Array is empty"));
     return false;
   }
   vm->return_value = arr.back();
@@ -706,6 +724,38 @@ bool array_length(VM *vm, Value *slots) {
       static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
   return true;
 }
+bool int_construct(VM *vm, Value *) {
+  vm->return_value = Value(0);
+  return true;
+}
+bool float_construct(VM *vm, Value *) {
+  vm->return_value = Value(0.0);
+  return true;
+}
+bool bool_construct(VM *vm, Value *) {
+  vm->return_value = Value(false);
+  return true;
+}
+bool null_construct(VM *vm, Value *) {
+  vm->return_value = Value::null();
+  return true;
+}
+bool string_construct(VM *vm, Value *) {
+  vm->return_value = Value(vm->allocate<String>(""));
+  return true;
+}
+bool array_construct(VM *vm, Value *) {
+  vm->return_value = Value(vm->allocate<Array>());
+  return true;
+}
+bool map_construct(VM *vm, Value *) {
+  vm->return_value = Value(vm->allocate<Map>());
+  return true;
+}
+bool object_construct(VM *vm, Value *) {
+  vm->return_value = Value(vm->allocate<Instance>());
+  return true;
+}
 bool sqrt(VM *vm, Value *slots) {
   auto num = slots[0];
   if (num.is_int()) {
@@ -717,7 +767,7 @@ bool sqrt(VM *vm, Value *slots) {
   } else {
     std::ostringstream os;
     os << "Cannot find sqrt of " << num.type_string();
-    vm->return_value = Value(vm->manage(String::from(os.str())));
+    vm->return_value = Value(vm->allocate<String>(os.str()));
     return false;
   }
 }
@@ -727,12 +777,12 @@ bool disassemble(VM *vm, Value *slots) {
     std::ostringstream os;
     neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
     auto str = os.str();
-    vm->return_value = Value(vm->manage(String::from(str)));
+    vm->return_value = Value(vm->allocate<String>(str));
     return true;
   } else {
     std::ostringstream os;
     os << "Cannot disassemble " << fn.type_string();
-    vm->return_value = Value(vm->manage(String::from(os.str())));
+    vm->return_value = Value(vm->allocate<String>(os.str()));
     return false;
   }
 }
@@ -753,21 +803,20 @@ bool _getModule(VM *vm, Value *slots) {
       vm->return_value = Value(module);
     return true;
   } else {
-    vm->return_value = Value(vm->manage(
-        String::from(StringSlice("First argument must be a string"))));
+    vm->return_value =
+        Value(vm->allocate<String>("First argument must be a string"));
     return false;
   }
 }
 
 bool _getCallerModule(VM *vm, Value *) {
   if (vm->current_task->frames.size() < 2) {
-    vm->return_value =
-        Value(vm->manage(String::from(StringSlice("No caller exists"))));
+    vm->return_value = Value(vm->allocate<String>("No caller exists"));
     return false;
   } else {
-    vm->return_value = Value(vm->manage(String::from(
+    vm->return_value = Value(vm->allocate<String>(
         vm->current_task->frames[vm->current_task->frames.size() - 2]
-            .f->function_info->module)));
+            .f->function_info->module));
     return true;
   }
 }
@@ -776,8 +825,8 @@ bool ecall(VM *vm, Value *slots) {
   if (slots[0].is_object() && slots[0].as_object()->is<Symbol>()) {
     auto efunc_iter = vm->efuncs.find(slots[0].as_object()->as<Symbol>());
     if (efunc_iter == vm->efuncs.end()) {
-      vm->return_value = Value(vm->manage(
-          String::from(StringSlice("Attempt to call unknown efunc"))));
+      vm->return_value =
+          Value(vm->allocate<String>("Attempt to call unknown efunc"));
       return false;
     } else {
       auto task = vm->current_task;
@@ -795,38 +844,24 @@ bool ecall(VM *vm, Value *slots) {
       return result;
     }
   } else {
-    vm->return_value = Value(vm->manage(
-        String::from(StringSlice("First argument must be a symbol"))));
+    vm->return_value =
+        Value(vm->allocate<String>("Attempt to call unknown efunc"));
     return false;
   }
 }
-
-Value object_construct(VM *vm) {
-  auto obj = vm->manage(new Instance());
-  obj->class_ = vm->builtin_classes.Object;
-  return Value(obj);
-}
-Value int_construct(VM *vm) { return Value(0); }
-Value float_construct(VM *vm) { return Value(0.0); }
-Value bool_construct(VM *vm) { return Value(false); }
-Value null_construct(VM *vm) { return Value::null(); }
-Value string_construct(VM *vm) { return Value(vm->manage(String::from(""))); }
-Value array_construct(VM *vm) { return Value(vm->manage(new Array)); }
-Value map_construct(VM *vm) { return Value(vm->manage(new Map)); }
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
 #define DEFCLASS(Name)                                                         \
-  builtin_classes.Name = manage(new Class());                                  \
+  builtin_classes.Name = allocate<Class>();                                    \
   builtin_classes.Name->name = #Name;                                          \
   builtin_classes.Name->is_native = true;                                      \
   builtin_classes.Name->super = builtin_classes.Object;                        \
-  add_module_variable(StringSlice("<prelude>"), StringSlice(#Name), false,     \
-                      true);                                                   \
+  add_module_variable("<prelude>", StringSlice(#Name), false, true);           \
   module_variables[module_variables.size() - 1] = Value(builtin_classes.Name);
   DEFCLASS(Object)
   builtin_classes.Object->super = nullptr;
-  builtin_classes.Class_ = manage(new Class());
+  builtin_classes.Class_ = allocate<Class>();
   builtin_classes.Class_->name = "Class";
   builtin_classes.Class_->super = builtin_classes.Object;
   builtin_classes.Class_->is_native = true;
@@ -834,8 +869,7 @@ void VM::declare_native_builtins() {
   builtin_classes.Object->class_ = builtin_classes.Class_;
   builtin_classes.Class_->class_ = builtin_classes.Class_;
 
-  add_module_variable(StringSlice("<prelude>"), StringSlice("Class"), false,
-                      true);
+  add_module_variable("<prelude>", "Class", false, true);
   module_variables[module_variables.size() - 1] = Value(builtin_classes.Class_);
   DEFCLASS(Int)
   DEFCLASS(Float)
@@ -847,44 +881,43 @@ void VM::declare_native_builtins() {
   DEFCLASS(Map)
   DEFCLASS(Function)
   DEFCLASS(Module)
+  DEFCLASS(Task)
 
-  builtin_classes.Object->construct = native_builtins::object_construct;
-  builtin_classes.Int->construct = native_builtins::int_construct;
-  builtin_classes.Float->construct = native_builtins::float_construct;
-  builtin_classes.Bool->construct = native_builtins::bool_construct;
-  builtin_classes.Null->construct = native_builtins::null_construct;
-  builtin_classes.String->construct = native_builtins::string_construct;
-  builtin_classes.Array->construct = native_builtins::array_construct;
-  builtin_classes.Map->construct = native_builtins::map_construct;
-  
 #undef DEFCLASS
-#define CLASS_METHOD(class, method, arity, fn)                                 \
-  temp_roots.push_back(Value(intern(StringSlice(#method))));                   \
-  builtin_classes.class->methods.insert(                                       \
-      {intern(StringSlice(#method)),                                           \
-       manage(new NativeFunction(native_builtins::fn, #method, arity))});      \
-  temp_roots.pop_back();
+#define DECL_NATIVE_METHOD(class, method, arity, fn)                           \
+  do {                                                                         \
+    auto method_sym = intern(StringSlice(#method));                            \
+    temp_roots.push_back(Value(method_sym));                                   \
+    builtin_classes.class->methods.insert(                                     \
+        {method_sym, allocate<NativeFunction>(native_builtins::fn, #method,    \
+                                              "<prelude>", arity)});           \
+    temp_roots.pop_back();                                                     \
+  } while (0)
 
-  CLASS_METHOD(Object, toString, 0, object_tostring)
-  CLASS_METHOD(Object, getClass, 0, object_getclass)
-  CLASS_METHOD(Array, push, 1, array_push)
-  CLASS_METHOD(Array, pop, 0, array_pop)
-  CLASS_METHOD(Array, length, 0, array_length)
+  DECL_NATIVE_METHOD(Object, toString, 0, object_tostring);
+  DECL_NATIVE_METHOD(Object, getClass, 0, object_getclass);
+  DECL_NATIVE_METHOD(Array, push, 1, array_push);
+  DECL_NATIVE_METHOD(Array, pop, 0, array_pop);
+  DECL_NATIVE_METHOD(Array, len, 0, array_length);
+  DECL_NATIVE_METHOD(Int, construct, 0, int_construct);
+  DECL_NATIVE_METHOD(Float, construct, 0, float_construct);
+  DECL_NATIVE_METHOD(Bool, construct, 0, bool_construct);
+  DECL_NATIVE_METHOD(Null, construct, 0, null_construct);
+  DECL_NATIVE_METHOD(String, construct, 0, string_construct);
+  DECL_NATIVE_METHOD(Array, construct, 0, array_construct);
+  DECL_NATIVE_METHOD(Map, construct, 0, map_construct);
+  DECL_NATIVE_METHOD(Object, construct, 0, object_construct);
 
-  create_module(StringSlice("vm"));
-  create_module(StringSlice("math"));
-  declare_native_function(StringSlice("vm"), StringSlice("disassemble"), true,
-                          1, native_builtins::disassemble);
-  declare_native_function(StringSlice("vm"), StringSlice("gc"), true, 0,
-                          native_builtins::gc);
-  declare_native_function(StringSlice("math"), StringSlice("sqrt"), true, 1,
-                          native_builtins::sqrt);
-  declare_native_function(StringSlice("vm"), StringSlice("ecall"), true, 2,
-                          native_builtins::ecall);
-  declare_native_function(StringSlice("<prelude>"), StringSlice("_getModule"),
-                          false, 1, native_builtins::_getModule);
-  declare_native_function(StringSlice("<prelude>"),
-                          StringSlice("_getCallerModule"), false, 0,
+  create_module("vm");
+  create_module("math");
+  declare_native_function("vm", "disassemble", true, 1,
+                          native_builtins::disassemble);
+  declare_native_function("vm", "gc", true, 0, native_builtins::gc);
+  declare_native_function("math", "sqrt", true, 1, native_builtins::sqrt);
+  declare_native_function("vm", "ecall", true, 2, native_builtins::ecall);
+  declare_native_function("<prelude>", "_getModule", false, 1,
+                          native_builtins::_getModule);
+  declare_native_function("<prelude>", "_getCallerModule", false, 0,
                           native_builtins::_getCallerModule);
 }
 
@@ -892,6 +925,7 @@ Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
   auto function = (Function *)malloc(
       sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size());
   function->function_info = function_info;
+  function->super_class = nullptr;
   if (function == nullptr)
     throw std::bad_alloc();
   function->num_upvalues = 0;
@@ -909,7 +943,7 @@ Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
       if (curr != nullptr && curr->location == loc) {
         upval = curr;
       } else {
-        upval = manage(new UpValue(loc));
+        upval = allocate<UpValue>(loc);
         upval->next = curr;
         if (prev == nullptr) {
           current_task->open_upvalues = upval;
@@ -935,16 +969,16 @@ void VM::create_module(StringSlice module_name) const {
   if (!module_exists(module_name)) {
     auto this_ = const_cast<VM *>(this);
     this_->modules.insert({std::string(module_name.data, module_name.len),
-                           this_->manage(new Module(std::string(
-                               module_name.data, module_name.len)))});
+                           this_->allocate<Module>(std::string(
+                               module_name.data, module_name.len))});
   }
 }
 
 void VM::create_module_with_prelude(StringSlice module_name) const {
   if (!module_exists(module_name)) {
     auto this_ = const_cast<VM *>(this);
-    auto module = this_->manage(
-        new Module(std::string(module_name.data, module_name.len)));
+    auto module =
+        this_->allocate<Module>(std::string(module_name.data, module_name.len));
     this_->modules.insert(
         {std::string(module_name.data, module_name.len), module});
     auto prelude = modules.find(StringSlice("<prelude>"))->second;
@@ -1020,5 +1054,4 @@ bool VM::create_efunc(StringSlice name, EFuncCallback *callback, Data *data,
   this_->efuncs.insert({name_sym, EFunc{callback, data, free_data}});
   return true;
 }
-
 } // namespace neptune_vm

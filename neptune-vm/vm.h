@@ -56,6 +56,7 @@ private:
   std::ostringstream panic_message;
   NativeFunction *last_native_function;
   BuiltinSymbols builtin_symbols;
+  template <typename O> O *manage(O *object);
 
 public:
   BuiltinClasses builtin_classes;
@@ -70,7 +71,7 @@ public:
                                      StringSlice name) const;
   FunctionInfoWriter new_function_info(StringSlice module, StringSlice name,
                                        uint8_t arity) const;
-  template <typename O> O *manage(O *t);
+  template <typename O, typename... Args> O *allocate(Args... args);
   template <typename O> Handle<O> *make_handle(O *object);
   template <typename O> void release(Handle<O> *handle);
   Symbol *intern(StringSlice s);
@@ -81,7 +82,7 @@ public:
   std::string generate_stack_trace();
   const uint8_t *panic(const uint8_t *ip, Value v);
   const uint8_t *panic(const uint8_t *ip);
-  bool declare_native_function(StringSlice module, StringSlice name,
+  bool declare_native_function(std::string module, std::string name,
                                bool exported, uint8_t arity,
                                NativeFunctionCallback *callback) const;
   void declare_native_builtins();
@@ -99,17 +100,21 @@ public:
                     FreeDataCallback *free_data) const;
   Module *get_module(StringSlice module_name) const;
   Class *get_class(Value v) const;
+  String *concat(String *s1, String *s2);
   VM()
       : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
         threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
         last_native_function(nullptr), return_value(Value::null()) {
-    create_module(StringSlice("<prelude>"));
+    builtin_symbols.construct = intern("construct");
+    create_module("<prelude>");
     declare_native_builtins();
-    builtin_symbols.construct = intern(StringSlice("construct"));
   }
   ~VM();
 };
 
 std::unique_ptr<VM> new_vm();
-std::unique_ptr<VM> new_vm();
+template <> String *VM::allocate<String, StringSlice>(StringSlice s);
+
+template <> String *VM::allocate<String, std::string>(std::string s);
+template <> String *VM::allocate<String, const char *>(const char *s);
 } // namespace neptune_vm

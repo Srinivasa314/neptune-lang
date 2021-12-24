@@ -54,7 +54,7 @@ uint16_t FunctionInfoWriter::float_constant(double d) {
 }
 
 uint16_t FunctionInfoWriter::string_constant(StringSlice s) {
-  String *p = vm->manage(String::from(s));
+  String *p = vm->allocate<String>(s);
   return constant(Value{static_cast<Object *>(p)});
 }
 
@@ -89,13 +89,13 @@ void FunctionInfoWriter::release() {
 }
 
 VMStatus FunctionInfoWriter::run() {
-  auto function = vm->manage(new Function(hf->object));
+  auto function = vm->make_function(nullptr, hf->object);
   function->num_upvalues = 0;
   auto stack_size = hf->object->max_registers * sizeof(Value);
   if (stack_size == 0)
     stack_size = 1 * sizeof(Value);
   vm->temp_roots.push_back(Value(function));
-  auto task = vm->manage(new Task(stack_size));
+  auto task = vm->allocate<Task>(stack_size);
   vm->temp_roots.pop_back();
   return vm->run(task, function);
 }
@@ -156,7 +156,7 @@ void FunctionInfoWriter::add_exception_handler(uint32_t try_begin,
       ExceptionHandler{try_begin, try_end, error_reg, catch_begin});
 }
 uint16_t FunctionInfoWriter::class_constant(StringSlice s) {
-  Class *c = vm->manage(new Class());
+  Class *c = vm->allocate<Class>();
   c->name = std::string(s.data, s.len);
   return constant(Value{static_cast<Object *>(c)});
 }
@@ -428,12 +428,6 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(NewMap) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(NewObject) << READ(uint8_t) << ' ' << REG(uint8_t);
-      break;
-      CASE(EmptyArray);
-      break;
-      CASE(EmptyMap);
-      break;
-      CASE(EmptyObject);
       break;
       CASE(Jump) << READ(uint8_t);
       break;

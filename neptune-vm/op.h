@@ -80,9 +80,6 @@
   OP(NewArray)                                                                 \
   OP(NewMap)                                                                   \
   OP(NewObject)                                                                \
-  OP(EmptyArray)                                                               \
-  OP(EmptyMap)                                                                 \
-  OP(EmptyObject)                                                              \
   OP(MakeFunction)                                                             \
   OP(MakeClass)                                                                \
   OP(ForLoop)                                                                  \

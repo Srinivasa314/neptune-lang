@@ -9,18 +9,6 @@ template <> size_t size(Function *f) {
   return sizeof(Function) + f->num_upvalues * sizeof(UpValue *);
 }
 
-String *String::from(StringSlice s) {
-  String *p = static_cast<String *>(malloc(sizeof(String) + s.len));
-  if (p == nullptr) {
-    throw std::bad_alloc();
-  }
-  memcpy(p->data, s.data, s.len);
-  p->len = s.len;
-  return p;
-}
-String *String::from(const std::string &s) {
-  return from(StringSlice{s.data(), s.length()});
-}
 String::operator StringSlice() const { return StringSlice{data, len}; }
 Symbol::operator StringSlice() const { return StringSlice{data, len}; }
 template <typename O> bool Object::is() const { return type == O::type; }
@@ -29,15 +17,15 @@ template <typename O> O *Object::as() {
   return reinterpret_cast<O *>(this);
 }
 
-String *String::concat(String *s) {
-  String *p = static_cast<String *>(malloc(sizeof(String) + len + s->len));
+String *VM::concat(String *s1, String *s2) {
+  String *p = static_cast<String *>(malloc(sizeof(String) + s1->len + s2->len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }
-  memcpy(p->data, data, len);
-  memcpy(p->data + len, s->data, s->len);
-  p->len = len + s->len;
-  return p;
+  memcpy(p->data, s1->data, s1->len);
+  memcpy(p->data + s1->len, s2->data, s2->len);
+  p->len = s1->len + s2->len;
+  return manage(p);
 }
 
 String::operator rust::String() const { return rust::String(data, len); }
@@ -237,5 +225,4 @@ std::ostream &operator<<(std::ostream &os, StringSlice s) {
   os.write(s.data, std::streamsize(s.len));
   return os;
 }
-
 } // namespace neptune_vm

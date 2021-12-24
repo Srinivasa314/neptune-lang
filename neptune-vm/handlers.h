@@ -54,9 +54,6 @@ handler(Not, {
     accumulator = Value(false);
   }
 });
-handler(EmptyArray, accumulator = Value{manage(new Array)};);
-handler(EmptyMap, accumulator = Value{manage(new Map)};);
-handler(EmptyObject, accumulator = Value{manage(new Instance)};);
 handler(Return, {
   CLOSE(0);
   task->frames.pop_back();

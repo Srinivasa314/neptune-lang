@@ -28,15 +28,15 @@ void EFuncContext::push_bool(bool b) { push(Value(b)); }
 void EFuncContext::push_null() { push(Value::null()); }
 
 void EFuncContext::push_string(StringSlice s) {
-  push(Value(vm->manage(String::from(s))));
+  push(Value(vm->allocate<String>(s)));
 }
 
 void EFuncContext::push_symbol(StringSlice s) { push(Value(vm->intern(s))); }
 
-void EFuncContext::push_empty_array() { push(Value(vm->manage(new Array()))); }
+void EFuncContext::push_empty_array() { push(Value(vm->allocate<Array>())); }
 
 void EFuncContext::push_function(FunctionInfoWriter fw) {
-  auto function = vm->manage(new Function(fw.hf->object));
+  auto function = vm->make_function(nullptr, fw.hf->object);
   push(Value(function));
   fw.release();
 }
@@ -72,10 +72,10 @@ EFuncStatus EFuncContext::set_object_property(StringSlice s) {
 }
 
 void EFuncContext::push_empty_object() {
-  push(Value(vm->manage(new Instance())));
+  push(Value(vm->allocate<Instance>()));
 }
 
-void EFuncContext::push_empty_map() { push(Value(vm->manage(new Map()))); }
+void EFuncContext::push_empty_map() { push(Value(vm->allocate<Map>())); }
 
 EFuncStatus EFuncContext::insert_in_map() {
   CHECK_STACK_UNDERFLOW;
