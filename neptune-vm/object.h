@@ -46,7 +46,6 @@ class Object {
 
 public:
   Type type;
-  Class *class_;
   template <typename O> bool is() const;
   template <typename O> O *as();
   const char *type_string() const;
@@ -151,7 +150,7 @@ class Module : public Object {
 
 public:
   std::string name;
-  Module(std::string name) : name(name) {}
+  explicit Module(const std::string &name) : name(name) {}
   static constexpr Type type = Type::Module;
   friend class VM;
 };
@@ -173,6 +172,7 @@ public:
 
 class Instance : public Object {
 public:
+  Class *class_;
   SymbolMap<Value> properties;
   Instance() = default;
   explicit Instance(size_t size);

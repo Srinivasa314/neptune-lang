@@ -52,12 +52,30 @@ uint32_t StringHasher::operator()(const std::string &s) const {
 const char *Object::type_string() const {
   // todo change this when more types are added
   switch (type) {
+  case Type::Class:
+    return "Class";
+  case Type::String:
+    return "String";
+  case Type::Symbol:
+    return "Symbol";
+  case Type::Array:
+    return "Array";
+  case Type::Map:
+    return "Map";
+  case Type::Function:
+    return "Function";
+  case Type::NativeFunction:
+    return "Function";
+  case Type::Module:
+    return "Module";
+  case Type::Task:
+    return "Task";
+  case Type::Instance:
+    return ((Object*)this)->as<Instance>()->class_->name.c_str();
   case Type::FunctionInfo:
     return "<internal type FunctionInfo>";
   case Type::UpValue:
     return "<internal type UpValue>";
-  default:
-    return class_->name.c_str();
   }
 }
 
@@ -175,8 +193,8 @@ void operator<<(ValueFormatter vf, Object *obj) {
     vf.os << "<Task>";
     break;
   case Type::Instance: {
-    if (obj->class_->name != "Object")
-      vf.os << obj->class_->name << " ";
+    if (obj->as<Instance>()->class_->name != "Object")
+      vf.os << obj->as<Instance>()->class_->name << " ";
     if (vf.depth > MAX_DEPTH) {
       vf.os << "{ ... }";
     } else {

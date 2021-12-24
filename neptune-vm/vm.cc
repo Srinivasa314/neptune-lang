@@ -15,9 +15,9 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #ifdef COMPUTED_GOTO
 
-#define HANDLER(x) __##x##_handler
-#define WIDE_HANDLER(x) __##x##_wide_handler
-#define EXTRAWIDE_HANDLER(x) __##x##_extrawide_handler
+#define HANDLER(x) x##_handler
+#define WIDE_HANDLER(x) x##_wide_handler
+#define EXTRAWIDE_HANDLER(x) x##_extrawide_handler
 
 #define DISPATCH() goto *dispatch_table[READ(uint8_t)]
 #define DISPATCH_WIDE() goto *dispatch_table[WIDE(READ(uint8_t))]
@@ -255,40 +255,6 @@ template <typename O> O *VM::manage(O *t) {
   bytes_allocated += size(t);
   auto o = reinterpret_cast<Object *>(t);
   o->type = O::type;
-  switch (O::type) {
-  case Type::Class:
-    o->class_ = builtin_classes.Class_;
-    break;
-  case Type::String:
-    o->class_ = builtin_classes.String;
-    break;
-  case Type::Symbol:
-    o->class_ = builtin_classes.Symbol;
-    break;
-  case Type::Array:
-    o->class_ = builtin_classes.Array;
-    break;
-  case Type::Map:
-    o->class_ = builtin_classes.Map;
-    break;
-  case Type::Function:
-    o->class_ = builtin_classes.Function;
-    break;
-  case Type::NativeFunction:
-    o->class_ = builtin_classes.Function;
-    break;
-  case Type::Module:
-    o->class_ = builtin_classes.Module;
-    break;
-  case Type::Task:
-    o->class_ = builtin_classes.Task;
-    break;
-  case Type::Instance:
-    o->class_ = builtin_classes.Object;
-    break;
-  default:
-    o->class_ = nullptr;
-  }
   o->is_dark = false;
   o->next = first_obj;
   first_obj = o;
@@ -531,7 +497,6 @@ void VM::grey(Object *o) {
 }
 
 void VM::blacken(Object *o) {
-  grey(o->class_);
   switch (o->type) {
   case Type::Array:
     for (auto v : o->as<Array>()->inner) {
@@ -618,9 +583,9 @@ void VM::blacken(Object *o) {
 }
 
 static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
-  uint32_t instruction = ip - f->bytecode.data();
+  uint32_t instruction = static_cast<uint32_t>(ip - f->bytecode.data());
   uint32_t start = 0;
-  uint32_t end = f->lines.size() - 1;
+  uint32_t end = static_cast<uint32_t>(f->lines.size() - 1);
   for (;;) {
     uint32_t mid = (start + end) / 2;
     LineInfo *line = &f->lines[mid];
@@ -696,15 +661,15 @@ bool VM::declare_native_function(std::string module, std::string name,
 }
 
 namespace native_builtins {
-bool object_tostring(VM *vm, Value *slots) {
+static bool object_tostring(VM *vm, Value *slots) {
   vm->return_value = vm->to_string(slots[0]);
   return true;
 }
-bool object_getclass(VM *vm, Value *slots) {
+static bool object_getclass(VM *vm, Value *slots) {
   vm->return_value = Value(vm->get_class(slots[0]));
   return true;
 }
-bool array_pop(VM *vm, Value *slots) {
+static bool array_pop(VM *vm, Value *slots) {
   auto &arr = slots[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
     vm->return_value = Value(vm->allocate<String>("Array is empty"));
@@ -714,12 +679,12 @@ bool array_pop(VM *vm, Value *slots) {
   arr.pop_back();
   return true;
 }
-bool array_push(VM *vm, Value *slots) {
+static bool array_push(VM *vm, Value *slots) {
   slots[0].as_object()->as<Array>()->inner.push_back(slots[1]);
   vm->return_value = Value::null();
   return true;
 }
-bool array_length(VM *vm, Value *slots) {
+static bool array_length(VM *vm, Value *slots) {
   vm->return_value = Value(
       static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
   return true;
@@ -771,7 +736,7 @@ bool sqrt(VM *vm, Value *slots) {
     return false;
   }
 }
-bool disassemble(VM *vm, Value *slots) {
+static bool disassemble(VM *vm, Value *slots) {
   auto fn = slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
     std::ostringstream os;
@@ -787,13 +752,13 @@ bool disassemble(VM *vm, Value *slots) {
   }
 }
 
-bool gc(VM *vm, Value *) {
+static bool gc(VM *vm, Value *) {
   vm->collect();
   vm->return_value = Value::null();
   return true;
 }
 
-bool _getModule(VM *vm, Value *slots) {
+static bool _getModule(VM *vm, Value *slots) {
   if (slots[0].is_object() && slots[0].as_object()->is<String>()) {
     auto module =
         vm->get_module(StringSlice(*slots[0].as_object()->as<String>()));
@@ -809,7 +774,7 @@ bool _getModule(VM *vm, Value *slots) {
   }
 }
 
-bool _getCallerModule(VM *vm, Value *) {
+static bool _getCallerModule(VM *vm, Value *) {
   if (vm->current_task->frames.size() < 2) {
     vm->return_value = Value(vm->allocate<String>("No caller exists"));
     return false;
@@ -821,7 +786,7 @@ bool _getCallerModule(VM *vm, Value *) {
   }
 }
 
-bool ecall(VM *vm, Value *slots) {
+static bool ecall(VM *vm, Value *slots) {
   if (slots[0].is_object() && slots[0].as_object()->is<Symbol>()) {
     auto efunc_iter = vm->efuncs.find(slots[0].as_object()->as<Symbol>());
     if (efunc_iter == vm->efuncs.end()) {
@@ -865,9 +830,6 @@ void VM::declare_native_builtins() {
   builtin_classes.Class_->name = "Class";
   builtin_classes.Class_->super = builtin_classes.Object;
   builtin_classes.Class_->is_native = true;
-
-  builtin_classes.Object->class_ = builtin_classes.Class_;
-  builtin_classes.Class_->class_ = builtin_classes.Class_;
 
   add_module_variable("<prelude>", "Class", false, true);
   module_variables[module_variables.size() - 1] = Value(builtin_classes.Class_);
@@ -922,8 +884,8 @@ void VM::declare_native_builtins() {
 }
 
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
-  auto function = (Function *)malloc(
-      sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size());
+  auto function = static_cast<Function *>(malloc(
+      sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size()));
   function->function_info = function_info;
   function->super_class = nullptr;
   if (function == nullptr)
@@ -1002,9 +964,43 @@ Module *VM::get_module(StringSlice module_name) const {
 }
 
 Class *VM::get_class(Value v) const {
-  if (v.is_object())
-    return v.as_object()->class_;
-  else if (v.is_int())
+  if (v.is_object()) {
+    auto o = v.as_object();
+    switch (o->type) {
+    case Type::Class:
+      return builtin_classes.Class_;
+      break;
+    case Type::String:
+      return builtin_classes.String;
+      break;
+    case Type::Symbol:
+      return builtin_classes.Symbol;
+      break;
+    case Type::Array:
+      return builtin_classes.Array;
+      break;
+    case Type::Map:
+      return builtin_classes.Map;
+      break;
+    case Type::Function:
+      return builtin_classes.Function;
+      break;
+    case Type::NativeFunction:
+      return builtin_classes.Function;
+      break;
+    case Type::Module:
+      return builtin_classes.Module;
+      break;
+    case Type::Task:
+      return builtin_classes.Task;
+      break;
+    case Type::Instance:
+      return o->as<Instance>()->class_;
+      break;
+    default:
+      return nullptr;
+    }
+  } else if (v.is_int())
     return builtin_classes.Int;
   else if (v.is_float())
     return builtin_classes.Float;

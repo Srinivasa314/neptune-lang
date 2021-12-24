@@ -36,7 +36,7 @@ struct EFuncContext {
   EFuncContext(VM *vm, Task *task, Value *arg) : vm(vm), task(task), arg(arg) {}
   void push(Value v);
   void push_int(int32_t i);
-  void push_float(double f);
+  void push_float(double d);
   void push_bool(bool b);
   void push_null();
   void push_string(StringSlice s);
