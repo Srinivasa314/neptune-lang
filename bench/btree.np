@@ -16,13 +16,13 @@ fun check_tree(node){
 }
 
 let min_depth = 4
-let max_depth = 14
+let max_depth = 15
 let stretch_depth = max_depth + 1
 print('stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(stretch_depth)))')
 
 let long_lived_tree = make_tree(max_depth)
 
-let iterations = 16384//2**14
+let iterations = 32768//2**15
 
 let depth=min_depth
 

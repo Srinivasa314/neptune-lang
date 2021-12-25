@@ -19,7 +19,7 @@ def check_tree(node):
     return 1 + check_tree(left) + check_tree(right)
 
 min_depth = 4
-max_depth = 14
+max_depth = 15
 stretch_depth = max_depth + 1
 
 print("stretch tree of depth %d\t check:" % 

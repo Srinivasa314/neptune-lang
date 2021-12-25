@@ -322,7 +322,9 @@ handler(NewMap, {
 handler(NewObject, {
   auto len = READ(utype);
   auto reg = READ(utype);
-  bp[reg] = Value(allocate<Instance>(len));
+  auto obj = allocate<Instance>(len);
+  obj->class_ = builtin_classes.Object;
+  bp[reg] = Value(obj);
 });
 
 handler(StrictEqual, accumulator = Value(ValueStrictEquality{}(bp[READ(utype)],
@@ -413,7 +415,7 @@ handler(MakeClass, {
   temp_roots.push_back(Value(class_));
   if (accumulator.is_object() && accumulator.as_object()->is<Class>()) {
     auto parent = accumulator.as_object()->as<Class>();
-    if (parent->is_native)
+    if (parent != builtin_classes.Object && parent->is_native)
       PANIC("Cannot inherit from native class " << parent->name);
     class_->super = parent;
   } else

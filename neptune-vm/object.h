@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mimalloc.h>
 #include <ostream>
 #include <tsl/robin_map.h>
 #include <vector>
@@ -50,6 +51,8 @@ public:
   template <typename O> O *as();
   const char *type_string() const;
   friend std::ostream &operator<<(std::ostream &os, Object &o);
+  void *operator new(size_t size) { return mi_malloc(size); }
+  void operator delete(void *p) { mi_free(p); }
 };
 
 class String : public Object {
@@ -120,16 +123,18 @@ class Array : public Object {
 public:
   Array() = default;
   explicit Array(size_t size);
-  std::vector<Value> inner;
+  std::vector<Value, mi_stl_allocator<Value>> inner;
   static constexpr Type type = Type::Array;
 };
 
 template <typename T>
-using ValueMap = tsl::robin_map<Value, T, ValueHasher, ValueStrictEquality,
-                                std::allocator<std::pair<Value, Value>>, true>;
+using ValueMap =
+    tsl::robin_map<Value, T, ValueHasher, ValueStrictEquality,
+                   mi_stl_allocator<std::pair<Value, Value>>, true>;
 
 template <typename T>
-using SymbolMap = tsl::robin_map<Symbol *, T, StringHasher, StringEquality>;
+using SymbolMap = tsl::robin_map<Symbol *, T, StringHasher, StringEquality,
+                                 mi_stl_allocator<std::pair<Symbol *, T>>>;
 
 class Map : public Object {
 public:

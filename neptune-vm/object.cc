@@ -18,7 +18,8 @@ template <typename O> O *Object::as() {
 }
 
 String *VM::concat(String *s1, String *s2) {
-  String *p = static_cast<String *>(malloc(sizeof(String) + s1->len + s2->len));
+  String *p =
+      static_cast<String *>(mi_malloc(sizeof(String) + s1->len + s2->len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }
@@ -71,11 +72,13 @@ const char *Object::type_string() const {
   case Type::Task:
     return "Task";
   case Type::Instance:
-    return ((Object*)this)->as<Instance>()->class_->name.c_str();
+    return ((Object *)this)->as<Instance>()->class_->name.c_str();
   case Type::FunctionInfo:
     return "<internal type FunctionInfo>";
   case Type::UpValue:
     return "<internal type UpValue>";
+  default:
+    unreachable();
   }
 }
 
@@ -224,7 +227,8 @@ void operator<<(ValueFormatter vf, Object *obj) {
     unreachable();
   }
 }
-Array::Array(size_t size) : inner(std::vector<Value>(size, Value::null())) {}
+Array::Array(size_t size)
+    : inner(std::vector<Value, mi_stl_allocator<Value>>(size, Value::null())) {}
 
 Map::Map(size_t size) { inner.reserve(size); }
 Object *Class::find_method(Symbol *method) {
