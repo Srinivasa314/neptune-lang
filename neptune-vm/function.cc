@@ -266,6 +266,16 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
 
         CASE(Call) << REG(uint16_t) << ' ' << READ(uint8_t);
         break;
+        CASE(CallMethod) << REG(uint16_t) << ' ' << f.constants[READ(uint16_t)]
+                         << ' ' << READ(uint16_t) << ' ' << READ(uint8_t);
+        break;
+        CASE(SuperCall) << f.constants[READ(uint16_t)] << ' ' << READ(uint16_t)
+                        << ' ' << READ(uint8_t);
+        break;
+        CASE(Construct) << READ(uint16_t) << ' ' << READ(uint8_t);
+        break;
+        CASE(MakeClass) << f.constants[READ(uint16_t)];
+        break;
 
         CASE(NewArray) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
@@ -417,6 +427,16 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
 
       CASE(Call) << REG(uint8_t) << ' ' << READ(uint8_t);
       break;
+      CASE(CallMethod) << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)]
+                       << ' ' << READ(uint8_t) << ' ' << READ(uint8_t);
+      break;
+      CASE(SuperCall) << f.constants[READ(uint8_t)] << ' ' << READ(uint8_t)
+                      << ' ' << READ(uint8_t);
+      CASE(Construct) << READ(uint8_t) << ' ' << READ(uint8_t);
+      break;
+      CASE(MakeClass) << f.constants[READ(uint8_t)];
+      break;
+
       CASE(NewArray) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(StoreSubscript) << REG(uint8_t) << ' ' << REG(uint8_t);
