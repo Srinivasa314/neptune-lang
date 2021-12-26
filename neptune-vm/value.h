@@ -27,11 +27,8 @@ public:
 
   ALWAYS_INLINE static Value null() { return Value(VALUE_NULL); }
 
-  ALWAYS_INLINE static Value empty() { return Value(static_cast<uint64_t>(0)); }
-
 #else
   enum class Tag : uint8_t {
-    Empty,
     Int,
     Float,
     Object,
@@ -56,9 +53,10 @@ public:
 
   ALWAYS_INLINE static Value null() { return Value(Tag::Null); }
 
-  ALWAYS_INLINE static Value empty() { return Value(Tag::Empty); }
-
-  ALWAYS_INLINE explicit Value() { tag = Tag::Empty; }
+  ALWAYS_INLINE explicit Value() {
+    tag = Tag::Object;
+    value.as_object = nullptr;
+  }
 
 #endif
 public:
@@ -74,7 +72,6 @@ public:
   ALWAYS_INLINE bool is_object() const;
   ALWAYS_INLINE Object *as_object() const;
   ALWAYS_INLINE bool is_null() const;
-  ALWAYS_INLINE bool is_empty() const;
   ALWAYS_INLINE bool is_bool() const;
   ALWAYS_INLINE bool is_true() const;
   ALWAYS_INLINE bool is_false() const;

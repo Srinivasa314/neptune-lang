@@ -9,7 +9,6 @@ namespace neptune_vm {
 /*
   On x86_64 and aarch64 the following scheme is used to represent values.
 
-  Empty   0x0000 0000 0000 0000
   Null    0x0000 0000 0000 0001
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
@@ -82,8 +81,6 @@ ALWAYS_INLINE Object *Value::as_object() const {
 
 ALWAYS_INLINE bool Value::is_null() const { return inner == VALUE_NULL; }
 
-ALWAYS_INLINE bool Value::is_empty() const { return inner == 0; }
-
 ALWAYS_INLINE bool Value::is_bool() const {
   return inner == VALUE_TRUE || inner == VALUE_FALSE;
 }
@@ -147,8 +144,6 @@ ALWAYS_INLINE Object *Value::as_object() const {
 }
 
 ALWAYS_INLINE bool Value::is_null() const { return tag == Tag::Null; }
-
-ALWAYS_INLINE bool Value::is_empty() const { return tag == Tag::Empty; }
 
 ALWAYS_INLINE bool Value::is_bool() const {
   return tag == Tag::True || tag == Tag::False;

@@ -63,7 +63,7 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     task->stack_top = bp + f->function_info->max_registers;                    \
     ip = f->function_info->bytecode.data();                                    \
     for (size_t i = n; i < f->function_info->max_registers; i++)               \
-      bp[i] = Value::empty();                                                  \
+      bp[i] = Value(nullptr);                                                  \
     task->frames.push_back(Frame{bp, f, ip});                                  \
   } while (0)
 
@@ -560,7 +560,7 @@ void VM::blacken(Object *o) {
     bytes_allocated += sizeof(Task);
     auto task = o->as<Task>();
     for (auto v = task->stack.get(); v < task->stack_top; v++)
-      if (!v->is_empty() && v->is_object())
+      if (v->is_object())
         grey(v->as_object());
     for (auto frame : task->frames)
       grey(frame.f);
