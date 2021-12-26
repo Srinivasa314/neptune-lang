@@ -148,3 +148,24 @@ assert_eq(g(),17)
 
 try{try{panic ''}catch e{g=10}}catch e{g=20}
 assert_eq(g,10)
+
+a=[1,2]
+assert_eq(a.len(),2)
+assert_eq(a.pop(),2)
+assert_eq(a.pop(),1)
+assert_failed(||a.pop(),'Array is empty')
+a.push(3)
+assert_eq(a[0],3)
+
+class A{}
+assert_failed(||new A(),'Class A does not have a constructor')
+class B{construct(){}f(){return 3;}}
+assert_eq(new B().f(),3)
+class C extends B{construct(){}f(){return super.f()+5;}}
+assert_eq(new C().f(),8)
+assert_eq({a:5}.a,5)
+assert_eq(new Int(),0)
+assert_eq(2.getClass(),Int)
+assert_failed(||new 3(),'new can be called only on classes not Int')
+assert_failed(||{class A extends 3{}},'Expected to inherit from Class got Int')
+assert_failed(||{class A extends Int{}}, 'Cannot inherit from native class Int')
