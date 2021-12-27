@@ -794,7 +794,8 @@ static bool range_hasnext(VM *vm, Value *slots) {
 }
 
 static bool range_iter(VM *vm, Value *slots) {
-  vm->return_value = slots[0];
+  auto &range = *slots[0].as_object()->as<Range>();
+  vm->return_value = Value(vm->allocate<Range>(range.start, range.end));
   return true;
 }
 

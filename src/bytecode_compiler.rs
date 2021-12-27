@@ -1012,10 +1012,105 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         let last_block = self.locals.pop().unwrap();
                         self.regcount -= last_block.len() as u16;
                     } else {
-                        return Err(CompileError {
-                            message: "Not implemented yet".into(),
-                            line: expr.line(),
+                        let res = self.evaluate_expr(expr);
+                        if let Ok(res) = res {
+                            let reg = self.store_in_register(res, expr.line())?;
+                            let iter_property = self
+                                .bytecode
+                                .symbol_constant("iter".into())
+                                .map_err(|_| CompileError {
+                                    line: expr.line(),
+                                    message: "Cannot have more than 65535 constants per function"
+                                        .into(),
+                                })?;
+                            let start = self.regcount;
+                            self.push_register(expr.line())?;
+                            self.write3(Op::CallMethod, reg, iter_property, start, expr.line());
+                            self.bytecode.write_u8(0);
+                            self.pop_register();
+                            if !matches!(res, ExprResult::Register(_)) {
+                                self.pop_register();
+                            }
+                        } else if let Err(e) = res {
+                            self.error(e);
+                        }
+                        self.locals.push(HashMap::default());
+                        let iterator = self.new_local(expr.line(), "$iter".into(), false)?;
+                        self.store_in_specific_register(
+                            ExprResult::Accumulator,
+                            iterator,
+                            expr.line(),
+                        )?;
+
+                        let loop_start = self.bytecode.size();
+                        self.loops.push(Loop::While {
+                            loop_start,
+                            breaks: vec![],
                         });
+                        let hasnext_property = self
+                            .bytecode
+                            .symbol_constant("hasNext".into())
+                            .map_err(|_| CompileError {
+                                line: expr.line(),
+                                message: "Cannot have more than 65535 constants per function"
+                                    .into(),
+                            })?;
+                        let start = self.regcount;
+                        self.push_register(expr.line())?;
+                        self.write3(
+                            Op::CallMethod,
+                            iterator,
+                            hasnext_property,
+                            start,
+                            expr.line(),
+                        );
+                        self.bytecode.write_u8(0);
+                        self.pop_register();
+
+                        let c = self.reserve_int(expr.line())?;
+                        let loop_cond_check = self.bytecode.size();
+                        self.write1(Op::JumpIfFalseOrNullConstant, c as u32, expr.line());
+
+                        let iter_reg = self.new_local(expr.line(), iter.into(), false)?;
+                        let next_property =
+                            self.bytecode.symbol_constant("next".into()).map_err(|_| {
+                                CompileError {
+                                    line: expr.line(),
+                                    message: "Cannot have more than 65535 constants per function"
+                                        .into(),
+                                }
+                            })?;
+                        let start = self.regcount;
+                        self.push_register(expr.line())?;
+                        self.write3(Op::CallMethod, iterator, next_property, start, expr.line());
+                        self.bytecode.write_u8(0);
+                        self.pop_register();
+                        self.store_in_specific_register(
+                            ExprResult::Accumulator,
+                            iter_reg,
+                            expr.line(),
+                        )?;
+
+                        self.block(block, *end_line);
+                        let almost_loop_end = self.bytecode.size();
+                        self.write1(
+                            Op::JumpBack,
+                            (almost_loop_end - loop_start) as u32,
+                            *end_line,
+                        );
+                        let loop_end = self.bytecode.size();
+                        self.bytecode
+                            .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
+                        match self.loops.last().unwrap() {
+                            Loop::While { breaks, .. } => {
+                                for b in breaks.iter() {
+                                    self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                        let last_block = self.locals.pop().unwrap();
+                        self.regcount -= last_block.len() as u16;
                     }
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
