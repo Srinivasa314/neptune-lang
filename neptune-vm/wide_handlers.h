@@ -177,7 +177,7 @@ handler(CallMethod, {
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(member) == instance->properties.end())
-      PANIC("Object does not have any property named "
+      PANIC("object does not have any property named "
             << static_cast<StringSlice>(*member));
     else
       accumulator = instance->properties[member];
@@ -187,8 +187,8 @@ handler(CallMethod, {
     goto callop;
 
   } else {
-    PANIC("Object does not have method named "
-          << static_cast<StringSlice>(*member));
+    PANIC(class_->name << " does not have method named "
+                       << static_cast<StringSlice>(*member));
   }
 });
 
@@ -208,8 +208,8 @@ handler(SuperCall, {
     goto callop;
 
   } else {
-    PANIC("Object does not have method named "
-          << static_cast<StringSlice>(*member));
+    PANIC(class_->name << " does not have method named "
+                       << static_cast<StringSlice>(*member));
   }
 });
 
@@ -451,7 +451,7 @@ handler(LoadProperty, {
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(property) == instance->properties.end())
-      PANIC("Object does not have any property named "
+      PANIC("object does not have any property named "
             << static_cast<StringSlice>(*property));
     else
       accumulator = instance->properties[property];
@@ -468,5 +468,17 @@ handler(StoreProperty, {
     instance->properties[property] = accumulator;
   } else {
     PANIC("Cannot set property for type " << object.type_string());
+  }
+});
+
+handler(Range, {
+  auto left = bp[READ(utype)];
+  auto right = accumulator;
+  if (left.is_int() && right.is_int()) {
+    accumulator = Value(allocate<Range>(left.as_int(), right.as_int()));
+  } else {
+    PANIC("Expected Int and Int for the start and end of the range got "
+          << left.type_string() << " and " << right.type_string()
+          << " instead");
   }
 });

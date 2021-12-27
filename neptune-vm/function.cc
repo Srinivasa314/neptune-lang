@@ -289,6 +289,8 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(NewObject) << READ(uint16_t) << ' ' << REG(uint16_t);
         break;
+        CASE(Range) << REG(uint16_t);
+        break;
 
         CASE(Jump) << READ(uint16_t);
         break;
@@ -432,6 +434,7 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(SuperCall) << f.constants[READ(uint8_t)] << ' ' << READ(uint8_t)
                       << ' ' << READ(uint8_t);
+      break;
       CASE(Construct) << READ(uint8_t) << ' ' << READ(uint8_t);
       break;
       CASE(MakeClass) << f.constants[READ(uint8_t)];
@@ -448,6 +451,8 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
       CASE(NewMap) << READ(uint8_t) << ' ' << REG(uint8_t);
       break;
       CASE(NewObject) << READ(uint8_t) << ' ' << REG(uint8_t);
+      break;
+      CASE(Range) << REG(uint8_t);
       break;
       CASE(Jump) << READ(uint8_t);
       break;

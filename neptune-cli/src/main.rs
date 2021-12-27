@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use neptune_lang::{InterpretError, ModuleLoader, Neptune};
+use neptune_lang::{ModuleLoader, Neptune};
 use rustyline::{
     error::ReadlineError,
     validate::{self, Validator},

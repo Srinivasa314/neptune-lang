@@ -169,6 +169,7 @@ mod ffi {
         NewObject,
         MakeFunction,
         MakeClass,
+        Range,
         ForLoop,
         Jump,
         JumpIfFalseOrNull,

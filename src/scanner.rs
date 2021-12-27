@@ -23,6 +23,7 @@ pub enum TokenType {
     RightBrace,
     Comma,
     Dot,
+    DotDot,
     Minus,
     Mod,
     ModEqual,
@@ -67,6 +68,7 @@ pub enum TokenType {
     For,
     Fun,
     If,
+    In,
     New,
     Null,
     Or,
@@ -111,6 +113,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "try" => TokenType::Try,
     "panic" => TokenType::Panic,
     "catch" => TokenType::Catch,
+    "in" => TokenType::In,
     "Map"=> TokenType::Map,
 };
 
@@ -201,7 +204,7 @@ impl<'src> Scanner<'src> {
                 self.brackets.pop();
             }
             b',' => self.add_token(TokenType::Comma),
-            b'.' => self.add_token(TokenType::Dot),
+            b'.' => self.add_token_if_match(b'.', TokenType::DotDot, TokenType::Dot),
             b'-' => self.add_token_if_match(b'=', TokenType::MinusEqual, TokenType::Minus),
             b'+' => self.add_token_if_match(b'=', TokenType::PlusEqual, TokenType::Plus),
             b';' => self.add_token(TokenType::StatementSeparator),

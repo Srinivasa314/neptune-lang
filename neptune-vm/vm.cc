@@ -350,6 +350,18 @@ void VM::release(Object *o) {
     delete o->as<Instance>();
     break;
   }
+  case Type::Range: {
+    delete o->as<Range>();
+    break;
+  }
+  case Type::ArrayIterator: {
+    delete o->as<ArrayIterator>();
+    break;
+  }
+  case Type::MapIterator: {
+    delete o->as<MapIterator>();
+    break;
+  }
   default:
     unreachable();
   }
@@ -438,6 +450,9 @@ void VM::collect() {
     grey(builtin_classes.Function);
     grey(builtin_classes.Module);
     grey(builtin_classes.Task);
+    grey(builtin_classes.Range);
+    grey(builtin_classes.ArrayIterator);
+    grey(builtin_classes.MapIterator);
     grey(builtin_symbols.construct);
   }
 
@@ -569,7 +584,8 @@ void VM::blacken(Object *o) {
       grey(upvalue);
       upvalue = upvalue->next;
     }
-  } break;
+    break;
+  }
   case Type::Instance:
     grey(o->as<Instance>()->class_);
     for (auto pair : o->as<Instance>()->properties) {
@@ -579,6 +595,21 @@ void VM::blacken(Object *o) {
     }
     bytes_allocated += sizeof(Instance);
     break;
+  case Type::Range:
+    bytes_allocated += sizeof(Range);
+    break;
+  case Type::ArrayIterator:
+    bytes_allocated += sizeof(ArrayIterator);
+    grey(o->as<ArrayIterator>()->array);
+    break;
+  case Type::MapIterator: {
+    bytes_allocated += sizeof(MapIterator);
+    auto mi = o->as<MapIterator>();
+    grey(mi->map);
+    if (mi->last_key.is_object())
+      grey(mi->last_key.as_object());
+    break;
+  }
   default:
     unreachable();
   }
@@ -691,38 +722,137 @@ static bool array_length(VM *vm, Value *slots) {
       static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
   return true;
 }
-bool int_construct(VM *vm, Value *) {
+static bool int_construct(VM *vm, Value *) {
   vm->return_value = Value(0);
   return true;
 }
-bool float_construct(VM *vm, Value *) {
+static bool float_construct(VM *vm, Value *) {
   vm->return_value = Value(0.0);
   return true;
 }
-bool bool_construct(VM *vm, Value *) {
+static bool bool_construct(VM *vm, Value *) {
   vm->return_value = Value(false);
   return true;
 }
-bool null_construct(VM *vm, Value *) {
+static bool null_construct(VM *vm, Value *) {
   vm->return_value = Value::null();
   return true;
 }
-bool string_construct(VM *vm, Value *) {
+static bool string_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<String>(""));
   return true;
 }
-bool array_construct(VM *vm, Value *) {
+static bool array_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Array>());
   return true;
 }
-bool map_construct(VM *vm, Value *) {
+static bool map_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Map>());
   return true;
 }
-bool object_construct(VM *vm, Value *) {
+static bool object_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Instance>());
   return true;
 }
+static bool range_construct(VM *vm, Value *slots) {
+  if (slots[1].is_int() && slots[2].is_int()) {
+    vm->return_value =
+        Value(vm->allocate<Range>(slots[1].as_int(), slots[2].as_int()));
+    return true;
+  } else {
+    std::ostringstream os;
+    os << "Expected Int and Int for the start and end of the range got "
+       << slots[1].type_string() << " and " << slots[2].type_string()
+       << " instead";
+    vm->return_value = Value(vm->allocate<String>(os.str()));
+    return false;
+  }
+}
+static bool symbol_construct(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
+    vm->return_value = Value(vm->intern(*slots[1].as_object()->as<String>()));
+    return true;
+  } else {
+    vm->return_value = Value(
+        vm->allocate<String>("Symbol can only be constructed from String"));
+    return false;
+  }
+}
+
+static bool range_next(VM *vm, Value *slots) {
+  auto &range = *slots[0].as_object()->as<Range>();
+  vm->return_value = Value(range.start);
+  if (range.start != range.end)
+    range.start++;
+  return true;
+}
+
+static bool range_hasnext(VM *vm, Value *slots) {
+  auto &range = *slots[0].as_object()->as<Range>();
+  vm->return_value = Value(range.start < range.end);
+  return true;
+}
+
+static bool range_iter(VM *vm, Value *slots) {
+  vm->return_value = slots[0];
+  return true;
+}
+
+static bool array_iter(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(vm->allocate<ArrayIterator>(slots[0].as_object()->as<Array>()));
+  return true;
+}
+
+static bool map_iter(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(vm->allocate<MapIterator>(slots[0].as_object()->as<Map>()));
+  return true;
+}
+
+static bool mapiterator_hasnext(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(!slots[0].as_object()->as<MapIterator>()->last_key.is_empty());
+  return true;
+}
+
+static bool mapiterator_next(VM *vm, Value *slots) {
+  auto mi = slots[0].as_object()->as<MapIterator>();
+  if (mi->last_key.is_empty())
+    vm->return_value = Value::null();
+  else {
+    vm->return_value = mi->last_key;
+    auto iter = mi->map->inner.find(mi->last_key);
+    if (iter == mi->map->inner.end())
+      mi->last_key = Value(nullptr);
+    else {
+      iter++;
+      if (iter == mi->map->inner.end())
+        mi->last_key = Value(nullptr);
+      else
+        mi->last_key = iter->first;
+    }
+  }
+  return true;
+}
+
+static bool arrayiterator_hasnext(VM *vm, Value *slots) {
+  auto ai = slots[0].as_object()->as<ArrayIterator>();
+  vm->return_value = Value(ai->position < ai->array->inner.size());
+  return true;
+}
+
+static bool arrayiterator_next(VM *vm, Value *slots) {
+  auto ai = slots[0].as_object()->as<ArrayIterator>();
+  if (ai->position < ai->array->inner.size()) {
+    vm->return_value = ai->array->inner[ai->position];
+    ai->position++;
+  } else {
+    vm->return_value = Value::null();
+  }
+  return true;
+}
+
 bool sqrt(VM *vm, Value *slots) {
   auto num = slots[0];
   if (num.is_int()) {
@@ -846,6 +976,9 @@ void VM::declare_native_builtins() {
   DEFCLASS(Function)
   DEFCLASS(Module)
   DEFCLASS(Task)
+  DEFCLASS(Range)
+  DEFCLASS(ArrayIterator)
+  DEFCLASS(MapIterator)
 
 #undef DEFCLASS
 #define DECL_NATIVE_METHOD(class, method, arity, fn)                           \
@@ -871,6 +1004,18 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Array, construct, 0, array_construct);
   DECL_NATIVE_METHOD(Map, construct, 0, map_construct);
   DECL_NATIVE_METHOD(Object, construct, 0, object_construct);
+  DECL_NATIVE_METHOD(Range, construct, 2, range_construct);
+  DECL_NATIVE_METHOD(Symbol, construct, 1, symbol_construct);
+  DECL_NATIVE_METHOD(Range, hasNext, 0, range_hasnext);
+  DECL_NATIVE_METHOD(Range, next, 0, range_next);
+  DECL_NATIVE_METHOD(Range, iter, 0, range_iter);
+  DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
+  DECL_NATIVE_METHOD(Map, iter, 0, map_iter);
+  DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
+  DECL_NATIVE_METHOD(MapIterator, hasNext, 0, mapiterator_hasnext);
+  DECL_NATIVE_METHOD(MapIterator, next, 0, mapiterator_next);
+  DECL_NATIVE_METHOD(ArrayIterator, hasNext, 0, arrayiterator_hasnext);
+  DECL_NATIVE_METHOD(ArrayIterator, next, 0, arrayiterator_next);
 
   create_module("vm");
   create_module("math");
@@ -987,6 +1132,12 @@ Class *VM::get_class(Value v) const {
       return builtin_classes.Module;
     case Type::Task:
       return builtin_classes.Task;
+    case Type::Range:
+      return builtin_classes.Range;
+    case Type::ArrayIterator:
+      return builtin_classes.ArrayIterator;
+    case Type::MapIterator:
+      return builtin_classes.MapIterator;
     case Type::Instance:
       return o->as<Instance>()->class_;
     default:

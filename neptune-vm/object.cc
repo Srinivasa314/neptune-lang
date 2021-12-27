@@ -77,6 +77,12 @@ const char *Object::type_string() const {
     return "<internal type FunctionInfo>";
   case Type::UpValue:
     return "<internal type UpValue>";
+  case Type::Range:
+    return "Range";
+  case Type::ArrayIterator:
+    return "ArrayIterator";
+  case Type::MapIterator:
+    return "MapIterator";
   default:
     unreachable();
   }
@@ -223,6 +229,15 @@ void operator<<(ValueFormatter vf, Object *obj) {
     }
     break;
   }
+  case Type::Range:
+    vf.os << obj->as<Range>()->start << ".." << obj->as<Range>()->end;
+    break;
+  case Type::ArrayIterator:
+    vf.os << "<ArrayIterator>";
+    break;
+  case Type::MapIterator:
+    vf.os << "<MapIterator>";
+    break;
   default:
     unreachable();
   }
@@ -246,5 +261,14 @@ Instance::Instance(size_t size) { properties.reserve(size); }
 std::ostream &operator<<(std::ostream &os, StringSlice s) {
   os.write(s.data, std::streamsize(s.len));
   return os;
+}
+
+MapIterator::MapIterator(Map *map) {
+  this->map = map;
+  auto iter = map->inner.begin();
+  if (iter == map->inner.end())
+    last_key = Value(nullptr);
+  else
+    last_key = iter->first;
 }
 } // namespace neptune_vm

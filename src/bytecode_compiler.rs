@@ -936,74 +936,87 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 Statement::For {
                     iter,
-                    start,
-                    end,
+                    expr,
                     block,
-                    begin_line,
                     end_line,
                 } => {
-                    let start = self.evaluate_expr(start);
-                    if let Err(ref e) = start {
-                        self.error(e.clone());
-                    }
-                    self.locals.push(HashMap::default());
-                    let iter_reg = self.new_local(*begin_line, iter.clone(), false)?;
-                    if let Ok(start) = start {
-                        if let Err(e) =
-                            self.store_in_specific_register(start, iter_reg, *begin_line)
-                        {
-                            self.error(e);
+                    if let Expr::Binary {
+                        left: start,
+                        right: end,
+                        op: TokenType::DotDot,
+                        ..
+                    } = expr
+                    {
+                        let start = self.evaluate_expr(start);
+                        if let Err(ref e) = start {
+                            self.error(e.clone());
                         }
-                    }
-                    let end = self.evaluate_expr(end);
-                    if let Err(ref e) = end {
-                        self.error(e.clone());
-                    }
-                    let end_reg = self.new_local(*begin_line, "$end".into(), false)?;
-                    if let Ok(end) = end {
-                        if let Err(e) = self.store_in_specific_register(end, end_reg, *begin_line) {
-                            self.error(e);
-                        }
-                    }
-                    let c = self.reserve_int(*begin_line)?;
-                    let before_loop_prep = self.bytecode.size();
-                    self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, *begin_line);
-                    let loop_start = self.bytecode.size();
-                    self.loops.push(Loop::For {
-                        breaks: vec![],
-                        continues: vec![],
-                    });
-                    for stmt in block {
-                        self.evaluate_statement(stmt);
-                    }
-                    let last_block = self.locals.last().unwrap();
-                    if last_block.values().any(|l| l.is_captured) {
-                        self.write1(Op::Close, (self.regcount - 2) as u32, *end_line);
-                    }
-                    let loop_almost_end = self.bytecode.size();
-                    self.write2_u32(
-                        Op::ForLoop,
-                        (loop_almost_end - loop_start) as u32,
-                        iter_reg,
-                        *end_line,
-                    );
-                    let loop_end = self.bytecode.size();
-                    self.bytecode
-                        .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
-                    match self.loops.last().unwrap() {
-                        Loop::For { continues, breaks } => {
-                            for b in breaks.iter() {
-                                self.bytecode.patch_jump(*b, (loop_end - b) as u32);
-                            }
-                            for c in continues.iter() {
-                                self.bytecode.patch_jump(*c, (loop_almost_end - c) as u32);
+                        self.locals.push(HashMap::default());
+                        let iter_reg = self.new_local(expr.line(), iter.clone(), false)?;
+                        if let Ok(start) = start {
+                            if let Err(e) =
+                                self.store_in_specific_register(start, iter_reg, expr.line())
+                            {
+                                self.error(e);
                             }
                         }
-                        _ => unreachable!(),
+                        let end = self.evaluate_expr(end);
+                        if let Err(ref e) = end {
+                            self.error(e.clone());
+                        }
+                        let end_reg = self.new_local(expr.line(), "$end".into(), false)?;
+                        if let Ok(end) = end {
+                            if let Err(e) =
+                                self.store_in_specific_register(end, end_reg, expr.line())
+                            {
+                                self.error(e);
+                            }
+                        }
+                        let c = self.reserve_int(expr.line())?;
+                        let before_loop_prep = self.bytecode.size();
+                        self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, expr.line());
+                        let loop_start = self.bytecode.size();
+                        self.loops.push(Loop::For {
+                            breaks: vec![],
+                            continues: vec![],
+                        });
+                        for stmt in block {
+                            self.evaluate_statement(stmt);
+                        }
+                        let last_block = self.locals.last().unwrap();
+                        if last_block.values().any(|l| l.is_captured) {
+                            self.write1(Op::Close, (self.regcount - 2) as u32, *end_line);
+                        }
+                        let loop_almost_end = self.bytecode.size();
+                        self.write2_u32(
+                            Op::ForLoop,
+                            (loop_almost_end - loop_start) as u32,
+                            iter_reg,
+                            *end_line,
+                        );
+                        let loop_end = self.bytecode.size();
+                        self.bytecode
+                            .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
+                        match self.loops.last().unwrap() {
+                            Loop::For { continues, breaks } => {
+                                for b in breaks.iter() {
+                                    self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                }
+                                for c in continues.iter() {
+                                    self.bytecode.patch_jump(*c, (loop_almost_end - c) as u32);
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                        self.loops.pop();
+                        let last_block = self.locals.pop().unwrap();
+                        self.regcount -= last_block.len() as u16;
+                    } else {
+                        return Err(CompileError {
+                            message: "Not implemented yet".into(),
+                            line: expr.line(),
+                        });
                     }
-                    self.loops.pop();
-                    let last_block = self.locals.pop().unwrap();
-                    self.regcount -= last_block.len() as u16;
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
                 Statement::Continue { line } => self.continue_stmt(*line)?,
@@ -1354,6 +1367,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.store_in_accumulator(right, *line)?;
                     let end = self.bytecode.size();
                     self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
+                    Ok(ExprResult::Accumulator)
+                }
+                TokenType::DotDot => {
+                    let left = self.evaluate_expr(left)?;
+                    let left_reg = self.store_in_register(left, *line)?;
+                    let right = self.evaluate_expr(right)?;
+                    self.store_in_accumulator(right, *line)?;
+                    self.write1(Op::Range, left_reg as u32, *line);
+                    if !(matches!(left, ExprResult::Register(_))) {
+                        self.pop_register();
+                    }
                     Ok(ExprResult::Accumulator)
                 }
                 _ => unreachable!(),

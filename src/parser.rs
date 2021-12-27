@@ -22,6 +22,7 @@ enum Precedence {
     And,
     Equality,
     Comparison,
+    Range,
     Additive,
     Multiplicative,
     Unary,
@@ -97,6 +98,8 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Catch => Precedence::None,
         TokenType::Panic => Precedence::None,
         TokenType::Map => Precedence::None,
+        TokenType::DotDot => Precedence::Range,
+        TokenType::In => Precedence::None,
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -251,10 +254,8 @@ pub enum Statement {
         end_line: u32,
     },
     For {
-        begin_line: u32,
         iter: String,
-        start: Box<Expr>,
-        end: Box<Expr>,
+        expr: Expr,
         block: Vec<Statement>,
         end_line: u32,
     },
@@ -464,6 +465,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Catch => None,
             TokenType::Panic => None,
             TokenType::Map => Some(self.map()),
+            TokenType::DotDot => None,
+            TokenType::In => None,
         }
     }
 
@@ -535,6 +538,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Catch => unreachable!(),
             TokenType::Panic => unreachable!(),
             TokenType::Map => unreachable!(),
+            TokenType::DotDot => self.binary(left),
+            TokenType::In => unreachable!(),
         }
     }
 
@@ -1032,16 +1037,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     }
 
     fn for_loop(&mut self) -> CompileResult<Statement> {
-        let begin_line = self.previous.line;
         self.consume(TokenType::Identifier, "Expect identifier after for".into())?;
         let iter = self.previous.inner.to_string();
-        self.consume(TokenType::Equal, "Expect equal after loop variable".into())?;
-        let start = self.expression()?;
-        self.consume(
-            TokenType::Comma,
-            "Expect comma between initial and final values".into(),
-        )?;
-        let end = self.expression()?;
+        self.consume(TokenType::In, "Expect in after loop variable".into())?;
+        let expr = self.expression()?;
         self.ignore_newline();
         self.consume(
             TokenType::LeftBrace,
@@ -1050,10 +1049,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let block = self.block()?;
         let end_line = self.previous.line;
         Ok(Statement::For {
-            begin_line,
             iter,
-            start: Box::new(start),
-            end: Box::new(end),
+            expr,
             block,
             end_line,
         })

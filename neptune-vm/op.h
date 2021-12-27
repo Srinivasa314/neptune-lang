@@ -82,6 +82,7 @@
   OP(NewObject)                                                                \
   OP(MakeFunction)                                                             \
   OP(MakeClass)                                                                \
+  OP(Range)                                                                    \
   OP(ForLoop)                                                                  \
   OP(Jump)                                                                     \
   OP(JumpIfFalseOrNull)                                                        \

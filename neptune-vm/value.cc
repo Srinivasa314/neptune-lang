@@ -88,6 +88,7 @@ ALWAYS_INLINE bool Value::is_bool() const {
 ALWAYS_INLINE bool Value::is_true() const { return inner == VALUE_TRUE; }
 
 ALWAYS_INLINE bool Value::is_false() const { return inner == VALUE_FALSE; }
+ALWAYS_INLINE bool Value::is_empty() const { return inner == 0; }
 
 ALWAYS_INLINE void Value::inc() {
   assert(is_int());
@@ -152,6 +153,10 @@ ALWAYS_INLINE bool Value::is_bool() const {
 ALWAYS_INLINE bool Value::is_true() const { return tag == Tag::True; }
 
 ALWAYS_INLINE bool Value::is_false() const { return tag == Tag::False; }
+
+ALWAYS_INLINE bool Value::is_empty() const {
+  return tag == Tag::Object && value.as_object == nullptr;
+}
 
 ALWAYS_INLINE void Value::inc() {
   assert(is_int());

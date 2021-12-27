@@ -75,6 +75,7 @@ public:
   ALWAYS_INLINE bool is_bool() const;
   ALWAYS_INLINE bool is_true() const;
   ALWAYS_INLINE bool is_false() const;
+  ALWAYS_INLINE bool is_empty() const;
   ALWAYS_INLINE bool operator==(Value rhs) const;
   ALWAYS_INLINE const char *type_string() const;
   ALWAYS_INLINE void inc();
