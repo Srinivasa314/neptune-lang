@@ -167,10 +167,12 @@ enum BytecodeType {
 
 enum Loop {
     While {
+        start_reg: u16,
         loop_start: usize,
         breaks: Vec<usize>,
     },
     For {
+        start_reg: u16,
         continues: Vec<usize>,
         breaks: Vec<usize>,
     },
@@ -899,6 +901,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     let loop_start = self.bytecode.size();
                     self.loops.push(Loop::While {
+                        start_reg: self.regcount,
                         loop_start,
                         breaks: vec![],
                     });
@@ -977,6 +980,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, expr.line());
                         let loop_start = self.bytecode.size();
                         self.loops.push(Loop::For {
+                            start_reg: iter_reg,
                             breaks: vec![],
                             continues: vec![],
                         });
@@ -985,7 +989,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         let last_block = self.locals.last().unwrap();
                         if last_block.values().any(|l| l.is_captured) {
-                            self.write1(Op::Close, (self.regcount - 2) as u32, *end_line);
+                            self.write1(Op::Close, (iter_reg) as u32, *end_line);
                         }
                         let loop_almost_end = self.bytecode.size();
                         self.write2_u32(
@@ -998,7 +1002,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.bytecode
                             .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
                         match self.loops.last().unwrap() {
-                            Loop::For { continues, breaks } => {
+                            Loop::For {
+                                continues, breaks, ..
+                            } => {
                                 for b in breaks.iter() {
                                     self.bytecode.patch_jump(*b, (loop_end - b) as u32);
                                 }
@@ -1012,10 +1018,111 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         let last_block = self.locals.pop().unwrap();
                         self.regcount -= last_block.len() as u16;
                     } else {
-                        return Err(CompileError {
-                            message: "Not implemented yet".into(),
-                            line: expr.line(),
+                        let res = self.evaluate_expr(expr);
+                        if let Ok(res) = res {
+                            let reg = self.store_in_register(res, expr.line())?;
+                            let iter_property = self
+                                .bytecode
+                                .symbol_constant("iter".into())
+                                .map_err(|_| CompileError {
+                                    line: expr.line(),
+                                    message: "Cannot have more than 65535 constants per function"
+                                        .into(),
+                                })?;
+                            let start = self.regcount;
+                            self.push_register(expr.line())?;
+                            self.write3(Op::CallMethod, reg, iter_property, start, expr.line());
+                            self.bytecode.write_u8(0);
+                            self.pop_register();
+                            if !matches!(res, ExprResult::Register(_)) {
+                                self.pop_register();
+                            }
+                        } else if let Err(e) = res {
+                            self.error(e);
+                        }
+                        self.locals.push(HashMap::default());
+                        let iterator = self.new_local(expr.line(), "$iter".into(), false)?;
+                        self.store_in_specific_register(
+                            ExprResult::Accumulator,
+                            iterator,
+                            expr.line(),
+                        )?;
+
+                        let loop_start = self.bytecode.size();
+                        let hasnext_property = self
+                            .bytecode
+                            .symbol_constant("hasNext".into())
+                            .map_err(|_| CompileError {
+                                line: expr.line(),
+                                message: "Cannot have more than 65535 constants per function"
+                                    .into(),
+                            })?;
+                        let start = self.regcount;
+                        self.push_register(expr.line())?;
+                        self.write3(
+                            Op::CallMethod,
+                            iterator,
+                            hasnext_property,
+                            start,
+                            expr.line(),
+                        );
+                        self.bytecode.write_u8(0);
+                        self.pop_register();
+
+                        let c = self.reserve_int(expr.line())?;
+                        let loop_cond_check = self.bytecode.size();
+                        self.write1(Op::JumpIfFalseOrNullConstant, c as u32, expr.line());
+
+                        let iter_reg = self.new_local(expr.line(), iter.into(), false)?;
+                        let next_property =
+                            self.bytecode.symbol_constant("next".into()).map_err(|_| {
+                                CompileError {
+                                    line: expr.line(),
+                                    message: "Cannot have more than 65535 constants per function"
+                                        .into(),
+                                }
+                            })?;
+                        let start = self.regcount;
+                        self.push_register(expr.line())?;
+                        self.write3(Op::CallMethod, iterator, next_property, start, expr.line());
+                        self.bytecode.write_u8(0);
+                        self.pop_register();
+                        self.store_in_specific_register(
+                            ExprResult::Accumulator,
+                            iter_reg,
+                            expr.line(),
+                        )?;
+                        self.loops.push(Loop::While {
+                            start_reg: iter_reg,
+                            loop_start,
+                            breaks: vec![],
                         });
+                        for stmt in block {
+                            self.evaluate_statement(stmt);
+                        }
+                        let last_block = self.locals.last().unwrap();
+                        if last_block.values().any(|l| l.is_captured) {
+                            self.write1(Op::Close, (iter_reg) as u32, *end_line);
+                        }
+                        let almost_loop_end = self.bytecode.size();
+                        self.write1(
+                            Op::JumpBack,
+                            (almost_loop_end - loop_start) as u32,
+                            *end_line,
+                        );
+                        let loop_end = self.bytecode.size();
+                        self.bytecode
+                            .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
+                        match self.loops.last().unwrap() {
+                            Loop::While { breaks, .. } => {
+                                for b in breaks.iter() {
+                                    self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                        let last_block = self.locals.pop().unwrap();
+                        self.regcount -= last_block.len() as u16;
                     }
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
@@ -1227,9 +1334,31 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             });
         } else {
             let break_pos = self.bytecode.size();
+            let start;
             match self.loops.last_mut().unwrap() {
-                Loop::While { breaks, .. } => breaks.push(break_pos),
-                Loop::For { breaks, .. } => breaks.push(break_pos),
+                Loop::While {
+                    breaks, start_reg, ..
+                } => {
+                    start = *start_reg;
+                    if let Ok(_) = u8::try_from(start) {
+                        breaks.push(break_pos + 2)
+                    } else {
+                        breaks.push(break_pos + 3)
+                    }
+                }
+                Loop::For {
+                    breaks, start_reg, ..
+                } => {
+                    start = *start_reg;
+                    if let Ok(_) = u8::try_from(start) {
+                        breaks.push(break_pos + 2)
+                    } else {
+                        breaks.push(break_pos + 3)
+                    }
+                }
+            }
+            if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                self.write1(Op::Close, start as u32, line);
             }
             let c = self.reserve_int(line)?;
             self.write1(Op::JumpConstant, c.into(), line);
@@ -1245,14 +1374,34 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             });
         } else {
             match self.loops.last_mut().unwrap() {
-                Loop::While { loop_start, .. } => {
-                    let continue_pos = self.bytecode.size();
+                Loop::While {
+                    loop_start,
+                    start_reg,
+                    ..
+                } => {
+                    let start_reg = *start_reg;
                     let loop_start = *loop_start;
+                    if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                        self.write1(Op::Close, start_reg as u32, line);
+                    }
+                    let continue_pos = self.bytecode.size();
                     self.write1(Op::JumpBack, (continue_pos - loop_start) as u32, line);
                 }
-                Loop::For { continues, .. } => {
+                Loop::For {
+                    continues,
+                    start_reg,
+                    ..
+                } => {
+                    let start_reg = *start_reg;
                     let continue_pos = self.bytecode.size();
-                    continues.push(continue_pos);
+                    if let Ok(_) = u8::try_from(start_reg) {
+                        continues.push(continue_pos + 2);
+                    } else {
+                        continues.push(continue_pos + 3);
+                    }
+                    if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                        self.write1(Op::Close, start_reg as u32, line);
+                    }
                     let c = self.reserve_int(line)?;
                     self.write1(Op::JumpConstant, c.into(), line);
                 }
