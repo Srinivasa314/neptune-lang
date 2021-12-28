@@ -8,7 +8,7 @@
 #endif
 
 constexpr uint32_t WIDE_OFFSET =
-    static_cast<uint32_t>(neptune_vm::Op::Panic) + 1;
+    static_cast<uint32_t>(neptune_vm::Op::Throw) + 1;
 constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 #define WIDE(x) (static_cast<uint32_t>(x) + WIDE_OFFSET)
@@ -67,20 +67,32 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
     task->frames.push_back(Frame{bp, f, ip});                                  \
   } while (0)
 
-#define PANIC(fmt)                                                             \
+namespace neptune_vm {
+
+VM::VM()
+    : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
+      threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
+      last_native_function(nullptr), return_value(Value::null()) {
+  builtin_symbols.construct = intern("construct");
+  builtin_symbols.message = intern("message");
+  builtin_symbols.stack = intern("stack");
+  create_module("<prelude>");
+  declare_native_builtins();
+}
+
+#define THROW(type,fmt)                                                             \
   do {                                                                         \
-    panic_message << fmt;                                                      \
-    if ((ip = panic(ip)) != nullptr) {                                         \
+    throw_message << fmt;                                                      \
+    if ((ip = throw_(ip,type)) != nullptr) {                                        \
       bp = task->frames.back().bp;                                             \
       auto f = task->frames.back().f;                                          \
       constants = f->function_info->constants.data();                          \
       DISPATCH();                                                              \
     } else {                                                                   \
-      goto panic_end;                                                          \
+      goto throw_end;                                                          \
     }                                                                          \
   } while (0)
 
-namespace neptune_vm {
 VMStatus VM::run(Task *task, Function *f) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
@@ -175,11 +187,13 @@ end:
   is_running = false;
   return_value = accumulator;
   return VMStatus::Success;
-panic_end:
+throw_end:
   is_running = false;
   return VMStatus::Error;
 }
 #undef READ
+#undef THROW
+
 void Task::close(Value *last) {
   while (open_upvalues != nullptr && open_upvalues->location >= last) {
     open_upvalues->closed = *open_upvalues->location;
@@ -187,6 +201,7 @@ void Task::close(Value *last) {
     open_upvalues = open_upvalues->next;
   }
 }
+
 bool VM::add_module_variable(StringSlice module, StringSlice name,
                              bool mutable_, bool exported) const {
   auto module_iter = modules.find(module);
@@ -633,14 +648,17 @@ static uint32_t get_line_number(FunctionInfo *f, const uint8_t *ip) {
   }
 }
 
-std::string VM::generate_stack_trace() {
+std::string VM::generate_stack_trace(bool include_native_function,
+                                     uint32_t depth) {
   std::ostringstream os;
-  if (last_native_function != nullptr) {
+  if (include_native_function && last_native_function != nullptr) {
     os << "at " << last_native_function->name << " ("
        << last_native_function->module_name << ")\n";
     last_native_function = nullptr;
   }
-  for (auto frame = current_task->frames.rbegin();
+  if (depth > current_task->frames.size())
+    return "";
+  for (auto frame = current_task->frames.rbegin() + depth;
        frame != current_task->frames.rend(); frame++) {
     os << "at " << frame->f->function_info->name << " ("
        << frame->f->function_info->module << ':'
@@ -649,16 +667,15 @@ std::string VM::generate_stack_trace() {
   return os.str();
 }
 
-const uint8_t *VM::panic(const uint8_t *ip) {
-  auto message = panic_message.str();
-  panic_message.str("");
-  return panic(ip, Value(allocate<String>(std::move(message))));
+const uint8_t *VM::throw_(const uint8_t *ip, const char *type) {
+  auto message = throw_message.str();
+  throw_message.str("");
+  return throw_(ip, create_error(type, message));
 }
 
-const uint8_t *VM::panic(const uint8_t *ip, Value v) {
+const uint8_t *VM::throw_(const uint8_t *ip, Value v) {
   auto task = current_task;
   task->frames.back().ip = ip;
-  stack_trace = generate_stack_trace();
   do {
     auto frame = task->frames.back();
     auto bytecode = frame.f->function_info->bytecode.data();
@@ -694,88 +711,115 @@ bool VM::declare_native_function(std::string module, std::string name,
 }
 
 namespace native_builtins {
+
+#define THROW(class, message)                                                  \
+  do {                                                                         \
+    std::ostringstream os;                                                     \
+    os << message;                                                             \
+    vm->return_value = vm->create_error(class, os.str());                      \
+    return false;                                                              \
+  } while (0)
+
 static bool object_tostring(VM *vm, Value *slots) {
   vm->return_value = vm->to_string(slots[0]);
   return true;
 }
+
 static bool object_getclass(VM *vm, Value *slots) {
   vm->return_value = Value(vm->get_class(slots[0]));
   return true;
 }
+
+static bool class_name(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(vm->allocate<String>(slots[0].as_object()->as<Class>()->name));
+  return true;
+}
+
 static bool array_pop(VM *vm, Value *slots) {
   auto &arr = slots[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
-    vm->return_value = Value(vm->allocate<String>("Array is empty"));
-    return false;
+    THROW("IndexError", "Cannot pop from empty array");
   }
   vm->return_value = arr.back();
   arr.pop_back();
   return true;
 }
+
 static bool array_push(VM *vm, Value *slots) {
   slots[0].as_object()->as<Array>()->inner.push_back(slots[1]);
   vm->return_value = Value::null();
   return true;
 }
+
 static bool array_length(VM *vm, Value *slots) {
   vm->return_value = Value(
       static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
   return true;
 }
+
 static bool int_construct(VM *vm, Value *) {
   vm->return_value = Value(0);
   return true;
 }
+
 static bool float_construct(VM *vm, Value *) {
   vm->return_value = Value(0.0);
   return true;
 }
+
 static bool bool_construct(VM *vm, Value *) {
   vm->return_value = Value(false);
   return true;
 }
+
 static bool null_construct(VM *vm, Value *) {
   vm->return_value = Value::null();
   return true;
 }
+
 static bool string_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<String>(""));
   return true;
 }
+
 static bool array_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Array>());
   return true;
 }
+
 static bool map_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Map>());
   return true;
 }
+
 static bool object_construct(VM *vm, Value *) {
-  vm->return_value = Value(vm->allocate<Instance>());
+  auto obj = vm->allocate<Instance>();
+  obj->class_ = vm->builtin_classes.Object;
+  vm->return_value = Value(obj);
   return true;
 }
+
 static bool range_construct(VM *vm, Value *slots) {
   if (slots[1].is_int() && slots[2].is_int()) {
     vm->return_value =
         Value(vm->allocate<Range>(slots[1].as_int(), slots[2].as_int()));
     return true;
   } else {
-    std::ostringstream os;
-    os << "Expected Int and Int for the start and end of the range got "
-       << slots[1].type_string() << " and " << slots[2].type_string()
-       << " instead";
-    vm->return_value = Value(vm->allocate<String>(os.str()));
-    return false;
+    THROW("TypeError",
+          "Expected Int and Int for the start and end of the range got "
+              << slots[1].type_string() << " and " << slots[2].type_string()
+              << " instead");
   }
 }
+
 static bool symbol_construct(VM *vm, Value *slots) {
   if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
     vm->return_value = Value(vm->intern(*slots[1].as_object()->as<String>()));
     return true;
   } else {
-    vm->return_value = Value(
-        vm->allocate<String>("Symbol can only be constructed from String"));
-    return false;
+    THROW("TypeError", "The first argument must be a String, not "
+                           << slots[1].type_string());
   }
 }
 
@@ -862,25 +906,21 @@ bool sqrt(VM *vm, Value *slots) {
     vm->return_value = Value(std::sqrt(num.as_float()));
     return true;
   } else {
-    std::ostringstream os;
-    os << "Cannot find sqrt of " << num.type_string();
-    vm->return_value = Value(vm->allocate<String>(os.str()));
-    return false;
+    THROW("TypeError", "The first argument must be a Int or Float, not "
+                           << slots[1].type_string());
   }
 }
+
 static bool disassemble(VM *vm, Value *slots) {
   auto fn = slots[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
     std::ostringstream os;
     neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
-    auto str = os.str();
-    vm->return_value = Value(vm->allocate<String>(str));
+    vm->return_value = Value(vm->allocate<String>(os.str()));
     return true;
   } else {
-    std::ostringstream os;
-    os << "Cannot disassemble " << fn.type_string();
-    vm->return_value = Value(vm->allocate<String>(os.str()));
-    return false;
+    THROW("TypeError", "The first argument must be a Function, not "
+                           << slots[0].type_string());
   }
 }
 
@@ -900,16 +940,14 @@ static bool _getModule(VM *vm, Value *slots) {
       vm->return_value = Value(module);
     return true;
   } else {
-    vm->return_value =
-        Value(vm->allocate<String>("First argument must be a string"));
-    return false;
+    THROW("TypeError", "The first argument must be a Function, not "
+                           << slots[0].type_string());
   }
 }
 
 static bool _getCallerModule(VM *vm, Value *) {
   if (vm->current_task->frames.size() < 2) {
-    vm->return_value = Value(vm->allocate<String>("No caller exists"));
-    return false;
+    THROW("Error", "Function doesnt have caller");
   } else {
     vm->return_value = Value(vm->allocate<String>(
         vm->current_task->frames[vm->current_task->frames.size() - 2]
@@ -922,9 +960,9 @@ static bool ecall(VM *vm, Value *slots) {
   if (slots[0].is_object() && slots[0].as_object()->is<Symbol>()) {
     auto efunc_iter = vm->efuncs.find(slots[0].as_object()->as<Symbol>());
     if (efunc_iter == vm->efuncs.end()) {
-      vm->return_value =
-          Value(vm->allocate<String>("Attempt to call unknown efunc"));
-      return false;
+      THROW("Error", "Cannot find EFunc "
+                         << StringSlice(*slots[0].as_object()->as<Symbol>()));
+
     } else {
       auto task = vm->current_task;
       auto efunc = efunc_iter->second;
@@ -941,11 +979,23 @@ static bool ecall(VM *vm, Value *slots) {
       return result;
     }
   } else {
-    vm->return_value =
-        Value(vm->allocate<String>("Attempt to call unknown efunc"));
-    return false;
+    THROW("TypeError", "The first argument must be a Symbol, not "
+                           << slots[0].type_string());
   }
 }
+
+static bool generateStackTrace(VM *vm, Value *slots) {
+  if (slots[0].is_int()) {
+    vm->return_value = Value(vm->allocate<String>(
+        vm->generate_stack_trace(false, slots[0].as_int())));
+    return true;
+  } else {
+    THROW("TypeError",
+          "The first argument must be a Int, not " << slots[0].type_string());
+  }
+}
+
+#undef THROW
 } // namespace native_builtins
 
 void VM::declare_native_builtins() {
@@ -1016,6 +1066,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(MapIterator, next, 0, mapiterator_next);
   DECL_NATIVE_METHOD(ArrayIterator, hasNext, 0, arrayiterator_hasnext);
   DECL_NATIVE_METHOD(ArrayIterator, next, 0, arrayiterator_next);
+  DECL_NATIVE_METHOD(Class_, name, 0, class_name);
 
   create_module("vm");
   create_module("math");
@@ -1024,6 +1075,9 @@ void VM::declare_native_builtins() {
   declare_native_function("vm", "gc", true, 0, native_builtins::gc);
   declare_native_function("math", "sqrt", true, 1, native_builtins::sqrt);
   declare_native_function("vm", "ecall", true, 2, native_builtins::ecall);
+  declare_native_function("vm", "generateStackTrace", true, 1,
+                          native_builtins::generateStackTrace);
+
   declare_native_function("<prelude>", "_getModule", false, 1,
                           native_builtins::_getModule);
   declare_native_function("<prelude>", "_getCallerModule", false, 0,
@@ -1192,5 +1246,80 @@ bool VM::create_efunc(StringSlice name, EFuncCallback *callback, Data *data,
   auto name_sym = this_->intern(name);
   this_->efuncs.insert({name_sym, EFunc{callback, data, free_data}});
   return true;
+}
+
+Value VM::create_error(StringSlice type, StringSlice message) {
+  try {
+    auto class_val =
+        module_variables[get_module_variable("<prelude>", type).position];
+    if (class_val.is_object() && class_val.as_object()->is<Class>()) {
+      Class *class_ = class_val.as_object()->as<Class>();
+      if (class_->is_native)
+        return Value::null();
+      auto error = allocate<Instance>();
+      error->class_ = class_;
+      temp_roots.push_back(Value(error));
+      error->properties[builtin_symbols.message] =
+          Value(allocate<String>(message));
+      auto stack_trace = generate_stack_trace(true, 0);
+      error->properties[builtin_symbols.stack] =
+          Value(allocate<String>(std::move(stack_trace)));
+      temp_roots.pop_back();
+      return Value(error);
+    } else
+      return Value::null();
+  } catch (...) {
+    return Value::null();
+  }
+}
+
+static bool is_descendant(Class *base, Class *c) {
+  if (c == nullptr)
+    return false;
+  if (c == base)
+    return true;
+  else
+    return is_descendant(base, c->super);
+}
+
+std::string VM::report_error(Value error) {
+  auto error_class_val =
+      module_variables[get_module_variable("<prelude>", "Error").position];
+  if (error_class_val.is_object() && error_class_val.as_object()->is<Class>()) {
+    auto error_class = error_class_val.as_object()->as<Class>();
+    if (error_class->is_native)
+      throw std::runtime_error("Expect Error class to not be native");
+    auto class_ = get_class(error);
+    if (is_descendant(error_class, class_)) {
+      std::ostringstream os;
+      os << class_->name << ": ";
+      auto error_object = error.as_object()->as<Instance>();
+      auto message_iter =
+          error_object->properties.find(builtin_symbols.message);
+      if (message_iter != error_object->properties.end()) {
+        auto message = message_iter->second;
+        if (message.is_object() && message.as_object()->is<String>())
+          os << StringSlice(*message.as_object()->as<String>());
+        else
+          os << message;
+      }
+      os << '\n';
+      auto stack_iter = error_object->properties.find(builtin_symbols.stack);
+      if (stack_iter != error_object->properties.end()) {
+        auto stack = stack_iter->second;
+        if (stack.is_object() && stack.as_object()->is<String>())
+          os << StringSlice(*stack.as_object()->as<String>());
+        else
+          os << stack;
+      }
+      return os.str();
+    } else {
+      std::ostringstream os;
+      os << error;
+      return os.str();
+    }
+  } else {
+    throw std::runtime_error("Expect Error to be a class");
+  }
 }
 } // namespace neptune_vm

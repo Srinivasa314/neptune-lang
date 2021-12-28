@@ -80,7 +80,7 @@ pub enum TokenType {
     While,
     Try,
     Catch,
-    Panic,
+    Throw,
     Map,
     //Other types
     Interpolation, // It stores
@@ -111,7 +111,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "let" => TokenType::Let,
     "while" => TokenType::While,
     "try" => TokenType::Try,
-    "panic" => TokenType::Panic,
+    "throw" => TokenType::Throw,
     "catch" => TokenType::Catch,
     "in" => TokenType::In,
     "Map"=> TokenType::Map,

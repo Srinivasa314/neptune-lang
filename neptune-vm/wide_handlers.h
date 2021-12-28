@@ -14,9 +14,10 @@ handler(Move, {
     int res;                                                                   \
     if (accumulator.is_int() && bp[reg].is_int()) {                            \
       if (unlikely(!intfn(bp[reg].as_int(), accumulator.as_int(), res)))       \
-        PANIC("Cannot " #opname " "                                            \
-              << bp[reg].as_int() << " and " << accumulator.as_int()           \
-              << " as the result does not fit in an Int");                     \
+        THROW("OverflowError",                                                 \
+              "Cannot " #opname " "                                            \
+                  << bp[reg].as_int() << " and " << accumulator.as_int()       \
+                  << " as the result does not fit in an Int");                 \
       accumulator = Value(res);                                                \
     } else if (accumulator.is_float() && bp[reg].is_float()) {                 \
       accumulator = Value(bp[reg].as_float() op accumulator.as_float());       \
@@ -25,8 +26,9 @@ handler(Move, {
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
       accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
     } else {                                                                   \
-      PANIC("Cannot " #opname " types " << bp[reg].type_string() << " and "    \
-                                        << accumulator.type_string());         \
+      THROW("TypeError", "Cannot " #opname " types "                           \
+                             << bp[reg].type_string() << " and "               \
+                             << accumulator.type_string());                    \
     }                                                                          \
   } while (0)
 
@@ -42,8 +44,9 @@ handler(Move, {
     } else if (accumulator.is_float() && bp[reg].is_int()) {                   \
       accumulator = Value(bp[reg].as_int() op accumulator.as_float());         \
     } else {                                                                   \
-      PANIC("Cannot compare types " << bp[reg].type_string() << " and "        \
-                                    << accumulator.type_string());             \
+      THROW("TypeError", "Cannot compare types "                               \
+                             << bp[reg].type_string() << " and "               \
+                             << accumulator.type_string());                    \
     }                                                                          \
   } while (0)
 
@@ -56,7 +59,8 @@ handler(ModRegister, {
   if (accumulator.is_int() && bp[reg].is_int()) {
     int res;
     if (unlikely(!SafeModulus(bp[reg].as_int(), accumulator.as_int(), res)))
-      PANIC("Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
+      THROW("TypeError",
+            "Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
                           << " as the result does not fit in an Int");
     accumulator = Value(res);
   } else if (accumulator.is_float() && bp[reg].is_float()) {
@@ -66,8 +70,8 @@ handler(ModRegister, {
   } else if (accumulator.is_float() && bp[reg].is_int()) {
     accumulator = Value(fmod(bp[reg].as_int(), accumulator.as_float()));
   } else {
-    PANIC("Cannot mod types " << bp[reg].type_string() << " and "
-                              << accumulator.type_string());
+    THROW("TypeError", "Cannot mod types " << bp[reg].type_string() << " and "
+                                           << accumulator.type_string());
   }
 });
 handler(ConcatRegister, {
@@ -77,8 +81,9 @@ handler(ConcatRegister, {
     accumulator = Value(concat(bp[reg].as_object()->as<String>(),
                                accumulator.as_object()->as<String>()));
   } else {
-    PANIC("Cannot concat types " << bp[reg].type_string() << " and "
-                                 << accumulator.type_string());
+    THROW("TypeError", "Cannot concat types " << bp[reg].type_string()
+                                              << " and "
+                                              << accumulator.type_string());
   }
 });
 handler(Equal, accumulator = Value(bp[READ(utype)] == accumulator););
@@ -97,7 +102,8 @@ callop : {
       auto f = accumulator.as_object()->as<Function>();
       auto arity = f->function_info->arity;
       if (unlikely(arity != callop_nargs))
-        PANIC("Function " << f->function_info->name << " takes "
+        THROW("ArgumentError",
+              "Function " << f->function_info->name << " takes "
                           << static_cast<uint32_t>(arity) << " arguments but "
                           << static_cast<uint32_t>(callop_nargs)
                           << " were given");
@@ -108,7 +114,8 @@ callop : {
       auto f = accumulator.as_object()->as<NativeFunction>();
       auto arity = f->arity;
       if (unlikely(arity != callop_nargs))
-        PANIC("Function " << f->name << " takes "
+        THROW("ArgumentError",
+              "Function " << f->name << " takes "
                           << static_cast<uint32_t>(arity) << " arguments but "
                           << static_cast<uint32_t>(callop_nargs)
                           << " were given");
@@ -119,20 +126,22 @@ callop : {
       return_value = Value::null();
       bp = bp + (task->stack_top - old_stack_top);
       if (!ok) {
-        if ((ip = panic(ip, accumulator)) != nullptr) {
+        if ((ip = throw_(ip, accumulator)) != nullptr) {
           bp = task->frames.back().bp;
           auto f = task->frames.back().f;
           constants = f->function_info->constants.data();
           DISPATCH();
         } else
-          goto panic_end;
+          goto throw_end;
       }
       last_native_function = nullptr;
     } else {
-      PANIC(accumulator.type_string() << " is not callable");
+      THROW("TypeError",
+            "Type" << accumulator.type_string() << " is not callable");
     }
   } else {
-    PANIC(accumulator.type_string() << " is not callable");
+    THROW("TypeError",
+          "Type" << accumulator.type_string() << " is not callable");
   }
   DISPATCH();
 }
@@ -165,7 +174,8 @@ handler(CallMethod, {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(member);
     if (iter == module->module_variables.end() || !iter->second.exported)
-      PANIC("Module " << module->name << " does not export any variable named "
+      THROW("NoModuleVariableError",
+            "Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*member));
     else
       accumulator = module_variables[iter->second.position];
@@ -177,8 +187,8 @@ handler(CallMethod, {
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(member) == instance->properties.end())
-      PANIC("object does not have any property named "
-            << static_cast<StringSlice>(*member));
+      THROW("PropertyError", "object does not have any property named "
+                                 << static_cast<StringSlice>(*member));
     else
       accumulator = instance->properties[member];
     callop_offset++;
@@ -187,8 +197,8 @@ handler(CallMethod, {
     goto callop;
 
   } else {
-    PANIC(class_->name << " does not have method named "
-                       << static_cast<StringSlice>(*member));
+    THROW("NoMethodError", class_->name << " does not have method named "
+                                        << static_cast<StringSlice>(*member));
   }
 });
 
@@ -208,8 +218,8 @@ handler(SuperCall, {
     goto callop;
 
   } else {
-    PANIC(class_->name << " does not have method named "
-                       << static_cast<StringSlice>(*member));
+    THROW("NoMethodError", class_->name << " does not have method named "
+                                        << static_cast<StringSlice>(*member));
   }
 });
 
@@ -236,11 +246,12 @@ handler(Construct, {
       callop_nargs = n;
       goto callop;
     } else {
-      PANIC("Class " << class_->name << " does not have a constructor");
+      THROW("NoMethodError",
+            "Class " << class_->name << " does not have a constructor");
     }
   } else {
-    PANIC("new can be called only on classes not "
-          << accumulator.type_string());
+    THROW("TypeError", "new can be called only on classes not "
+                           << accumulator.type_string());
   }
 });
 
@@ -259,11 +270,12 @@ handler(LoadSubscript, {
         auto i = accumulator.as_int();
         auto a = obj.as_object()->as<Array>();
         if (unlikely(i < 0 || static_cast<size_t>(i) >= a->inner.size()))
-          PANIC("Array index out of range");
+          THROW("IndexError", "Array index out of range");
         else
           accumulator = a->inner[static_cast<size_t>(i)];
       } else {
-        PANIC("Array indices must be Int not " << accumulator.type_string());
+        THROW("TypeError",
+              "Array indices must be Int not " << accumulator.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto &m = obj.as_object()->as<Map>()->inner;
@@ -272,12 +284,12 @@ handler(LoadSubscript, {
       if (likely(it != m.end()))
         accumulator = it->second;
       else
-        PANIC("Key " << accumulator << " does not exist in map");
+        THROW("KeyError", "Key " << accumulator << " does not exist in map");
     } else {
-      PANIC("Cannot index type " << obj.type_string());
+      THROW("TypeError", "Cannot index type " << obj.type_string());
     }
   } else {
-    PANIC("Cannot index type " << obj.type_string());
+    THROW("TypeError", "Cannot index type " << obj.type_string());
   }
 });
 
@@ -296,20 +308,21 @@ handler(StoreSubscript, {
         auto i = subscript.as_int();
         auto &a = obj.as_object()->as<Array>()->inner;
         if (unlikely(i < 0 || static_cast<size_t>(i) >= a.size()))
-          PANIC("Array index out of range");
+          THROW("IndexError", "Array index out of range");
         else
           a[static_cast<size_t>(i)] = accumulator;
       } else {
-        PANIC("Array indices must be Int not" << subscript.type_string());
+        THROW("TypeError",
+              "Array indices must be Int not" << subscript.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto m = obj.as_object()->as<Map>();
       m->inner[subscript] = accumulator;
     } else {
-      PANIC("Cannot index type " << obj.type_string());
+      THROW("TypeError", "Cannot index type " << obj.type_string());
     }
   } else {
-    PANIC("Cannot index type " << obj.type_string());
+    THROW("TypeError", "Cannot index type " << obj.type_string());
   }
 });
 
@@ -384,9 +397,10 @@ handler(BeginForLoop, {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
-    PANIC("Expected Int and Int for the start and end of for loop got "
-          << bp[iter].type_string() << " and " << bp[end].type_string()
-          << " instead");
+    THROW("TypeError",
+          "Expected Int and Int for the start and end of for loop got "
+              << bp[iter].type_string() << " and " << bp[end].type_string()
+              << " instead");
   }
 });
 handler(BeginForLoopConstant, {
@@ -398,9 +412,10 @@ handler(BeginForLoopConstant, {
       ip += (offset - (1 + 2 * sizeof(utype) + header_size<utype>()));
     }
   } else {
-    PANIC("Expected Int and Int for the start and end of for loop got "
-          << bp[iter].type_string() << " and " << bp[end].type_string()
-          << " instead");
+    THROW("TypeError",
+          "Expected Int and Int for the start and end of for loop got "
+              << bp[iter].type_string() << " and " << bp[end].type_string()
+              << " instead");
   }
 });
 
@@ -416,10 +431,11 @@ handler(MakeClass, {
   if (accumulator.is_object() && accumulator.as_object()->is<Class>()) {
     auto parent = accumulator.as_object()->as<Class>();
     if (parent != builtin_classes.Object && parent->is_native)
-      PANIC("Cannot inherit from native class " << parent->name);
+      THROW("TypeError", "Cannot inherit from native class " << parent->name);
     class_->super = parent;
   } else
-    PANIC("Expected to inherit from Class got " << accumulator.type_string());
+    THROW("TypeError",
+          "Expected to inherit from Class got " << accumulator.type_string());
   for (auto p : class_->methods)
     if (p.second->is<FunctionInfo>()) {
       class_->methods[p.first] =
@@ -444,19 +460,21 @@ handler(LoadProperty, {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(property);
     if (iter == module->module_variables.end() || !iter->second.exported)
-      PANIC("Module " << module->name << " does not export any variable named "
+      THROW("NoModuleVariableError",
+            "Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*property));
     else
       accumulator = module_variables[iter->second.position];
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(property) == instance->properties.end())
-      PANIC("object does not have any property named "
-            << static_cast<StringSlice>(*property));
+      THROW("PropertyError", "object does not have any property named "
+                                 << static_cast<StringSlice>(*property));
     else
       accumulator = instance->properties[property];
   } else {
-    PANIC("Cannot get property from type " << object.type_string());
+    THROW("TypeError",
+          "Cannot get property from type " << object.type_string());
   }
 });
 
@@ -467,7 +485,7 @@ handler(StoreProperty, {
     auto instance = object.as_object()->as<Instance>();
     instance->properties[property] = accumulator;
   } else {
-    PANIC("Cannot set property for type " << object.type_string());
+    THROW("TypeError", "Cannot set property for type " << object.type_string());
   }
 });
 
@@ -477,8 +495,9 @@ handler(Range, {
   if (left.is_int() && right.is_int()) {
     accumulator = Value(allocate<Range>(left.as_int(), right.as_int()));
   } else {
-    PANIC("Expected Int and Int for the start and end of the range got "
-          << left.type_string() << " and " << right.type_string()
-          << " instead");
+    THROW("TypeError",
+          "Expected Int and Int for the start and end of the range got "
+              << left.type_string() << " and " << right.type_string()
+              << " instead");
   }
 });

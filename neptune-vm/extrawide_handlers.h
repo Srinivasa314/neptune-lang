@@ -7,16 +7,17 @@ handler(StoreModuleVariable, module_variables[READ(utype)] = accumulator;);
       int result;                                                              \
       int i = READ(itype);                                                     \
       if (unlikely(!intfn(accumulator.as_int(), i, result))) {                 \
-        PANIC("Cannot " #opname " "                                            \
-              << accumulator.as_int() << " and " << i                          \
-              << " as the result does not fit in an Int");                     \
+        THROW("OverflowError",                                                 \
+              "Cannot " #opname " "                                            \
+                  << accumulator.as_int() << " and " << i                      \
+                  << " as the result does not fit in an Int");                 \
       }                                                                        \
       accumulator = Value(result);                                             \
     } else if (accumulator.is_float()) {                                       \
       accumulator = Value(accumulator.as_float() op READ(itype));              \
     } else {                                                                   \
-      PANIC("Cannot " #opname " types " << accumulator.type_string()           \
-                                        << " and Int");                        \
+      THROW("TypeError", "Cannot " #opname " types "                           \
+                             << accumulator.type_string() << " and Int");      \
     }                                                                          \
   } while (0)
 
@@ -29,14 +30,16 @@ handler(ModInt, {
     int result;
     int i = READ(itype);
     if (unlikely(!SafeModulus(accumulator.as_int(), i, result))) {
-      PANIC("Cannot mod " << accumulator.as_int() << " and " << i
-                          << " as the result does not fit in an Int");
+      THROW("TypeError", "Cannot mod types "
+                             << accumulator.as_int() << " and " << i
+                             << " as the result does not fit in an Int");
     }
     accumulator = Value(result);
   } else if (accumulator.is_float()) {
     accumulator = Value(fmod(accumulator.as_float(), READ(itype)));
   } else {
-    PANIC("Cannot mod types " << accumulator.type_string() << " and Int");
+    THROW("TypeError",
+          "Cannot mod types " << accumulator.type_string() << " and Int");
   }
 });
 

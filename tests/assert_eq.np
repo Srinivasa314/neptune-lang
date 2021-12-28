@@ -1,6 +1,6 @@
 fun assert_eq(x,y){
     if x!=y{
-        panic "Assertion failed: \(x)==\(y)"
+        throw "Assertion failed: \(x)==\(y)"
     }
 }
 

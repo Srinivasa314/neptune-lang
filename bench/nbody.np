@@ -133,4 +133,4 @@ for i=0,N{
     advance(bodies, nbody, 0.01)
 }
 str~="\(energy(bodies, nbody))"
-panic str    
+throw str    

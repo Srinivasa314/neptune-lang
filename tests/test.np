@@ -1,6 +1,6 @@
 fun assert_eq(x,y){
     if x!=y{
-        panic "Assertion failed: \(x)==\(y)"
+        throw "Assertion failed: \(x)==\(y)"
     }
 }
 
@@ -11,11 +11,11 @@ fun assert_failed(f,err){
     }catch e{
         handled=true
         if err!=e{
-            panic "Assertion failed: \(e)==\(err)"
+            throw "Assertion failed: \(e)==\(err)"
         }
     }
     if !handled{
-        panic "Assertion failed: Expected it to panic"
+        throw "Assertion failed: Expected it to throw"
     }
 }
 
@@ -138,7 +138,7 @@ assert_eq(g3(),5)
 fun f2(){
     let a=17
     g=||a
-    panic ''
+    throw ''
 }
 try{
     f2()
@@ -146,7 +146,7 @@ try{
 catch e{}
 assert_eq(g(),17)
 
-try{try{panic ''}catch e{g=10}}catch e{g=20}
+try{try{throw ''}catch e{g=10}}catch e{g=20}
 assert_eq(g,10)
 
 a=[1,2]

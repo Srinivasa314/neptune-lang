@@ -5,11 +5,11 @@ fun assert_failed(f,err){
     }catch e{
         handled=true
         if err!=e{
-            panic "Assertion failed: \(e)==\(err)"
+            throw "Assertion failed: \(e)==\(err)"
         }
     }
     if !handled{
-        panic "Assertion failed: Expected it to panic"
+        throw "Assertion failed: Expected it to throw"
     }
 }
 

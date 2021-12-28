@@ -72,7 +72,9 @@ EFuncStatus EFuncContext::set_object_property(StringSlice s) {
 }
 
 void EFuncContext::push_empty_object() {
-  push(Value(vm->allocate<Instance>()));
+  auto obj = vm->allocate<Instance>();
+  obj->class_ = vm->builtin_classes.Object;
+  push(Value(obj));
 }
 
 void EFuncContext::push_empty_map() { push(Value(vm->allocate<Map>())); }

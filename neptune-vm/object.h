@@ -222,6 +222,6 @@ struct BuiltinClasses {
   }
 };
 struct BuiltinSymbols {
-  Symbol *construct;
+  Symbol *construct, *message, *stack;
 };
 } // namespace neptune_vm

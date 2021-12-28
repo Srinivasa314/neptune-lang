@@ -489,7 +489,7 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
       break;
       CASE(Return);
       break;
-      CASE(Panic);
+      CASE(Throw);
       break;
 
       CASE(LoadR0);

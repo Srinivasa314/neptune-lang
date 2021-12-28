@@ -1,4 +1,68 @@
-const {ecall} = _getModule('vm')
+const {ecall, generateStackTrace} = _getModule('vm')
+
+export class Error {
+    construct(message) {
+        this.message = message
+        this.stack = generateStackTrace(1)
+    }
+    toString() {
+        return '\(this.getClass().name()): \(this.message)\n\(this.stack)'
+    }
+}
+
+export class OverflowError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class TypeError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class ArgumentError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class PropertyError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class NoMethodError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class NoModuleVariableError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class IndexError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class KeyError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
+
+export class CompileError extends Error {
+    construct(message) {
+        super.construct(message)
+    }
+}
 
 export fun import(moduleName) {
     let module = _getModule(moduleName)

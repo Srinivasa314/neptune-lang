@@ -40,13 +40,16 @@ handler(
     if (accumulator.is_int()) {
       int result;
       if (unlikely(!SafeNegation(accumulator.as_int(), result))) {
-        PANIC("Cannot negate " << accumulator.as_int()
+        THROW("TypeError", "Cannot negate "
+                               << accumulator.as_int()
                                << " as the result cannot be stored in an Int");
       }
       accumulator = Value(result);
     } else if (accumulator.is_float()) {
       accumulator = Value(-accumulator.as_float());
-    } else { PANIC("Cannot negate type " << accumulator.type_string()); });
+    } else {
+      THROW("TypeError", "Cannot negate type " << accumulator.type_string());
+    });
 handler(Not, {
   if (accumulator.is_null_or_false()) {
     accumulator = Value(true);
@@ -70,12 +73,12 @@ handler(Return, {
   }
 });
 
-handler(Panic, {
-  if ((ip = panic(ip, accumulator)) != nullptr) {
+handler(Throw, {
+  if ((ip = throw_(ip, accumulator)) != nullptr) {
     bp = task->frames.back().bp;
     auto f = task->frames.back().f;
     constants = f->function_info->constants.data();
   } else {
-    goto panic_end;
+    goto throw_end;
   }
 });

@@ -182,7 +182,7 @@ mod ffi {
         BeginForLoopConstant,
         Close,
         Return,
-        Panic,
+        Throw,
     }
 
     #[repr(u8)]
@@ -277,7 +277,6 @@ mod ffi {
             catch_begin: u32,
         );
         fn size(self: &FunctionInfoWriter) -> usize;
-        fn get_stack_trace(self: &VM) -> String;
         fn get_result(self: &VM) -> String;
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);

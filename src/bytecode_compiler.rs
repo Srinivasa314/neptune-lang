@@ -1084,10 +1084,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     self.write0(Op::Return, *line);
                 }
-                Statement::Panic(e) => {
+                Statement::Throw(e) => {
                     let expr_res = self.evaluate_expr(e)?;
                     self.store_in_accumulator(expr_res, e.line())?;
-                    self.write0(Op::Panic, e.line());
+                    self.write0(Op::Throw, e.line());
                 }
                 Statement::TryCatch {
                     try_block,

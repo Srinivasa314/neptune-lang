@@ -51,9 +51,8 @@ private:
   tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
   Handle<Object> *handles;
   std::vector<Object *> greyobjects;
-  std::string stack_trace;
   bool is_running;
-  std::ostringstream panic_message;
+  std::ostringstream throw_message;
   NativeFunction *last_native_function;
   BuiltinSymbols builtin_symbols;
   template <typename O> O *manage(O *object);
@@ -79,19 +78,20 @@ public:
   void collect();
   void blacken(Object *o);
   void grey(Object *o);
-  std::string generate_stack_trace();
-  const uint8_t *panic(const uint8_t *ip, Value v);
-  const uint8_t *panic(const uint8_t *ip);
+  std::string generate_stack_trace(bool include_native_function,
+                                   uint32_t depth);
+  const uint8_t *throw_(const uint8_t *ip, Value v);
+  const uint8_t *throw_(const uint8_t *ip, const char *type);
   bool declare_native_function(std::string module, std::string name,
                                bool exported, uint8_t arity,
                                NativeFunctionCallback *callback) const;
   void declare_native_builtins();
   Function *make_function(Value *bp, FunctionInfo *function_info);
-  rust::String get_stack_trace() const { return rust::String(stack_trace); }
   rust::String get_result() const {
-    std::ostringstream os;
-    os << return_value;
-    return rust::String(os.str());
+    auto vm = const_cast<VM *>(this);
+    auto s = vm->report_error(return_value);
+    vm->return_value = Value::null();
+    return rust::String(std::move(s));
   }
   bool module_exists(StringSlice module_name) const;
   void create_module(StringSlice module_name) const;
@@ -101,14 +101,9 @@ public:
   Module *get_module(StringSlice module_name) const;
   Class *get_class(Value v) const;
   String *concat(String *s1, String *s2);
-  VM()
-      : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
-        threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
-        last_native_function(nullptr), return_value(Value::null()) {
-    builtin_symbols.construct = intern("construct");
-    create_module("<prelude>");
-    declare_native_builtins();
-  }
+  Value create_error(StringSlice type, StringSlice message);
+  std::string report_error(Value error);
+  VM();
   ~VM();
 };
 

@@ -96,7 +96,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Pipe => Precedence::None,
         TokenType::Try => Precedence::None,
         TokenType::Catch => Precedence::None,
-        TokenType::Panic => Precedence::None,
+        TokenType::Throw => Precedence::None,
         TokenType::Map => Precedence::None,
         TokenType::DotDot => Precedence::Range,
         TokenType::In => Precedence::None,
@@ -273,7 +273,7 @@ pub enum Statement {
         line: u32,
         expr: Option<Expr>,
     },
-    Panic(Expr),
+    Throw(Expr),
     TryCatch {
         try_block: Vec<Statement>,
         try_end: u32,
@@ -463,7 +463,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Pipe => Some(self.closure()),
             TokenType::Try => None,
             TokenType::Catch => None,
-            TokenType::Panic => None,
+            TokenType::Throw => None,
             TokenType::Map => Some(self.map()),
             TokenType::DotDot => None,
             TokenType::In => None,
@@ -536,7 +536,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Pipe => unreachable!(),
             TokenType::Try => unreachable!(),
             TokenType::Catch => unreachable!(),
-            TokenType::Panic => unreachable!(),
+            TokenType::Throw => unreachable!(),
             TokenType::Map => unreachable!(),
             TokenType::DotDot => self.binary(left),
             TokenType::In => unreachable!(),
@@ -836,8 +836,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 })
             } else if self.match_token(TokenType::Return) {
                 self.return_stmt()
-            } else if self.match_token(TokenType::Panic) {
-                Ok(Statement::Panic(self.expression()?))
+            } else if self.match_token(TokenType::Throw) {
+                Ok(Statement::Throw(self.expression()?))
             } else if self.match_token(TokenType::Try) {
                 self.try_catch()
             } else if self.match_token(TokenType::Export) {

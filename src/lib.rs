@@ -22,7 +22,7 @@ pub struct CompileError {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum InterpretError {
     CompileError(Vec<CompileError>),
-    UncaughtPanic { error: String, stack_trace: String },
+    UncaughtException(String),
 }
 
 impl Display for InterpretError {
@@ -33,9 +33,8 @@ impl Display for InterpretError {
                     write!(f, "line {}: {}", error.line, error.message)?;
                 }
             }
-            InterpretError::UncaughtPanic { error, stack_trace } => {
-                write!(f, "Uncaught Panic: {}\n", error)?;
-                write!(f, "{}", stack_trace)?;
+            InterpretError::UncaughtException(error) => {
+                write!(f, "Uncaught Exception: {}", error)?;
             }
         }
         Ok(())
@@ -125,10 +124,7 @@ impl Neptune {
         match compile(&self.vm, module.into(), source, false) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
-                VMStatus::Error => Err(InterpretError::UncaughtPanic {
-                    error: self.vm.get_result(),
-                    stack_trace: self.vm.get_stack_trace(),
-                }),
+                VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
                 _ => unreachable!(),
             },
             Err(e) => Err(InterpretError::CompileError(e)),
@@ -147,10 +143,7 @@ impl Neptune {
                 } else {
                     None
                 }),
-                VMStatus::Error => Err(InterpretError::UncaughtPanic {
-                    error: self.vm.get_result(),
-                    stack_trace: self.vm.get_stack_trace(),
-                }),
+                VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
                 _ => unreachable!(),
             },
             Err(e) => Err(InterpretError::CompileError(e)),
@@ -258,7 +251,7 @@ mod tests {
                 panic!("Expected a runtime error")
             }
         }
-        if let InterpretError::UncaughtPanic { error, stack_trace } = n
+        /*if let InterpretError::UncaughtPanic { error, stack_trace } = n
             .exec(
                 "<script>",
                 r#"
@@ -280,7 +273,7 @@ mod tests {
             assert_eq!(stack_trace, "at h (<script>:5)\nat g (<script>:7)\nat f (<script>:9)\nat <script> (<script>:11)\n");
         } else {
             panic!("Expected error");
-        }
+        }*/
         if let Err(e) = n.exec("test.np", &read("test.np")) {
             panic!("{:?}", e);
         }

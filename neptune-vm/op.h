@@ -95,7 +95,7 @@
   OP(BeginForLoopConstant)                                                     \
   OP(Close)                                                                    \
   OP(Return)                                                                   \
-  OP(Panic)
+  OP(Throw)
 
 #define OP(x) x,
 namespace neptune_vm {
