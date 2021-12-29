@@ -80,6 +80,12 @@ export fun import(moduleName) {
     }
 }
 
+export class EFuncError extends Error{
+    construct(message) {
+        super.construct(message)
+    }
+}
+
 export fun print(x) {
     ecall(@print, '\(x)')
 }

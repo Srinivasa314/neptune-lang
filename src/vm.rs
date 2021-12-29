@@ -299,6 +299,12 @@ mod ffi {
         fn push_empty_array(self: &mut EFuncContext);
         fn push_to_array(self: &mut EFuncContext) -> EFuncStatus;
         fn push_empty_object(self: &mut EFuncContext);
+        fn push_error(
+            self: &mut EFuncContext,
+            module: StringSlice,
+            error_class: StringSlice,
+            message: StringSlice,
+        ) -> EFuncStatus;
         fn set_object_property(self: &mut EFuncContext, s: StringSlice) -> EFuncStatus;
         fn as_int(self: &mut EFuncContext, i: &mut i32) -> EFuncStatus;
         fn as_float(self: &mut EFuncContext, d: &mut f64) -> EFuncStatus;
@@ -526,6 +532,22 @@ impl<'a> EFuncContext<'a> {
     pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
         self.0.push_function(fw)
     }
+
+    pub fn error(
+        &mut self,
+        module: &str,
+        error_class: &str,
+        message: &str,
+    ) -> Result<(), EFuncError> {
+        match self
+            .0
+            .push_error(module.into(), error_class.into(), message.into())
+        {
+            EFuncStatus::TypeError => Err(EFuncError::TypeError),
+            EFuncStatus::Ok => Ok(()),
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub trait ToNeptuneValue {
@@ -574,6 +596,23 @@ impl ToNeptuneValue for &str {
 impl ToNeptuneValue for String {
     fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.string(&self)
+    }
+}
+
+impl ToNeptuneValue for EFuncError {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.error(
+            "<prelude>",
+            "EFuncError",
+            match self {
+                EFuncError::TypeError => "TypeError",
+                EFuncError::PropertyError => "PropertyError",
+                EFuncError::OutOfBoundsError => "OutOfBoundsError",
+                EFuncError::Underflow => "Underflow",
+            }
+            .into(),
+        )
+        .unwrap();
     }
 }
 

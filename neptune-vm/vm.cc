@@ -80,10 +80,10 @@ VM::VM()
   declare_native_builtins();
 }
 
-#define THROW(type,fmt)                                                             \
+#define THROW(type, fmt)                                                       \
   do {                                                                         \
     throw_message << fmt;                                                      \
-    if ((ip = throw_(ip,type)) != nullptr) {                                        \
+    if ((ip = throw_(ip, type)) != nullptr) {                                  \
       bp = task->frames.back().bp;                                             \
       auto f = task->frames.back().f;                                          \
       constants = f->function_info->constants.data();                          \
@@ -1250,9 +1250,14 @@ bool VM::create_efunc(StringSlice name, EFuncCallback *callback, Data *data,
 }
 
 Value VM::create_error(StringSlice type, StringSlice message) {
+  return create_error(StringSlice("<prelude>"), type, message);
+}
+
+Value VM::create_error(StringSlice module, StringSlice type,
+                       StringSlice message) {
   try {
     auto class_val =
-        module_variables[get_module_variable("<prelude>", type).position];
+        module_variables[get_module_variable(module, type).position];
     if (class_val.is_object() && class_val.as_object()->is<Class>()) {
       Class *class_ = class_val.as_object()->as<Class>();
       if (class_->is_native)

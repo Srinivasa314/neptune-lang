@@ -45,6 +45,8 @@ struct EFuncContext {
   EFuncStatus push_to_array();
   void push_empty_object();
   void push_empty_map();
+  EFuncStatus push_error(StringSlice module, StringSlice error_class,
+                         StringSlice message);
   EFuncStatus set_object_property(StringSlice s);
   EFuncStatus insert_in_map();
   EFuncStatus as_int(int32_t &i);

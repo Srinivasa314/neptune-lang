@@ -102,6 +102,7 @@ public:
   Class *get_class(Value v) const;
   String *concat(String *s1, String *s2);
   Value create_error(StringSlice type, StringSlice message);
+  Value create_error(StringSlice module, StringSlice type, StringSlice message);
   std::string report_error(Value error);
   VM();
   ~VM();

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use neptune_lang::{ModuleLoader, Neptune};
+use neptune_lang::{EFuncError, ModuleLoader, Neptune};
 use rustyline::{
     error::ReadlineError,
     validate::{self, Validator},
@@ -10,8 +10,8 @@ use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
     let n = Neptune::new(FileSystemModuleLoader);
-    n.create_efunc("print", |cx| -> Result<(), ()> {
-        println!("{}", cx.as_string().unwrap());
+    n.create_efunc("print", |cx| -> Result<(), EFuncError> {
+        println!("{}", cx.as_string()?);
         Ok(())
     })
     .unwrap();
