@@ -974,7 +974,7 @@ static bool ecall(VM *vm, Value *slots) {
       if (task->stack_top == slots + 1)
         vm->return_value = Value::null();
       else {
-        vm->return_value = slots[1];
+        vm->return_value = *(task->stack_top - 1);
       }
       task->stack_top = old_stack_top;
       return result;
