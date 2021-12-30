@@ -377,6 +377,10 @@ void VM::release(Object *o) {
     delete o->as<MapIterator>();
     break;
   }
+  case Type::StringIterator: {
+    delete o->as<StringIterator>();
+    break;
+  }
   default:
     unreachable();
   }
@@ -468,6 +472,7 @@ void VM::collect() {
     grey(builtin_classes.Range);
     grey(builtin_classes.ArrayIterator);
     grey(builtin_classes.MapIterator);
+    grey(builtin_classes.StringIterator);
     grey(builtin_symbols.construct);
   }
 
@@ -625,6 +630,10 @@ void VM::blacken(Object *o) {
       grey(mi->last_key.as_object());
     break;
   }
+  case Type::StringIterator:
+    bytes_allocated += sizeof(StringIterator);
+    grey(o->as<StringIterator>()->string);
+    break;
   default:
     unreachable();
   }
@@ -855,6 +864,12 @@ static bool map_iter(VM *vm, Value *slots) {
   return true;
 }
 
+static bool string_iter(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(vm->allocate<StringIterator>(slots[0].as_object()->as<String>()));
+  return true;
+}
+
 static bool mapiterator_hasnext(VM *vm, Value *slots) {
   vm->return_value =
       Value(!slots[0].as_object()->as<MapIterator>()->last_key.is_empty());
@@ -892,6 +907,35 @@ static bool arrayiterator_next(VM *vm, Value *slots) {
   if (ai->position < ai->array->inner.size()) {
     vm->return_value = ai->array->inner[ai->position];
     ai->position++;
+  } else {
+    vm->return_value = Value::null();
+  }
+  return true;
+}
+
+static bool stringiterator_hasnext(VM *vm, Value *slots) {
+  auto si = slots[0].as_object()->as<StringIterator>();
+  auto str = static_cast<StringSlice>(*si->string);
+  vm->return_value = Value(si->position < str.len);
+  return true;
+}
+
+static bool stringiterator_next(VM *vm, Value *slots) {
+  auto si = slots[0].as_object()->as<StringIterator>();
+  auto str = static_cast<StringSlice>(*si->string);
+  if (si->position < str.len) {
+    auto old_pos = si->position;
+    auto byte = (uint8_t)str.data[old_pos];
+    if (byte >> 7 == 0x0)
+      si->position++;
+    else if (byte >> 5 == 0x6)
+      si->position += 2;
+    else if (byte >> 4 == 0xe)
+      si->position += 3;
+    else
+      si->position += 4;
+    vm->return_value = Value(vm->allocate<String>(
+        StringSlice(str.data + old_pos, si->position - old_pos)));
   } else {
     vm->return_value = Value::null();
   }
@@ -1030,6 +1074,7 @@ void VM::declare_native_builtins() {
   DEFCLASS(Range)
   DEFCLASS(ArrayIterator)
   DEFCLASS(MapIterator)
+  DEFCLASS(StringIterator)
 
 #undef DEFCLASS
 #define DECL_NATIVE_METHOD(class, method, arity, fn)                           \
@@ -1062,11 +1107,15 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Range, iter, 0, range_iter);
   DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
   DECL_NATIVE_METHOD(Map, iter, 0, map_iter);
+  DECL_NATIVE_METHOD(String, iter, 0, string_iter);
   DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
   DECL_NATIVE_METHOD(MapIterator, hasNext, 0, mapiterator_hasnext);
   DECL_NATIVE_METHOD(MapIterator, next, 0, mapiterator_next);
   DECL_NATIVE_METHOD(ArrayIterator, hasNext, 0, arrayiterator_hasnext);
   DECL_NATIVE_METHOD(ArrayIterator, next, 0, arrayiterator_next);
+  DECL_NATIVE_METHOD(StringIterator, hasNext, 0, stringiterator_hasnext);
+  DECL_NATIVE_METHOD(StringIterator, next, 0, stringiterator_next);
+
   DECL_NATIVE_METHOD(Class_, name, 0, class_name);
 
   create_module("vm");
@@ -1193,6 +1242,8 @@ Class *VM::get_class(Value v) const {
       return builtin_classes.ArrayIterator;
     case Type::MapIterator:
       return builtin_classes.MapIterator;
+    case Type::StringIterator:
+      return builtin_classes.StringIterator;
     case Type::Instance:
       return o->as<Instance>()->class_;
     default:
