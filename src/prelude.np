@@ -88,9 +88,106 @@ export fun import(moduleName) {
 
 export class Iterator {
     each(f) {
-        while this.hasNext() {
-            f(this.next())
+        for elem in this {
+            f(elem)
         }
+    }
+
+    all(f) {
+        for elem in this {
+            if !f(elem) {
+                return false
+            }
+        }
+        return true
+    }
+
+    any(f) {
+        for elem in this {
+            if f(elem) {
+                return true
+            }
+        }
+        return false
+    }
+
+    map(f) {
+        return new IteratorMap(this, f)
+    }
+
+    filter(f) {
+        return new IteratorFilter(this, f)
+    }
+
+    collect() {
+        let a = []
+        for elem in this {
+            a.push(elem)
+        }
+        return a
+    }
+
+    count() {
+        let count = 0
+        for _ in this {
+            count+=1
+        }
+        return count
+    }
+
+    reduce(f, initial) {
+        for elem in this {
+            initial = f(initial, elem)
+        }
+        return initial
+    }
+}
+
+class IteratorMap extends Iterator {
+    construct(iter, f) {
+        this.iter = iter
+        this.f = f
+    }
+
+    hasNext() {
+        return this.iter.hasNext()
+    }
+
+    next() {
+        return this.f(this.iter.next())
+    }
+}
+
+class IteratorFilter extends Iterator {
+    construct(iter, f) {
+        this.iter = iter
+        this.f = f
+        this.nextObject = null
+        this.nextObjectSet = false
+    }
+
+    hasNext() {
+        return this.nextObjectSet or this.setNextObject()
+    }
+
+    next() {
+        if !this.nextObjectSet and !this.setNextObject(){
+            return null
+        }
+        this.nextObjectSet = false
+        return this.nextObject
+    }
+
+    setNextObject(){
+        while this.iter.hasNext(){
+            let obj = this.iter.next()
+            if this.f(obj){
+                this.nextObject = obj
+                this.nextObjectSet = true
+                return true
+            }
+        }
+        return false
     }
 }
 

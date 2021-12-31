@@ -1020,23 +1020,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     } else {
                         let res = self.evaluate_expr(expr);
                         if let Ok(res) = res {
-                            let reg = self.store_in_register(res, expr.line())?;
-                            let iter_property = self
-                                .bytecode
-                                .symbol_constant("iter".into())
-                                .map_err(|_| CompileError {
-                                    line: expr.line(),
-                                    message: "Cannot have more than 65535 constants per function"
-                                        .into(),
-                                })?;
-                            let start = self.regcount;
-                            self.push_register(expr.line())?;
-                            self.write3(Op::CallMethod, reg, iter_property, start, expr.line());
-                            self.bytecode.write_u8(0);
-                            self.pop_register();
-                            if !matches!(res, ExprResult::Register(_)) {
-                                self.pop_register();
-                            }
+                            self.store_in_accumulator(res, expr.line())?;
                         } else if let Err(e) = res {
                             self.error(e);
                         }

@@ -846,25 +846,19 @@ static bool range_hasnext(VM *vm, Value *slots) {
   return true;
 }
 
-static bool range_iter(VM *vm, Value *slots) {
-  auto &range = *slots[0].as_object()->as<Range>();
-  vm->return_value = Value(vm->allocate<Range>(range.start, range.end));
-  return true;
-}
-
 static bool array_iter(VM *vm, Value *slots) {
   vm->return_value =
       Value(vm->allocate<ArrayIterator>(slots[0].as_object()->as<Array>()));
   return true;
 }
 
-static bool map_iter(VM *vm, Value *slots) {
+static bool map_keys(VM *vm, Value *slots) {
   vm->return_value =
       Value(vm->allocate<MapIterator>(slots[0].as_object()->as<Map>()));
   return true;
 }
 
-static bool string_iter(VM *vm, Value *slots) {
+static bool string_chars(VM *vm, Value *slots) {
   vm->return_value =
       Value(vm->allocate<StringIterator>(slots[0].as_object()->as<String>()));
   return true;
@@ -1118,10 +1112,9 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Symbol, construct, 1, symbol_construct);
   DECL_NATIVE_METHOD(Range, hasNext, 0, range_hasnext);
   DECL_NATIVE_METHOD(Range, next, 0, range_next);
-  DECL_NATIVE_METHOD(Range, iter, 0, range_iter);
   DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
-  DECL_NATIVE_METHOD(Map, iter, 0, map_iter);
-  DECL_NATIVE_METHOD(String, iter, 0, string_iter);
+  DECL_NATIVE_METHOD(Map, keys, 0, map_keys);
+  DECL_NATIVE_METHOD(String, chars, 0, string_chars);
   DECL_NATIVE_METHOD(Array, iter, 0, array_iter);
   DECL_NATIVE_METHOD(MapIterator, hasNext, 0, mapiterator_hasnext);
   DECL_NATIVE_METHOD(MapIterator, next, 0, mapiterator_next);
