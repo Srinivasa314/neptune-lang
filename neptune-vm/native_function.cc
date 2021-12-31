@@ -79,6 +79,18 @@ void EFuncContext::push_empty_object() {
 
 void EFuncContext::push_empty_map() { push(Value(vm->allocate<Map>())); }
 
+EFuncStatus EFuncContext::push_error(StringSlice module,
+                                     StringSlice error_class,
+                                     StringSlice message) {
+  auto error = vm->create_error(module, error_class, message);
+  if (error.is_null())
+    return EFuncStatus::TypeError;
+  else {
+    push(error);
+    return EFuncStatus::Ok;
+  }
+}
+
 EFuncStatus EFuncContext::insert_in_map() {
   CHECK_STACK_UNDERFLOW;
   auto value = pop_value();

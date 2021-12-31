@@ -6,8 +6,8 @@ use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
-use vm::{new_vm, EFuncContext, FunctionInfoWriter, ToNeptuneValue, VM};
-
+use vm::{new_vm, FunctionInfoWriter, VM};
+pub use vm::{EFuncContext, EFuncError, ToNeptuneValue};
 mod bytecode_compiler;
 mod parser;
 mod scanner;

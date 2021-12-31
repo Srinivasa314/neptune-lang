@@ -344,16 +344,16 @@ impl<'src> Scanner<'src> {
         String(abc) Interpolation LeftParen Identifier(d) RightParen String(efg) Interpolation LeftParen Identifier(h) RightParen String(ij)
         */
         self.start += 1;
-        let mut s = String::new();
+        let mut s: Vec<u8> = vec![];
         while self.peek() != Some(delim) && self.peek() != None {
             if self.peek() == Some(b'\n') {
                 self.line += 1;
-                s.push('\n');
+                s.push(b'\n');
                 self.advance();
             }
             //Interpolation
             else if self.peek() == Some(b'\\') && self.peek_next() == Some(b'(') {
-                self.add_token(TokenType::String(s));
+                self.add_token(TokenType::String(String::from_utf8(s).unwrap()));
                 self.start = self.current;
                 self.advance();
                 self.add_token(TokenType::Interpolation);
@@ -380,7 +380,11 @@ impl<'src> Scanner<'src> {
                         )) {
                             Ok(n) => {
                                 if let Some(c) = char::from_u32(n) {
-                                    s.push(char::from_u32(c as u32).unwrap());
+                                    for byte in
+                                        char::from_u32(c as u32).unwrap().to_string().bytes()
+                                    {
+                                        s.push(byte);
+                                    }
                                 } else {
                                     self.error(format!(
                                         "Cannot convert {} to a unicode character",
@@ -403,16 +407,16 @@ impl<'src> Scanner<'src> {
             else if self.peek() == Some(b'\\') {
                 if let Some(c) = self.peek_next() {
                     let to_add = match c {
-                        b'\\' => '\\',
-                        b'n' => '\n',
-                        b'r' => '\r',
-                        b'\'' => '\'',
-                        b'"' => '"',
-                        b'0' => '\0',
-                        b't' => '\t',
+                        b'\\' => b'\\',
+                        b'n' => b'\n',
+                        b'r' => b'\r',
+                        b'\'' => b'\'',
+                        b'"' => b'"',
+                        b'0' => b'\0',
+                        b't' => b'\t',
                         c => {
                             self.error(format!("Invalid escape sequence \\{}", c as char));
-                            ' '
+                            b' '
                         }
                     };
                     s.push(to_add);
@@ -424,10 +428,10 @@ impl<'src> Scanner<'src> {
                     self.advance();
                 }
             } else {
-                s.push(char::from_u32(self.advance().unwrap() as u32).unwrap());
+                s.push(self.advance().unwrap());
             }
         }
-        self.add_token(TokenType::String(s));
+        self.add_token(TokenType::String(String::from_utf8(s).unwrap()));
         if self.peek() != None {
             self.start = self.current;
             self.advance();

@@ -40,7 +40,8 @@ enum class Type : uint8_t {
   Instance,
   Range,
   ArrayIterator,
-  MapIterator
+  MapIterator,
+  StringIterator
 };
 class Class;
 class Object {
@@ -212,13 +213,22 @@ public:
   static constexpr Type type = Type::MapIterator;
 };
 
+class StringIterator : public Object {
+public:
+  String *string;
+  size_t position;
+  StringIterator(String *string) : string(string), position(0) {}
+  static constexpr Type type = Type::StringIterator;
+};
+
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
-      *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator;
+      *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator,
+      *StringIterator;
   BuiltinClasses() {
     Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
         Map = Function = Module = Task = Range = ArrayIterator = MapIterator =
-            nullptr;
+            StringIterator = nullptr;
   }
 };
 struct BuiltinSymbols {

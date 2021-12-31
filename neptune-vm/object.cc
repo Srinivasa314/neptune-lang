@@ -83,6 +83,8 @@ const char *Object::type_string() const {
     return "ArrayIterator";
   case Type::MapIterator:
     return "MapIterator";
+  case Type::StringIterator:
+    return "StringIterator";
   default:
     unreachable();
   }
@@ -237,6 +239,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::MapIterator:
     vf.os << "<MapIterator>";
+    break;
+  case Type::StringIterator:
+    vf.os << "<StringIterator>";
     break;
   default:
     unreachable();

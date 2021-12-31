@@ -64,6 +64,12 @@ export class CompileError extends Error {
     }
 }
 
+export class EFuncError extends Error{
+    construct(message) {
+        super.construct(message)
+    }
+}
+
 export fun import(moduleName) {
     let module = _getModule(moduleName)
     if module {
@@ -90,5 +96,5 @@ export class Iterator {
 
 _extendClass(ArrayIterator, Iterator)
 _extendClass(MapIterator, Iterator)
-//_extendClass(StringIterator, Iterator)
+_extendClass(StringIterator, Iterator)
 _extendClass(Range, Iterator)
