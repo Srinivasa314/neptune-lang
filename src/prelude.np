@@ -80,6 +80,15 @@ export fun import(moduleName) {
     }
 }
 
-export fun print(x) {
-    ecall(@print, '\(x)')
+export class Iterator {
+    each(f) {
+        while this.hasNext() {
+            f(this.next())
+        }
+    }
 }
+
+_extendClass(ArrayIterator, Iterator)
+_extendClass(MapIterator, Iterator)
+//_extendClass(StringIterator, Iterator)
+_extendClass(Range, Iterator)

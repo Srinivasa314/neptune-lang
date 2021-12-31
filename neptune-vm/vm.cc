@@ -80,10 +80,10 @@ VM::VM()
   declare_native_builtins();
 }
 
-#define THROW(type,fmt)                                                             \
+#define THROW(type, fmt)                                                       \
   do {                                                                         \
     throw_message << fmt;                                                      \
-    if ((ip = throw_(ip,type)) != nullptr) {                                        \
+    if ((ip = throw_(ip, type)) != nullptr) {                                  \
       bp = task->frames.back().bp;                                             \
       auto f = task->frames.back().f;                                          \
       constants = f->function_info->constants.data();                          \
@@ -996,6 +996,20 @@ static bool generateStackTrace(VM *vm, Value *slots) {
   }
 }
 
+static bool _extendClass(VM *vm, Value *slots) {
+  if (slots[0].is_object() && slots[0].as_object()->is<Class>() &&
+      slots[1].is_object() && slots[1].as_object()->is<Class>()) {
+    auto class0 = slots[0].as_object()->as<Class>();
+    auto class1 = slots[1].as_object()->as<Class>();
+    if (class1->is_native && class1 != vm->builtin_classes.Object)
+      THROW("TypeError", "Cannot inherit from native class");
+    class0->super = class1;
+    return true;
+  } else {
+    THROW("TypeError", "Expect both arguments to be Classes");
+  }
+}
+
 #undef THROW
 } // namespace native_builtins
 
@@ -1083,6 +1097,8 @@ void VM::declare_native_builtins() {
                           native_builtins::_getModule);
   declare_native_function("<prelude>", "_getCallerModule", false, 0,
                           native_builtins::_getCallerModule);
+  declare_native_function("<prelude>", "_extendClass", false, 2,
+                          native_builtins::_extendClass);
 }
 
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {

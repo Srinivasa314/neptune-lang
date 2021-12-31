@@ -15,6 +15,7 @@ fn main() {
         Ok(())
     })
     .unwrap();
+    n.exec("<prelude>", include_str!("prelude.np")).unwrap();
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
