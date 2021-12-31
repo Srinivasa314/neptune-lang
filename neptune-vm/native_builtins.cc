@@ -1,4 +1,5 @@
 #include "neptune-vm.h"
+#include <algorithm>
 
 namespace neptune_vm {
 namespace native_builtins {
@@ -324,9 +325,44 @@ static bool _extendClass(VM *vm, Value *slots) {
     if (class1->is_native && class1 != vm->builtin_classes.Object)
       THROW("TypeError", "Cannot inherit from native class");
     class0->super = class1;
+    vm->return_value = Value::null();
     return true;
   } else {
-    THROW("TypeError", "Expect both arguments to be Classes");
+    THROW("TypeError", "Expected Class and Class for  got "
+                           << slots[0].type_string() << " and "
+                           << slots[1].type_string() << " instead");
+  }
+}
+
+static bool random(VM *vm, Value *) {
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  vm->return_value = Value(dist(vm->rng));
+  return true;
+}
+
+static bool shuffle(VM *vm, Value *slots) {
+  if (slots[0].is_object() && slots[0].as_object()->is<Array>()) {
+    auto &array = slots[0].as_object()->as<Array>()->inner;
+    std::shuffle(array.begin(), array.end(), vm->rng);
+    vm->return_value = Value::null();
+    return true;
+  } else {
+    THROW("TypeError", "The first argument must be an Array, not "
+                           << slots[0].type_string());
+  }
+}
+
+static bool random_range(VM *vm, Value *slots) {
+  if (slots[0].is_int() && slots[1].is_int()) {
+    std::uniform_int_distribution<int32_t> dist(slots[0].as_int(),
+                                                slots[1].as_int());
+    vm->return_value = Value(dist(vm->rng));
+    return true;
+  } else {
+    THROW("TypeError",
+          "Expected Int and Int for the start and end of the range got "
+              << slots[0].type_string() << " and " << slots[1].type_string()
+              << " instead");
   }
 }
 
@@ -410,6 +446,7 @@ void VM::declare_native_builtins() {
 
   create_module("vm");
   create_module("math");
+  create_module("random");
   declare_native_function("vm", "disassemble", true, 1,
                           native_builtins::disassemble);
   declare_native_function("vm", "gc", true, 0, native_builtins::gc);
@@ -424,5 +461,9 @@ void VM::declare_native_builtins() {
                           native_builtins::_getCallerModule);
   declare_native_function("<prelude>", "_extendClass", false, 2,
                           native_builtins::_extendClass);
+  declare_native_function("random", "random", true, 0, native_builtins::random);
+  declare_native_function("random", "shuffle", true, 1,
+                          native_builtins::shuffle);
+  declare_native_function("random", "range", true, 2, native_builtins::random_range);
 }
 } // namespace neptune_vm

@@ -72,7 +72,8 @@ namespace neptune_vm {
 VM::VM()
     : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
       threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
-      last_native_function(nullptr), return_value(Value::null()) {
+      last_native_function(nullptr), return_value(Value::null()),
+      rng(std::random_device()()) {
   builtin_symbols.construct = intern("construct");
   builtin_symbols.message = intern("message");
   builtin_symbols.stack = intern("stack");

@@ -2,6 +2,7 @@
 #include "native_function.h"
 #include "rust/cxx.h"
 #include <memory>
+#include <random>
 #include <sstream>
 #include <string>
 #include <tsl/robin_map.h>
@@ -62,6 +63,7 @@ public:
   std::vector<Value> temp_roots;
   SymbolMap<EFunc> efuncs;
   Value return_value;
+  std::mt19937_64 rng;
   Value to_string(Value val);
   VMStatus run(Task *task, Function *f);
   bool add_module_variable(StringSlice module, StringSlice name, bool mutable_,
