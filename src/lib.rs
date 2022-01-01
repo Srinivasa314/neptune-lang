@@ -205,10 +205,10 @@ impl Neptune {
         n.create_efunc("resolveModule", {
             let module_loader = module_loader.clone();
             move |cx| -> Result<String, EFuncErrorOr<ModuleNotFound>> {
-                cx.get_property("callerModule").unwrap();
-                let caller_module = cx.as_string().unwrap().to_string();
-                cx.get_property("moduleName").unwrap();
-                let module_name = cx.as_string().unwrap().to_string();
+                cx.get_property("callerModule")?;
+                let caller_module = cx.as_string()?.to_string();
+                cx.get_property("moduleName")?;
+                let module_name = cx.as_string()?.to_string();
                 cx.pop().unwrap();
                 match module_loader.resolve(&caller_module, &module_name) {
                     Some(s) => Ok(s),
