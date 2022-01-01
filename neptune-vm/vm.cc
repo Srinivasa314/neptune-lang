@@ -866,6 +866,7 @@ Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   stack = std::unique_ptr<Value[]>(new Value[new_capacity / sizeof(Value)]);
   memcpy(stack.get(), old_stack.get(), stack_size);
   stack_size = new_capacity;
+  stack_top = stack.get() + (stack_top - old_stack.get());
   for (auto &frame : frames) {
     frame.bp = stack.get() + (frame.bp - old_stack.get());
   }

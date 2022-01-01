@@ -1,11 +1,11 @@
-use std::fmt::Display;
-
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::fmt::Display;
 use vm::{new_vm, FunctionInfoWriter, VM};
 pub use vm::{EFuncContext, EFuncError, ToNeptuneValue};
 mod bytecode_compiler;
@@ -25,12 +25,18 @@ pub enum InterpretError {
     UncaughtException(String),
 }
 
+impl Display for CompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "line {}: {}", self.line, self.message)
+    }
+}
+
 impl Display for InterpretError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InterpretError::CompileError(c) => {
                 for error in c {
-                    write!(f, "line {}: {}", error.line, error.message)?;
+                    write!(f, "{}", error)?;
                 }
             }
             InterpretError::UncaughtException(error) => {
@@ -53,11 +59,93 @@ pub enum NeptuneError {
     EFuncAlreadyExists,
 }
 
+impl Display for NeptuneError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NeptuneError::FunctionAlreadyExists => {
+                f.write_str("A function with the same name already exists")
+            }
+            NeptuneError::ModuleNotFound => f.write_str("The module cannot be found"),
+            NeptuneError::ModuleAlreadyExists => {
+                f.write_str("A module with the same name already exists")
+            }
+            NeptuneError::EFuncAlreadyExists => {
+                f.write_str("An EFunc with the same name already exists")
+            }
+        }
+    }
+}
+
+impl std::error::Error for NeptuneError {}
+
+pub enum EFuncErrorOr<T: ToNeptuneValue> {
+    EFuncError(EFuncError),
+    Other(T),
+}
+
+impl<T: Display + ToNeptuneValue> Display for EFuncErrorOr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EFuncError(e) => write!(f, "{}", e),
+            Self::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl<T: Debug + ToNeptuneValue> Debug for EFuncErrorOr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EFuncError(e) => write!(f, "{:?}", e),
+            Self::Other(e) => write!(f, "{:?}", e),
+        }
+    }
+}
+
+impl<T: std::error::Error + ToNeptuneValue> std::error::Error for EFuncErrorOr<T> {}
+
+impl<T: ToNeptuneValue> ToNeptuneValue for EFuncErrorOr<T> {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        match self {
+            EFuncErrorOr::EFuncError(e) => e.to_neptune_value(cx),
+            EFuncErrorOr::Other(e) => e.to_neptune_value(cx),
+        }
+    }
+}
+
+impl<T: ToNeptuneValue> From<EFuncError> for EFuncErrorOr<T> {
+    fn from(e: EFuncError) -> Self {
+        EFuncErrorOr::EFuncError(e)
+    }
+}
+
+pub struct Error(String);
+
+impl ToNeptuneValue for Error {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.error("<prelude>", "Error", &self.0).unwrap();
+    }
+}
+
+struct ModuleNotFound {
+    module: String,
+}
+
+impl ToNeptuneValue for ModuleNotFound {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.error(
+            "<prelude>",
+            "ModuleNotFoundError",
+            &format!("Cannot find module {}", self.module),
+        )
+        .unwrap();
+    }
+}
+
 pub struct Neptune {
     vm: UniquePtr<VM>,
 }
 
-pub trait ModuleLoader {
+pub trait ModuleLoader: Clone {
     fn resolve(&self, caller_module: &str, module: &str) -> Option<String>;
     fn load(&self, module: &str) -> Option<String>;
 }
@@ -76,46 +164,77 @@ impl ModuleLoader for NoopModuleLoader {
 }
 
 impl Neptune {
-    pub fn new<M: ModuleLoader + 'static + Clone>(module_loader: M) -> Self {
-        let vm = new_vm();
-        vm.create_efunc_safe("compileModule", {
-            let module_loader = module_loader.clone();
-            move |vm, mut cx| {
-                let module = cx.as_string().unwrap().to_string();
-                let source = module_loader.load(&module);
-                if let Some(source) = source {
-                    match compile(vm, module, &source, false) {
-                        Ok((f, _)) => {
-                            unsafe {
-                                cx.function(f);
-                            }
-                            true
-                        }
-                        Err(e) => {
-                            let error = format!("{:?}", e);
-                            cx.string(&error);
-                            false
-                        }
-                    }
-                } else {
-                    cx.string(&format!("Cannot get source for module {}", module));
+    pub fn new<M: ModuleLoader + 'static>(module_loader: M) -> Self {
+        let n = Self { vm: new_vm() };
+
+        n.vm.create_efunc_safe("compile", |vm, mut cx| -> bool {
+            match || -> Result<Result<FunctionInfoWriter, Vec<CompileError>>, EFuncError> {
+                cx.get_property("source")?;
+                let source = cx.as_string()?.to_string();
+                cx.get_property("eval")?;
+                let eval = cx.as_bool()?;
+                cx.get_property("moduleName")?;
+                let module = cx.as_string()?.to_string();
+                cx.pop().unwrap();
+                Ok(compile(vm, module, &source, eval).map(|(fw, _)| fw))
+            }() {
+                Err(e) => {
+                    e.to_neptune_value(&mut cx);
                     false
                 }
+                Ok(res) => match res {
+                    Ok(fw) => {
+                        unsafe { cx.function(fw) };
+                        true
+                    }
+                    Err(e) => {
+                        let mut message = "".to_owned();
+                        use std::fmt::Write;
+                        for c in &e {
+                            write!(message, "{}\n", c).unwrap();
+                        }
+                        cx.error("<prelude>", "CompileError", &message).unwrap();
+                        e.to_neptune_value(&mut cx);
+                        cx.set_object_property("errors").unwrap();
+                        false
+                    }
+                },
             }
         });
-        let n = Self { vm };
-        n.create_efunc("resolveModule", move |cx| -> Result<String, String> {
-            cx.get_property("callerModule").unwrap();
-            let caller_module = cx.as_string().unwrap().to_string();
-            cx.get_property("moduleName").unwrap();
-            let module_name = cx.as_string().unwrap().to_string();
-            cx.pop().unwrap();
-            match module_loader.resolve(&caller_module, &module_name) {
-                Some(s) => Ok(s),
-                None => Err(format!("Module {} does not exist", &module_name)),
+
+        n.create_efunc("resolveModule", {
+            let module_loader = module_loader.clone();
+            move |cx| -> Result<String, EFuncErrorOr<ModuleNotFound>> {
+                cx.get_property("callerModule").unwrap();
+                let caller_module = cx.as_string().unwrap().to_string();
+                cx.get_property("moduleName").unwrap();
+                let module_name = cx.as_string().unwrap().to_string();
+                cx.pop().unwrap();
+                match module_loader.resolve(&caller_module, &module_name) {
+                    Some(s) => Ok(s),
+                    None => Err(EFuncErrorOr::Other(ModuleNotFound {
+                        module: module_name,
+                    })),
+                }
             }
         })
         .unwrap();
+
+        n.create_efunc(
+            "fetchModule",
+            move |cx| -> Result<String, EFuncErrorOr<Error>> {
+                let module = cx.as_string()?;
+                match module_loader.load(module) {
+                    Some(src) => Ok(src),
+                    None => Err(EFuncErrorOr::Other(Error(format!(
+                        "Cannot get source of module {}",
+                        module
+                    )))),
+                }
+            },
+        )
+        .unwrap();
+
         n.exec("<prelude>", include_str!("prelude.np")).unwrap();
         n
     }

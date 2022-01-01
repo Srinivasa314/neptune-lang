@@ -70,7 +70,16 @@ export class EFuncError extends Error{
     }
 }
 
+export class ModuleNotFoundError extends Error{
+    construct(message) {
+        super.construct(message)
+    }
+}
+
 export fun import(moduleName) {
+    if moduleName.getClass() !== String {
+        throw new TypeError('The first argument must be a String, not \(moduleName.getClass().name())')
+    }
     let module = _getModule(moduleName)
     if module {
         return module
@@ -80,10 +89,18 @@ export fun import(moduleName) {
         if module {
             return module
         } else {
-            ecall(@compileModule, moduleName)()
+            let source = ecall(@fetchModule, moduleName)
+            ecall(@compile, {moduleName: moduleName, eval: false, source:source})()
             return _getModule(moduleName)
         }
     }
+}
+
+export fun eval(source) {
+    if source.getClass() !== String {
+        throw new TypeError('The first argument must be a String, not \(source.getClass().name())')
+    }
+    return ecall(@compile, {moduleName: _getCallerModule(), eval: true, source: source})()
 }
 
 export class Iterator {

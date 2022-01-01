@@ -326,6 +326,8 @@ mod ffi {
 use ffi::EFuncStatus;
 pub use ffi::{new_vm, Op, VMStatus, VM};
 
+use crate::CompileError;
+
 impl VM {
     pub fn create_efunc_safe<'vm, F>(&'vm self, name: &str, callback: F) -> bool
     where
@@ -363,6 +365,14 @@ pub enum EFuncError {
     OutOfBoundsError,
     Underflow,
 }
+
+impl std::fmt::Display for EFuncError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EFuncError::{:?}", self)
+    }
+}
+
+impl std::error::Error for EFuncError {}
 
 #[repr(transparent)]
 pub struct EFuncContext<'a>(EFuncContextInner<'a>);
@@ -528,11 +538,6 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
-    //Function must contain valid bytecode
-    pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
-        self.0.push_function(fw)
-    }
-
     pub fn error(
         &mut self,
         module: &str,
@@ -548,38 +553,42 @@ impl<'a> EFuncContext<'a> {
             _ => unreachable!(),
         }
     }
+
+    pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
+        self.0.push_function(fw)
+    }
 }
 
 pub trait ToNeptuneValue {
-    fn to_neptune_value(self, cx: &mut EFuncContext);
+    fn to_neptune_value(&self, cx: &mut EFuncContext);
 }
 
 impl ToNeptuneValue for i32 {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
-        cx.int(self)
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.int(*self)
     }
 }
 
 impl ToNeptuneValue for f64 {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
-        cx.float(self)
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.float(*self)
     }
 }
 
 impl ToNeptuneValue for bool {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
-        cx.bool(self)
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.bool(*self)
     }
 }
 
 impl ToNeptuneValue for () {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
         cx.null()
     }
 }
 
 impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
         match self {
             Some(t) => t.to_neptune_value(cx),
             None => cx.null(),
@@ -587,20 +596,20 @@ impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
     }
 }
 
-impl ToNeptuneValue for &str {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
+impl ToNeptuneValue for str {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
         cx.string(self)
     }
 }
 
 impl ToNeptuneValue for String {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
-        cx.string(&self)
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.string(self)
     }
 }
 
 impl ToNeptuneValue for EFuncError {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
         cx.error(
             "<prelude>",
             "EFuncError",
@@ -616,12 +625,22 @@ impl ToNeptuneValue for EFuncError {
     }
 }
 
-impl<T: ToNeptuneValue> ToNeptuneValue for Vec<T> {
-    fn to_neptune_value(self, cx: &mut EFuncContext) {
+impl<T: ToNeptuneValue> ToNeptuneValue for [T] {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
         cx.array();
         for elem in self {
             elem.to_neptune_value(cx);
             cx.push_to_array().unwrap();
         }
+    }
+}
+
+impl ToNeptuneValue for CompileError {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        cx.object();
+        cx.int(self.line as i32);
+        cx.set_object_property("line").unwrap();
+        cx.string(&self.message);
+        cx.set_object_property("message").unwrap();
     }
 }

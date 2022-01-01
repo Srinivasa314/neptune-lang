@@ -202,15 +202,9 @@ static bool stringiterator_next(VM *vm, Value *slots) {
   auto str = static_cast<StringSlice>(*si->string);
   if (si->position < str.len) {
     auto old_pos = si->position;
-    auto byte = (uint8_t)str.data[old_pos];
-    if (byte >> 7 == 0x0)
+    do {
       si->position++;
-    else if (byte >> 5 == 0x6)
-      si->position += 2;
-    else if (byte >> 4 == 0xe)
-      si->position += 3;
-    else
-      si->position += 4;
+    } while (((uint8_t)str.data[si->position] & 0xc0) == 0x80);
     vm->return_value = Value(vm->allocate<String>(
         StringSlice(str.data + old_pos, si->position - old_pos)));
   } else {
@@ -464,6 +458,7 @@ void VM::declare_native_builtins() {
   declare_native_function("random", "random", true, 0, native_builtins::random);
   declare_native_function("random", "shuffle", true, 1,
                           native_builtins::shuffle);
-  declare_native_function("random", "range", true, 2, native_builtins::random_range);
+  declare_native_function("random", "range", true, 2,
+                          native_builtins::random_range);
 }
 } // namespace neptune_vm
