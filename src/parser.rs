@@ -163,7 +163,7 @@ pub enum Expr {
     },
     ObjectLiteral {
         line: u32,
-        inner: Vec<(String, Expr)>,
+        inner: Vec<(String, Option<Expr>)>,
     },
     New {
         line: u32,
@@ -710,13 +710,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             self.advance();
             let k = self.previous.inner.to_string();
             self.ignore_newline();
-            self.consume(
-                TokenType::Colon,
-                "Expect colon after object literal key".into(),
-            )?;
-            self.ignore_newline();
-            let v = self.expression()?;
-            self.ignore_newline();
+            let mut v = None;
+            if self.match_token(TokenType::Colon) {
+                self.ignore_newline();
+                v = Some(self.expression()?);
+                self.ignore_newline();
+            }
             ret.push((k, v));
             if self.match_token(TokenType::RightBrace) {
                 break;

@@ -28,7 +28,7 @@ let depth=min_depth
 
 while depth < stretch_depth{
     let check = 0
-    for i=0,iterations{
+    for i in 0..iterations{
         check += check_tree(make_tree(depth))
     }
 

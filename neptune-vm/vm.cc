@@ -475,6 +475,8 @@ void VM::collect() {
     grey(builtin_classes.MapIterator);
     grey(builtin_classes.StringIterator);
     grey(builtin_symbols.construct);
+    grey(builtin_symbols.message);
+    grey(builtin_symbols.stack);
   }
 
   auto current_handle = handles;

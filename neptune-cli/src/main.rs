@@ -181,9 +181,19 @@ pub fn are_brackets_balanced(s: &str) -> bool {
                 }
             }
             b'{' => *depths.last_mut().unwrap() += 1,
-            b'}' => *depths.last_mut().unwrap() -= 1,
+            b'}' => {
+                if *depths.last_mut().unwrap() == 0 {
+                    return true;
+                }
+                *depths.last_mut().unwrap() -= 1
+            }
             b'[' => *depths.last_mut().unwrap() += 1,
-            b']' => *depths.last_mut().unwrap() -= 1,
+            b']' => {
+                if *depths.last_mut().unwrap() == 0 {
+                    return true;
+                }
+                *depths.last_mut().unwrap() -= 1
+            }
             c @ b'"' | c @ b'\'' => {
                 delims.push(c);
                 if !string(&mut index, s, c, &mut depths, &mut delims) {

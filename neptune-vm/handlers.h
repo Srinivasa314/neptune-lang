@@ -40,7 +40,7 @@ handler(
     if (accumulator.is_int()) {
       int result;
       if (unlikely(!SafeNegation(accumulator.as_int(), result))) {
-        THROW("TypeError", "Cannot negate "
+        THROW("OverflowError", "Cannot negate "
                                << accumulator.as_int()
                                << " as the result cannot be stored in an Int");
       }
