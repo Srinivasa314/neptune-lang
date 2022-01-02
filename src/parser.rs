@@ -1233,7 +1233,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let method: String = self.previous.inner.into();
         if Some('_') == method.chars().next() {
             self.errors.push(CompileError {
-                message: format!("Cannot access private member {}", method),
+                message: format!("Cannot access private method {}", method),
                 line: self.previous.line,
             })
         }

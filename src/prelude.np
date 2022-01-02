@@ -162,45 +162,45 @@ export class Iterator {
 
 class IteratorMap extends Iterator {
     construct(iter, f) {
-        this.iter = iter
-        this.f = f
+        this._iter = iter
+        this._f = f
     }
 
     hasNext() {
-        return this.iter.hasNext()
+        return this._iter.hasNext()
     }
 
     next() {
-        return this.f(this.iter.next())
+        return this._f(this._iter.next())
     }
 }
 
 class IteratorFilter extends Iterator {
     construct(iter, f) {
-        this.iter = iter
-        this.f = f
-        this.nextObject = null
-        this.nextObjectSet = false
+        this._iter = iter
+        this._f = f
+        this._nextObject = null
+        this._nextObjectSet = false
     }
 
     hasNext() {
-        return this.nextObjectSet or this.setNextObject()
+        return this._nextObjectSet or this._setNextObject()
     }
 
     next() {
-        if !this.nextObjectSet and !this.setNextObject(){
+        if !this._nextObjectSet and !this._setNextObject(){
             return null
         }
-        this.nextObjectSet = false
-        return this.nextObject
+        this._nextObjectSet = false
+        return this._nextObject
     }
 
-    setNextObject(){
-        while this.iter.hasNext(){
-            let obj = this.iter.next()
-            if this.f(obj){
-                this.nextObject = obj
-                this.nextObjectSet = true
+    _setNextObject(){
+        while this._iter.hasNext(){
+            let obj = this._iter.next()
+            if this._f(obj){
+                this._nextObject = obj
+                this._nextObjectSet = true
                 return true
             }
         }
