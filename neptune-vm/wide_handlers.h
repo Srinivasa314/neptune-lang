@@ -273,9 +273,27 @@ handler(LoadSubscript, {
           THROW("IndexError", "Array index out of range");
         else
           accumulator = a->inner[static_cast<size_t>(i)];
+      } else if (accumulator.is_object() &&
+                 accumulator.as_object()->is<Range>()) {
+        auto r = *accumulator.as_object()->as<Range>();
+        auto a = obj.as_object()->as<Array>();
+        if (r.start < 0 || static_cast<size_t>(r.start) >= a->inner.size() ||
+            r.end < 0 || static_cast<size_t>(r.end) > a->inner.size()) {
+          THROW("IndexError", "Array index out of range");
+        }
+        if (r.start > r.end) {
+          auto new_arr = allocate<Array>(0);
+          accumulator = Value(new_arr);
+        } else {
+          auto new_arr = allocate<Array>(r.end - r.start);
+          for (int32_t i = r.start; i < r.end; i++) {
+            new_arr->inner[i - r.start] = a->inner[i];
+          }
+          accumulator = Value(new_arr);
+        }
       } else {
-        THROW("TypeError",
-              "Array indices must be Int not " << accumulator.type_string());
+        THROW("TypeError", "Array indices must be Int or Range not "
+                               << accumulator.type_string());
       }
     } else if (obj.as_object()->is<Map>()) {
       auto &m = obj.as_object()->as<Map>()->inner;

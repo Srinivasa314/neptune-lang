@@ -234,5 +234,6 @@ struct BuiltinClasses {
 };
 struct BuiltinSymbols {
   Symbol *construct, *message, *stack;
+  BuiltinSymbols() { construct = message = stack = nullptr; }
 };
 } // namespace neptune_vm

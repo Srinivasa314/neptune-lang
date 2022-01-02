@@ -1324,20 +1324,28 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     breaks, start_reg, ..
                 } => {
                     start = *start_reg;
-                    if let Ok(_) = u8::try_from(start) {
-                        breaks.push(break_pos + 2)
+                    if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                        if let Ok(_) = u8::try_from(start) {
+                            breaks.push(break_pos + 2)
+                        } else {
+                            breaks.push(break_pos + 3)
+                        }
                     } else {
-                        breaks.push(break_pos + 3)
+                        breaks.push(break_pos)
                     }
                 }
                 Loop::For {
                     breaks, start_reg, ..
                 } => {
                     start = *start_reg;
-                    if let Ok(_) = u8::try_from(start) {
-                        breaks.push(break_pos + 2)
+                    if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                        if let Ok(_) = u8::try_from(start) {
+                            breaks.push(break_pos + 2)
+                        } else {
+                            breaks.push(break_pos + 3)
+                        }
                     } else {
-                        breaks.push(break_pos + 3)
+                        breaks.push(break_pos)
                     }
                 }
             }
@@ -1378,13 +1386,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     let start_reg = *start_reg;
                     let continue_pos = self.bytecode.size();
-                    if let Ok(_) = u8::try_from(start_reg) {
-                        continues.push(continue_pos + 2);
-                    } else {
-                        continues.push(continue_pos + 3);
-                    }
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
+                        if let Ok(_) = u8::try_from(start_reg) {
+                            continues.push(continue_pos + 2);
+                        } else {
+                            continues.push(continue_pos + 3);
+                        }
                         self.write1(Op::Close, start_reg as u32, line);
+                    } else {
+                        continues.push(continue_pos);
                     }
                     let c = self.reserve_int(line)?;
                     self.write1(Op::JumpConstant, c.into(), line);
@@ -1746,9 +1756,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                             message: "Cannot have more than 65535 constants per function".into(),
                         })?;
-                    let val_res = self.evaluate_expr(val)?;
-                    self.store_in_accumulator(val_res, val.line())?;
-                    self.write2(Op::StoreProperty, obj_reg, sym, val.line());
+                    let val_res = if let Some(val) = val {
+                        self.evaluate_expr(val)?
+                    } else {
+                        self.evaluate_expr(&Expr::Variable {
+                            name: key.clone(),
+                            line: *line,
+                        })?
+                    };
+                    let line = if let Some(val) = val {
+                        val.line()
+                    } else {
+                        *line
+                    };
+                    self.store_in_accumulator(val_res, line)?;
+                    self.write2(Op::StoreProperty, obj_reg, sym, line);
                 }
                 if dest.is_none() {
                     self.write_op_load_register(obj_reg, *line);
