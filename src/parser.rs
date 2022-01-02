@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
+    depth: u32,
     tokens: Tokens,
     current: Token<'src>,
     previous: Token<'src>,
@@ -293,6 +294,7 @@ pub enum Statement {
 impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     pub fn new(tokens: Tokens) -> Self {
         Self {
+            depth: 0,
             tokens,
             current: Token::uninit_token(),
             previous: Token::uninit_token(),
@@ -381,17 +383,39 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     }
 
     fn parse_precedence(&mut self, prec: Precedence) -> CompileResult<Expr> {
-        self.advance();
-        if let Some(expr) = self.prefix(self.previous.token_type.clone()) {
-            let mut expr = expr?;
-            while prec as u8 <= get_precedence(&self.current.token_type) as u8 {
+        self.depth += 1;
+        if self.depth == 64 {
+            let line = self.previous.line;
+            while !self.match_token(TokenType::Eof) {
                 self.advance();
-                let op = self.previous.token_type.clone();
-                expr = self.infix(op, Box::new(expr))?;
             }
-            Ok(expr)
-        } else {
-            Err(self.error_at_previous("Expect expression".into()))
+            return Err(CompileError {
+                message: "Maximum depth exceeded".to_string(),
+                line,
+            });
+        }
+        match (|| {
+            self.advance();
+            if let Some(expr) = self.prefix(self.previous.token_type.clone()) {
+                let mut expr = expr?;
+                while prec as u8 <= get_precedence(&self.current.token_type) as u8 {
+                    self.advance();
+                    let op = self.previous.token_type.clone();
+                    expr = self.infix(op, Box::new(expr))?;
+                }
+                Ok(expr)
+            } else {
+                Err(self.error_at_previous("Expect expression".into()))
+            }
+        })() {
+            Ok(e) => {
+                self.depth -= 1;
+                Ok(e)
+            }
+            Err(e) => {
+                self.depth -= 1;
+                Err(e)
+            }
         }
     }
 
@@ -803,6 +827,17 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     }
 
     fn statement(&mut self, needs_sep: bool, try_expr: bool) -> Option<Statement> {
+        self.depth += 1;
+        if self.depth == 64 {
+            self.errors.push(CompileError {
+                message: "Maximum depth exceeded".to_string(),
+                line: self.previous.line,
+            });
+            while !self.match_token(TokenType::Eof) {
+                self.advance();
+            }
+            return None;
+        }
         match (|| {
             let e = if self.match_token(TokenType::Let) {
                 self.var_declaration(true, false)
@@ -869,8 +904,12 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             }
             Ok(e)
         })() {
-            Ok(s) => Some(s),
+            Ok(s) => {
+                self.depth -= 1;
+                Some(s)
+            }
             Err(e) => {
+                self.depth -= 1;
                 self.errors.push(e);
                 self.synchronize();
                 None
@@ -1156,7 +1195,13 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 
     fn dot(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
         self.consume(TokenType::Identifier, "Expect property name after .".into())?;
-        let property = self.previous.inner.into();
+        let property: String = self.previous.inner.into();
+        if !matches!(*left, Expr::This { line: _ }) && Some('_') == property.chars().next() {
+            self.errors.push(CompileError {
+                message: format!("Cannot access private member {}", property),
+                line: self.previous.line,
+            })
+        }
         if self.match_token(TokenType::LeftParen) {
             let mut arguments: Vec<Expr> = vec![];
             loop {
@@ -1186,7 +1231,13 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let line = self.previous.line;
         self.consume(TokenType::Dot, "Expect . after super".into())?;
         self.consume(TokenType::Identifier, "Expect method name after .".into())?;
-        let method = self.previous.inner.into();
+        let method: String = self.previous.inner.into();
+        if Some('_') == method.chars().next() {
+            self.errors.push(CompileError {
+                message: format!("Cannot access private member {}", method),
+                line: self.previous.line,
+            })
+        }
         self.consume(
             TokenType::LeftParen,
             "Expect ( after method name".to_string(),
