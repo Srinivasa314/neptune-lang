@@ -174,6 +174,7 @@ public:
   std::string name;
   Class *super;
   Object *find_method(Symbol *method);
+  void copy_methods(Class &other);
   static constexpr Type type = Type::Class;
   friend class VM;
   friend class FunctionInfoWriter;

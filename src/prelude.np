@@ -212,3 +212,37 @@ _extendClass(ArrayIterator, Iterator)
 _extendClass(MapIterator, Iterator)
 _extendClass(StringIterator, Iterator)
 _extendClass(Range, Iterator)
+
+class ArraySort {
+    _partition(low, high, comp) {
+        let i = low - 1
+        let pivot = this[high]
+
+        for j in low..high {
+            if comp(this[j], pivot) {
+                i += 1
+                let t = this[i]
+                this[i] = this[j]
+                this[j] = t
+            }
+        }
+        let t = this[i+1]
+        this[i+1] = this[high]
+        this[high] = t
+        return i+1
+    }
+
+    _quickSort(low, high, comp) {
+        if low < high {
+            let pivot = this._partition(low, high, comp)
+            this._quickSort(low, pivot - 1, comp)
+            this._quickSort(pivot + 1, high, comp)
+        }
+    }
+
+    sort(f) {
+        this._quickSort(0, this.len()-1, f)
+    }
+}
+
+_copyMethods(Array, ArraySort)

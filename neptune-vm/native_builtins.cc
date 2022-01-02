@@ -328,6 +328,23 @@ static bool _extendClass(VM *vm, Value *slots) {
   }
 }
 
+static bool _copyMethods(VM *vm, Value *slots) {
+  if (slots[0].is_object() && slots[0].as_object()->is<Class>() &&
+      slots[1].is_object() && slots[1].as_object()->is<Class>()) {
+    auto class0 = slots[0].as_object()->as<Class>();
+    auto class1 = slots[1].as_object()->as<Class>();
+    if (class1->is_native)
+      THROW("TypeError", "Cannot copy methods from native class");
+    class0->copy_methods(*class1);
+    vm->return_value = Value::null();
+    return true;
+  } else {
+    THROW("TypeError", "Expected Class and Class for  got "
+                           << slots[0].type_string() << " and "
+                           << slots[1].type_string() << " instead");
+  }
+}
+
 static bool random(VM *vm, Value *) {
   std::uniform_real_distribution<double> dist(0.0, 1.0);
   vm->return_value = Value(dist(vm->rng));
@@ -455,6 +472,9 @@ void VM::declare_native_builtins() {
                           native_builtins::_getCallerModule);
   declare_native_function("<prelude>", "_extendClass", false, 2,
                           native_builtins::_extendClass);
+  declare_native_function("<prelude>", "_copyMethods", false, 2,
+                          native_builtins::_copyMethods);
+
   declare_native_function("random", "random", true, 0, native_builtins::random);
   declare_native_function("random", "shuffle", true, 1,
                           native_builtins::shuffle);

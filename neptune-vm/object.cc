@@ -276,4 +276,8 @@ MapIterator::MapIterator(Map *map) {
   else
     last_key = iter->first;
 }
+
+void Class::copy_methods(Class &other) {
+  methods.insert(other.methods.begin(), other.methods.end());
+}
 } // namespace neptune_vm
