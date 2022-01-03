@@ -17,6 +17,15 @@ fn main() {
     .unwrap();
     n.exec("<prelude>", include_str!("prelude.np")).unwrap();
 
+    n.create_efunc("timeNow", |_| -> Result<f64, ()> {
+        Ok(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f64())
+    })
+    .unwrap();
+    n.exec("time", include_str!("time.np")).unwrap();
+
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
             Ok(s) => match n.exec(

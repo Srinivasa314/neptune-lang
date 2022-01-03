@@ -61,14 +61,13 @@ fun advance(bodies, nbody, dt){
     let bivx = bi.vx
     let bivy = bi.vy
     let bivz = bi.vz
-    for j=i+1,nbody{
+    for j in i+1..nbody{
       let bj = bodies[j]
       let dx = bix-bj.x 
       let dy = biy-bj.y 
       let dz = biz-bj.z
       let dist2 = dx*dx + dy*dy + dz*dz
-      let mag = sqrt(dist2)
-      mag = dt / (mag * dist2)
+      let mag = dt / (sqrt(dist2) * dist2)
       let bm = bj.mass*mag
       bivx -= (dx * bm)
       bivy -= (dy * bm)
@@ -96,13 +95,12 @@ fun energy(bodies, nbody){
     let vz = bi.vz
     let bim = bi.mass
     e = e + (0.5 * bim * (vx*vx + vy*vy + vz*vz))
-    for j=i+1,nbody{
+    for j in i+1..nbody{
       let bj = bodies[j]
       let dx = bi.x-bj.x
       let dy = bi.y-bj.y
       let dz = bi.z-bj.z
-      let distance = sqrt(dx*dx + dy*dy + dz*dz)
-      e -= ((bim * bj.mass) / distance)
+      e -= ((bim * bj.mass) / sqrt(dx*dx + dy*dy + dz*dz))
   }
   }
   return e
@@ -124,13 +122,13 @@ fun offsetMomentum(b, nbody){
   b[0].vz = -pz / SOLAR_MASS
 }
 
-const N = 100
+const N = 100000
 const nbody = bodies.len()
 
 offsetMomentum(bodies, nbody)
-let str="\(energy(bodies, nbody))\n"
+print('\(energy(bodies, nbody))')
 for i in 0..N{
     advance(bodies, nbody, 0.01)
 }
-str~="\(energy(bodies, nbody))"
-throw str    
+
+print('\(energy(bodies, nbody))')

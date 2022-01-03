@@ -127,6 +127,7 @@ class Array : public Object {
 public:
   Array() = default;
   explicit Array(size_t size);
+  Array(size_t size, Value v);
   std::vector<Value, mi_stl_allocator<Value>> inner;
   static constexpr Type type = Type::Array;
 };

@@ -1,0 +1,5 @@
+const {ecall} = import('vm')
+
+export fun now() {
+    return ecall(@timeNow, null)
+}

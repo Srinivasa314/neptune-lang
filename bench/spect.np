@@ -1,0 +1,50 @@
+const {sqrt} = import("math")
+
+fun A(i, j) {
+  const ij = i+j
+  return 1.0 / (ij * (ij+1) * 0.5 + i + 1)
+}
+
+fun Au(u, v, n) {
+    for i in 0..n {
+        let t = 0
+        for j in 0..n{
+            t += A(i, j) * u[j]
+        }
+        v[i] = t
+    }
+}
+
+fun Atu(u, v, n) {
+    for i in 0..n {
+        let t = 0
+        for j in 0..n{
+            t += A(j, i) * u[j]
+        }
+        v[i] = t
+    }
+}
+
+fun AtAu(u, v, w, n) {
+    Au(u, w, n)
+    Atu(w, v, n)
+}
+
+fun spectralnorm(n) {
+    let u = new Array(n,1.0)
+    let v = new Array(n,0.0)
+    let w = new Array(n,0.0)
+    let vv = 0
+    let vBv = 0
+    for i in 0..10{
+        AtAu(u, v, w, n)
+        AtAu(v, u, w, n)
+    }
+    for i in 0..n {
+        vBv += u[i] * v[i]
+        vv += v[i] * v[i]
+    }
+    return sqrt(vBv / vv)
+}
+
+print(spectralnorm(400))

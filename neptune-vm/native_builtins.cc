@@ -75,9 +75,16 @@ static bool string_construct(VM *vm, Value *) {
   return true;
 }
 
-static bool array_construct(VM *vm, Value *) {
-  vm->return_value = Value(vm->allocate<Array>());
-  return true;
+static bool array_construct(VM *vm, Value *slots) {
+  if (slots[1].is_int()) {
+    if (slots[1].as_int() < 0) 
+      THROW("Error", "The array size must be non negative");
+    vm->return_value = Value(vm->allocate<Array>(slots[1].as_int(), slots[2]));
+    return true;
+  } else {
+    THROW("TypeError",
+          "The first argument must be a Int, not " << slots[1].type_string());
+  }
 }
 
 static bool map_construct(VM *vm, Value *) {
@@ -436,7 +443,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Bool, construct, 0, bool_construct);
   DECL_NATIVE_METHOD(Null, construct, 0, null_construct);
   DECL_NATIVE_METHOD(String, construct, 0, string_construct);
-  DECL_NATIVE_METHOD(Array, construct, 0, array_construct);
+  DECL_NATIVE_METHOD(Array, construct, 2, array_construct);
   DECL_NATIVE_METHOD(Map, construct, 0, map_construct);
   DECL_NATIVE_METHOD(Object, construct, 0, object_construct);
   DECL_NATIVE_METHOD(Range, construct, 2, range_construct);

@@ -36,11 +36,11 @@ impl Display for InterpretError {
         match self {
             InterpretError::CompileError(c) => {
                 for error in c {
-                    write!(f, "{}", error)?;
+                    write!(f, "{}\n", error)?;
                 }
             }
             InterpretError::UncaughtException(error) => {
-                write!(f, "Uncaught Exception: {}", error)?;
+                write!(f, "Uncaught Exception:\n{}", error)?;
             }
         }
         Ok(())

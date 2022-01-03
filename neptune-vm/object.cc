@@ -250,6 +250,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
 Array::Array(size_t size)
     : inner(std::vector<Value, mi_stl_allocator<Value>>(size, Value::null())) {}
 
+Array::Array(size_t size, Value v)
+    : inner(std::vector<Value, mi_stl_allocator<Value>>(size, v)) {}
+
 Map::Map(size_t size) { inner.reserve(size); }
 Object *Class::find_method(Symbol *method) {
   auto class_ = this;
