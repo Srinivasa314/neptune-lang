@@ -281,7 +281,8 @@ mod ffi {
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
-        //Safe as long as functions of the correct type are passed
+        /*functions of the correct type should be passed and the functions must
+        not exhibit undefined behaviour if data is passed to them*/
         unsafe fn create_efunc(
             self: &VM,
             name: StringSlice,
@@ -344,6 +345,7 @@ impl VM {
     }
 }
 
+// data must contain a valid pointer to a callback of type F
 unsafe extern "C" fn trampoline<'vm, F>(cx: EFuncContext, data: *mut c_void) -> bool
 where
     F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
@@ -354,6 +356,7 @@ where
         .unwrap_or_else(|_| std::process::abort())
 }
 
+// data must contain a valid pointer to a boxed callback of type F and must only be called once
 unsafe extern "C" fn free_data<F>(data: *mut c_void) {
     Box::from_raw(data as *mut F);
 }
@@ -554,6 +557,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    // Function must contain valid bytecode
     pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
         self.0.push_function(fw)
     }

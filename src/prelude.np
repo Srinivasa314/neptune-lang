@@ -84,13 +84,13 @@ export fun import(moduleName) {
     if module {
         return module
     }else {
-        moduleName = ecall(@resolveModule,{callerModule: _getCallerModule(), moduleName: moduleName})
+        moduleName = ecall(@resolveModule,{callerModule: _getCallerModule(), moduleName})
         module = _getModule(moduleName)
         if module {
             return module
         } else {
             let source = ecall(@fetchModule, moduleName)
-            ecall(@compile, {moduleName: moduleName, eval: false, source:source})()
+            ecall(@compile, {moduleName, eval: false, source})()
             return _getModule(moduleName)
         }
     }
@@ -100,7 +100,7 @@ export fun eval(source) {
     if source.getClass() !== String {
         throw new TypeError('The first argument must be a String, not \(source.getClass().name())')
     }
-    return ecall(@compile, {moduleName: _getCallerModule(), eval: true, source: source})()
+    return ecall(@compile, {moduleName: _getCallerModule(), eval: true, source})()
 }
 
 export class Iterator {
