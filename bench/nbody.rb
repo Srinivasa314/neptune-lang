@@ -5,6 +5,8 @@
 # modified by Jesse Millikan
 # modified by Yusuke Endoh 
 
+require 'benchmark'
+
 SOLAR_MASS = 4 * Math::PI**2
 DAYS_PER_YEAR = 365.24
 
@@ -123,7 +125,7 @@ BODIES = [
     5.15138902046611451e-05)
 ]
 
-
+time = Benchmark.measure {
 n = 100000
 
 offset_momentum(BODIES)
@@ -143,3 +145,6 @@ n.times do
 end
 
 puts energy(BODIES)
+}
+
+puts time.real*1000

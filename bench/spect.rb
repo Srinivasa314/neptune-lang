@@ -5,6 +5,8 @@
 #   - made loops uglier to avoid the unnecessary overhead of blocks
 #   - nicer naming for readability
 
+require 'benchmark'
+
 ARRAY_LENGTH = 400
 
 u = Array.new(ARRAY_LENGTH, 1)
@@ -46,6 +48,7 @@ def vector_times_array_times_array_transposed(vector)
   vector_times_array_transposed(vector_times_array(vector))
 end
 
+time = Benchmark.measure {
 10.times do
   v = vector_times_array_times_array_transposed(u)
   u = vector_times_array_times_array_transposed(v)
@@ -59,3 +62,6 @@ while i < ARRAY_LENGTH
 end
 
 puts (Math.sqrt(vBv/vv))
+}
+
+puts time.real*1000

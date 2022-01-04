@@ -1,5 +1,4 @@
-const {sqrt} = import("math")
-const PI = 3.141592653589793
+const {PI,sqrt} = import("math")
 const SOLAR_MASS = 4 * PI * PI
 const DAYS_PER_YEAR = 365.24
 
@@ -125,6 +124,9 @@ fun offsetMomentum(b, nbody){
 const N = 100000
 const nbody = bodies.len()
 
+const {now} = import("time")
+let time = now()
+
 offsetMomentum(bodies, nbody)
 print('\(energy(bodies, nbody))')
 for i in 0..N{
@@ -132,3 +134,4 @@ for i in 0..N{
 }
 
 print('\(energy(bodies, nbody))')
+print((now()-time)*1000)

@@ -15,6 +15,8 @@ function check_tree(node){
     return 1
 }
 
+let time = performance.now()
+
 let min_depth = 4
 let max_depth = 15
 let stretch_depth = max_depth + 1
@@ -38,3 +40,4 @@ while(depth < stretch_depth){
 }
 
 console.log(`long lived tree of depth ${max_depth} \t check ${check_tree(long_lived_tree)}`)
+console.log(performance.now() - time)

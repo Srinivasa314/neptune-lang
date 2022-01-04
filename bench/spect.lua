@@ -27,7 +27,9 @@ local function A(i, j)
     Av(x, t, N)
     Atv(t, y, N)
   end
-  
+
+  local time = os.clock()
+
   local N = 400
   local u, v, t = {}, {}, {}
   for i=1,N do u[i] = 1 end
@@ -42,3 +44,4 @@ local function A(i, j)
   end
   io.write(math.sqrt(vBv / vv))
   
+  io.write("\n",(os.clock()-time)*1000)

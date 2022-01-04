@@ -5,4 +5,6 @@ function fib(n)
     return fib(n-1)+fib(n-2)
 end
 
+local time = os.clock()
 print(fib(33))
+io.write("\n",(os.clock()-time)*1000)

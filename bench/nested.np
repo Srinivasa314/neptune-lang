@@ -1,0 +1,18 @@
+fun loop(){
+    let counter = 0
+    for a in 0..75{
+        for b in 0..75{
+            for c in 0..75{
+                for d in 0..75{
+                    counter += 1
+                }    
+            }
+        }
+    }
+    return counter
+}
+
+const {now} = import("time")
+let time = now()
+print(loop())
+print((now()-time)*1000)

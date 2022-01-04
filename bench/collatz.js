@@ -8,6 +8,8 @@ function collatz(x) {
     }
 }
 
+let time = performance.now()
 for (let i = 1; i < 100000; i++) {
     collatz(i)
 }
+console.log(performance.now() - time)

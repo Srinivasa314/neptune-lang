@@ -8,4 +8,6 @@ function Ack(M, N)
     return Ack(M - 1, Ack(M, (N - 1)))
 end
 
+local time = os.clock()
 print(Ack(3,8))
+io.write("\n",(os.clock()-time)*1000)

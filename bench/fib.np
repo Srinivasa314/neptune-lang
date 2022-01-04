@@ -5,4 +5,7 @@ fun fib(n){
     return fib(n-1)+fib(n-2)
 }
 
+const {now} = import("time")
+let time = now()
 print(fib(33))
+print((now()-time)*1000)

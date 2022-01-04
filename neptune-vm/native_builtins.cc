@@ -1,5 +1,21 @@
 #include "neptune-vm.h"
 #include <algorithm>
+#include <cmath>
+#define MATH_FNS                                                               \
+  FN(acos)                                                                     \
+  FN(asin)                                                                     \
+  FN(atan)                                                                     \
+  FN(cbrt)                                                                     \
+  FN(ceil)                                                                     \
+  FN(cos)                                                                      \
+  FN(floor)                                                                    \
+  FN(round)                                                                    \
+  FN(sin)                                                                      \
+  FN(sqrt)                                                                     \
+  FN(tan)                                                                      \
+  FN(log)                                                                      \
+  FN(log2)                                                                     \
+  FN(exp)
 
 namespace neptune_vm {
 namespace native_builtins {
@@ -220,13 +236,54 @@ static bool stringiterator_next(VM *vm, Value *slots) {
   return true;
 }
 
-bool sqrt(VM *vm, Value *slots) {
+#define FN(x)                                                                  \
+  bool x(VM *vm, Value *slots) {                                               \
+    auto num = slots[0];                                                       \
+    if (num.is_int()) {                                                        \
+      vm->return_value = Value(std::x(num.as_int()));                          \
+      return true;                                                             \
+    } else if (num.is_float()) {                                               \
+      vm->return_value = Value(std::x(num.as_float()));                        \
+      return true;                                                             \
+    } else {                                                                   \
+      THROW("TypeError", "The first argument must be a Int or Float, not "     \
+                             << slots[0].type_string());                       \
+    }                                                                          \
+  }
+MATH_FNS
+#undef FN
+
+bool pow(VM *vm, Value *slots) {
+  if (slots[0].is_float() && slots[1].is_float()) {
+    vm->return_value =
+        Value(std::pow(slots[0].as_float(), slots[1].as_float()));
+    return true;
+  } else if (slots[0].is_int() && slots[1].is_int()) {
+    vm->return_value = Value(std::pow(slots[0].as_int(), slots[1].as_int()));
+    return true;
+  } else if (slots[0].is_float() && slots[1].is_int()) {
+    vm->return_value = Value(std::pow(slots[0].as_float(), slots[1].as_int()));
+    return true;
+  } else if (slots[0].is_int() && slots[1].is_float()) {
+    vm->return_value = Value(std::pow(slots[0].as_int(), slots[1].as_float()));
+    return true;
+  } else {
+    THROW("TypeError", "The two arguments must be a Int or Float, not "
+                           << slots[0].type_string() << " and "
+                           << slots[1].type_string());
+  }
+}
+
+static bool abs(VM *vm, Value *slots) {
   auto num = slots[0];
   if (num.is_int()) {
-    vm->return_value = Value(std::sqrt(num.as_int()));
+    if (num.as_int() == std::numeric_limits<int32_t>::min())
+      THROW("OverflowError",
+            "abs of " << num.as_int() << " does not fit in an Int");
+    vm->return_value = Value(std::abs(num.as_int()));
     return true;
   } else if (num.is_float()) {
-    vm->return_value = Value(std::sqrt(num.as_float()));
+    vm->return_value = Value(std::fabs(num.as_float()));
     return true;
   } else {
     THROW("TypeError", "The first argument must be a Int or Float, not "
@@ -387,6 +444,25 @@ static bool random_range(VM *vm, Value *slots) {
   }
 }
 
+static bool float_toint(VM *vm, Value *slots) {
+  auto f = slots[0].as_float();
+  if (std::isnan(f) || f > std::numeric_limits<int32_t>::max() ||
+      f < std::numeric_limits<int32_t>::min())
+    THROW("OverflowError", slots[0].as_float() << " does not fit in an Int");
+  vm->return_value = Value(int(f));
+  return true;
+}
+
+static bool int_tofloat(VM *vm, Value *slots) {
+  vm->return_value = Value(double(slots[0].as_int()));
+  return true;
+}
+
+static bool float_isnan(VM *vm, Value *slots) {
+  vm->return_value = Value(bool(std::isnan(slots[0].as_float())));
+  return true;
+}
+
 #undef THROW
 } // namespace native_builtins
 
@@ -464,6 +540,9 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(StringIterator, hasNext, 0, stringiterator_hasnext);
   DECL_NATIVE_METHOD(StringIterator, next, 0, stringiterator_next);
   DECL_NATIVE_METHOD(Class_, name, 0, class_name);
+  DECL_NATIVE_METHOD(Float, toInt, 0, float_toint);
+  DECL_NATIVE_METHOD(Int, toFloat, 0, int_tofloat);
+  DECL_NATIVE_METHOD(Float, isNaN, 0, float_isnan);
 
   create_module("vm");
   create_module("math");
@@ -471,10 +550,16 @@ void VM::declare_native_builtins() {
   declare_native_function("vm", "disassemble", true, 1,
                           native_builtins::disassemble);
   declare_native_function("vm", "gc", true, 0, native_builtins::gc);
-  declare_native_function("math", "sqrt", true, 1, native_builtins::sqrt);
   declare_native_function("vm", "ecall", true, 2, native_builtins::ecall);
   declare_native_function("vm", "generateStackTrace", true, 1,
                           native_builtins::generateStackTrace);
+
+#define FN(x) declare_native_function("math", #x, true, 1, native_builtins::x);
+
+  MATH_FNS
+#undef FN
+  declare_native_function("math", "abs", true, 1, native_builtins::abs);
+  declare_native_function("math", "pow", true, 2, native_builtins::pow);
 
   declare_native_function("<prelude>", "_getModule", false, 1,
                           native_builtins::_getModule);
@@ -490,5 +575,21 @@ void VM::declare_native_builtins() {
                           native_builtins::shuffle);
   declare_native_function("random", "range", true, 2,
                           native_builtins::random_range);
+#define DEF_MATH_CONSTANT(name, value)                                         \
+  add_module_variable("math", name, false, true);                              \
+  module_variables[module_variables.size() - 1] = Value(value);
+
+  DEF_MATH_CONSTANT("NaN", NAN)
+  DEF_MATH_CONSTANT("Infinity", INFINITY)
+  DEF_MATH_CONSTANT("E", M_E)
+  DEF_MATH_CONSTANT("LN2", M_LN2)
+  DEF_MATH_CONSTANT("LOG2E", M_LOG2E)
+  DEF_MATH_CONSTANT("SQRT1_2", M_SQRT1_2)
+  DEF_MATH_CONSTANT("LN10", M_LN10)
+  DEF_MATH_CONSTANT("LOG10E", M_LOG10E)
+  DEF_MATH_CONSTANT("PI", M_PI)
+  DEF_MATH_CONSTANT("SQRT2", M_SQRT2)
+
+#undef DEF_MATH_CONSTANT
 }
 } // namespace neptune_vm

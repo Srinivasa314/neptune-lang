@@ -21,6 +21,8 @@ local function ItemCheck(tree)
   end
 end
 
+local time = os.clock()
+
 local mindepth = 4
 local maxdepth = 15
 
@@ -46,3 +48,4 @@ end
 io.write(string.format("long lived tree of depth %d\t check: %d\n",
   maxdepth, ItemCheck(longlivedtree)))
     
+io.write("\n",(os.clock()-time)*1000)
