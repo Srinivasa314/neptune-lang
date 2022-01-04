@@ -77,7 +77,7 @@ static bool string_construct(VM *vm, Value *) {
 
 static bool array_construct(VM *vm, Value *slots) {
   if (slots[1].is_int()) {
-    if (slots[1].as_int() < 0) 
+    if (slots[1].as_int() < 0)
       THROW("Error", "The array size must be non negative");
     vm->return_value = Value(vm->allocate<Array>(slots[1].as_int(), slots[2]));
     return true;
@@ -241,6 +241,9 @@ static bool disassemble(VM *vm, Value *slots) {
     neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
     vm->return_value = Value(vm->allocate<String>(os.str()));
     return true;
+  } else if (fn.is_object() && fn.as_object()->is<NativeFunction>()) {
+    THROW("TypeError", "Cannot disassemble native function "
+                           << fn.as_object()->as<NativeFunction>()->name);
   } else {
     THROW("TypeError", "The first argument must be a Function, not "
                            << slots[0].type_string());
