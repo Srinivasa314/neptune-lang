@@ -134,6 +134,20 @@ static bool string_construct(VM *vm, Value *) {
   return true;
 }
 
+static bool string_find(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
+    auto haystack = slots[0].as_object()->as<String>();
+    auto needle = slots[1].as_object()->as<String>();
+    auto pos = String::find(haystack, needle, 0);
+    if (pos == haystack->get_len())
+      vm->return_value = Value(-1);
+    else
+      vm->return_value = Value(static_cast<int32_t>(pos));
+    return true;
+  } else
+    THROW("TypeError", "Expected String got " << slots[1].type_string());
+}
+
 static bool array_construct(VM *vm, Value *slots) {
   if (slots[1].is_int()) {
     if (slots[1].as_int() < 0)
@@ -597,6 +611,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Array, insert, 2, array_insert);
   DECL_NATIVE_METHOD(Array, remove, 1, array_remove);
   DECL_NATIVE_METHOD(Array, clear, 0, array_clear);
+  DECL_NATIVE_METHOD(String, find, 1, string_find);
   DECL_NATIVE_METHOD(Int, construct, 0, int_construct);
   DECL_NATIVE_METHOD(Float, construct, 0, float_construct);
   DECL_NATIVE_METHOD(Bool, construct, 0, bool_construct);

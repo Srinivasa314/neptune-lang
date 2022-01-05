@@ -283,4 +283,35 @@ MapIterator::MapIterator(Map *map) {
 void Class::copy_methods(Class &other) {
   methods.insert(other.methods.begin(), other.methods.end());
 }
+
+// Boyer-Moore-Horspool algorithm
+size_t String::find(String *haystack, String *needle, size_t start) {
+  if (needle->len == 0)
+    return start;
+
+  if (start + needle->len > haystack->len)
+    return haystack->len;
+
+  size_t skip[UINT8_MAX];
+
+  for (size_t i = 0; i < UINT8_MAX; i++)
+    skip[i] = needle->len;
+
+  for (size_t i = 0; i < needle->len - 1; i++)
+    skip[(uint8_t)needle->data[i]] = needle->len - 1 - i;
+
+  char last = needle->data[needle->len - 1], c;
+
+  for (size_t i = start; i <= haystack->len - needle->len;
+       i += skip[(uint8_t)c]) {
+    c = haystack->data[i + needle->len - 1];
+    if (last == c &&
+        memcmp(haystack->data + i, needle->data, needle->len - 1) == 0) {
+      return i;
+    }
+  }
+
+  return haystack->len;
+}
+
 } // namespace neptune_vm
