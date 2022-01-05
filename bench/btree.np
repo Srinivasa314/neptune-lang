@@ -19,13 +19,13 @@ const {now} = import("time")
 let time = now()
 
 let min_depth = 4
-let max_depth = 15
+let max_depth = 14
 let stretch_depth = max_depth + 1
 print('stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(stretch_depth)))')
 
 let long_lived_tree = make_tree(max_depth)
 
-let iterations = import("math").pow(2,15).toInt()
+let iterations = import("math").pow(2,14).toInt()
 
 let depth=min_depth
 

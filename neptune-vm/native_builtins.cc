@@ -145,7 +145,21 @@ static bool string_find(VM *vm, Value *slots) {
       vm->return_value = Value(static_cast<int32_t>(pos));
     return true;
   } else
-    THROW("TypeError", "Expected String got " << slots[1].type_string());
+    THROW("TypeError", "The first argument must be a String, not "
+                           << slots[1].type_string());
+}
+
+static bool string_replace(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<String>() &&
+      slots[2].is_object() && slots[2].as_object()->is<String>()) {
+    vm->return_value = Value(slots[0].as_object()->as<String>()->replace(
+        vm, slots[1].as_object()->as<String>(),
+        slots[2].as_object()->as<String>()));
+    return true;
+  } else
+    THROW("TypeError",
+          "The first and second argument must be a String and String, not "
+              << slots[1].type_string() << " and " << slots[2].type_string());
 }
 
 static bool array_construct(VM *vm, Value *slots) {
@@ -612,6 +626,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Array, remove, 1, array_remove);
   DECL_NATIVE_METHOD(Array, clear, 0, array_clear);
   DECL_NATIVE_METHOD(String, find, 1, string_find);
+  DECL_NATIVE_METHOD(String, replace, 2, string_replace);
   DECL_NATIVE_METHOD(Int, construct, 0, int_construct);
   DECL_NATIVE_METHOD(Float, construct, 0, float_construct);
   DECL_NATIVE_METHOD(Bool, construct, 0, bool_construct);

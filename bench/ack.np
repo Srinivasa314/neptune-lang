@@ -10,5 +10,5 @@ fun Ack(M, N) {
 
 const {now} = import("time")
 let time = now()
-print(Ack(3,8))
+print(Ack(3,9))
 print((now()-time)*1000)

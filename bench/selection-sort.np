@@ -11,7 +11,7 @@ fun sortDescending(arr){
     }
 }
 
-let arr = new Array(3000,null)
+let arr = new Array(4000,null)
 for i in 0..arr.len(){
     arr[i] = i
 }
@@ -19,4 +19,5 @@ for i in 0..arr.len(){
 const {now} = import("time")
 let time = now()
 sortDescending(arr)
+print(arr[0])
 print((now()-time)*1000)

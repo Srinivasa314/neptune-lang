@@ -9,5 +9,5 @@ function Ack(M, N)
 end
 
 local time = os.clock()
-print(Ack(3,8))
-io.write("\n",(os.clock()-time)*1000)
+print(Ack(3,9))
+print((os.clock()-time)*1000)

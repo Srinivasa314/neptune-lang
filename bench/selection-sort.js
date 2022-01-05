@@ -12,9 +12,10 @@ function sortDescending(arr) {
 }
 
 let time = performance.now()
-let arr = new Array(3000)
+let arr = new Array(4000)
 for (let i = 0; i < arr.length; i++) {
     arr[i] = i
 }
 sortDescending(arr)
+console.log(arr[0])
 console.log(performance.now() - time)

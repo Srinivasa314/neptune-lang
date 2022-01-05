@@ -7,5 +7,5 @@ function Ack(M, N) {
 }
 
 let time = performance.now()
-console.log(Ack(3, 8))
+console.log(Ack(3, 9))
 console.log(performance.now() - time)

@@ -42,6 +42,6 @@ local function A(i, j)
     vBv = vBv + ui*vi
     vv = vv + vi*vi
   end
-  io.write(math.sqrt(vBv / vv))
+  print(math.sqrt(vBv / vv))
   
-  io.write("\n",(os.clock()-time)*1000)
+  print((os.clock()-time)*1000)

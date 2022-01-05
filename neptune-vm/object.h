@@ -59,6 +59,7 @@ public:
   void operator delete(void *p) { mi_free(p); }
 };
 
+class VM;
 class String : public Object {
   size_t len;
   char data[];
@@ -68,6 +69,7 @@ public:
   String() = delete;
   size_t get_len() { return len; }
   static size_t find(String *haystack, String *needle, size_t start);
+  String *replace(VM *vm, String *from, String *to);
   static constexpr Type type = Type::String;
   operator StringSlice() const;
   operator rust::String() const;

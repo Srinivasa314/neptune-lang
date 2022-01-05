@@ -25,7 +25,7 @@ def bottom_up_tree(depth)
 end
 
 time = Benchmark.measure {
-max_depth = 15
+max_depth = 14
 min_depth = 4
 
 max_depth = [min_depth + 2, max_depth].max

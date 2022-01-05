@@ -1,6 +1,6 @@
-function sieve(n) {
+function sieve(primes) {
+    let n = primes.length - 1;
     const sqrt_n = Math.sqrt(n)
-    let primes = new Array(n + 1).fill(true);
     for (let p = 2; p <= sqrt_n; p++) {
         if (primes[p] === true) {
             for (let i = p * p; i <= n; i += p)
@@ -15,6 +15,7 @@ function sieve(n) {
     }
     return count
 }
+let arr = new Array(5_000_001).fill(true);
 let time = performance.now()
-console.log(sieve(1_000_000))
+console.log(sieve(arr))
 console.log(performance.now() - time)

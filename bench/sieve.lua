@@ -1,9 +1,5 @@
-function sieve(n)
+function sieve(n, primes)
     local sqrt_n = math.sqrt(n)
-    local primes = {}
-    for i =1,n do
-        primes[i] = true
-    end
     for p=2,sqrt_n do
         if(primes[p] == true) then
             for i = p*p,n,p do
@@ -21,6 +17,11 @@ function sieve(n)
     return count
 end
 
+local primes = {}
+for i =1,5000000 do
+    primes[i] = true
+end
+
 local time = os.clock()
-io.write(sieve(1000000))
-io.write("\n",(os.clock()-time)*1000)
+print(sieve(5000000, primes))
+print((os.clock()-time)*1000)

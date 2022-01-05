@@ -1,18 +1,29 @@
-from matplotlib import pyplot as plt
-import time
+
 import subprocess
+from matplotlib import pyplot as plt
 
-commands = {'Python': 'python btree.py', 'Neptune': 'neptune-cli btree.np',
-            'Wren': 'wren_cli btree.wren', 'NodeJS(JIT off)': 'node --jitless btree.js',
-            'Ruby': 'ruby btree.rb',  'Lua': 'lua btree.lua'}
-results = []
-for command in commands.values():
-    start = time.time()
-    subprocess.run(command, shell=True)
-    results.append(time.time()-start)
+benchmarks = ['ack', 'btree', 'collatz', 'fib', 'nbody',
+              'nested', 'selection-sort', 'sieve', 'spect']
 
-fig, ax = plt.subplots()
-ax.barh(list(commands.keys()), results)
-plt.tight_layout()
-ax.set_title('Btree benchmark')
-plt.savefig('results.png')
+languages = {'Neptune': ['../neptune-cli/target/release/neptune-cli', '.np'],
+             'NodeJS(JIT off)': ['node', '-jitless', '.js'],
+             'Ruby': ['ruby', '.rb'],  'Lua': ['lua', '.lua'], 'Node(JIT)': ['node', '.js'], }
+
+results = {}
+for benchmark in benchmarks:
+    results[benchmark] = {}
+
+for benchmark in benchmarks:
+    for lang in languages:
+        results[benchmark][lang] = float(subprocess.run(languages[lang][:-1]+[benchmark + languages[lang][-1]],
+                                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').split('\n')[-2])
+
+for benchmark in benchmarks:
+    fig, ax = plt.subplots()
+    langs = list(languages.keys())
+    langs.sort(key=lambda l: results[benchmark][l])
+    ax.barh(langs, [results[benchmark][l]for l in langs])
+    plt.tight_layout()
+    ax.set_title(benchmark)
+    plt.savefig(f'{benchmark}.png')
+    pass

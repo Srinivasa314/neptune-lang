@@ -7,4 +7,4 @@ end
 
 local time = os.clock()
 print(fib(33))
-io.write("\n",(os.clock()-time)*1000)
+print((os.clock()-time)*1000)

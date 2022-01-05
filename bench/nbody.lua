@@ -120,4 +120,4 @@ offsetMomentum(bodies, nbody)
 print(energy(bodies, nbody))
 for i=1,N do advance(bodies, nbody, 0.01) end
 print(energy(bodies, nbody))
-io.write("\n",(os.clock()-time)*1000)
+print((os.clock()-time)*1000)

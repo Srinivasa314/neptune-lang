@@ -1,8 +1,8 @@
 require 'benchmark'
 
-def sieve(n)
+def sieve(primes)
+    n = primes.length - 1 
     sqrt_n = Math.sqrt(n).to_i
-    primes = Array.new(n+1,true)
     p = 2   
     while p <= sqrt_n
         if(primes[p] == true) then
@@ -24,8 +24,11 @@ def sieve(n)
     end
     return count
 end
+
+primes = Array.new(5000001,true)
+
 time = Benchmark.measure {
-puts sieve(1000000)
+puts sieve(primes)
 }
 
 puts time.real*1000

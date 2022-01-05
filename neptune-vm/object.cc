@@ -314,4 +314,19 @@ size_t String::find(String *haystack, String *needle, size_t start) {
   return haystack->len;
 }
 
+String *String::replace(VM *vm, String *from, String *to) {
+  if (from->len == 0)
+    return this;
+  std::string result;
+  size_t offset = 0, pos;
+  while (1) {
+    pos = String::find(this, from, offset);
+    result.insert(result.end(), data + offset, data + pos);
+    if (pos == len)
+      break;
+    offset = pos + from->len;
+    result.insert(result.end(), to->data, to->data + to->len);
+  };
+  return vm->allocate<String>(result);
+}
 } // namespace neptune_vm

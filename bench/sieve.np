@@ -1,7 +1,7 @@
 const {sqrt} = import("math")
-fun sieve(n) {
+fun sieve(primes) {
+    const n = primes.len() - 1 
     const sqrt_n = sqrt(n).toInt()
-    let primes = new Array(n + 1,true)
     for p in 2..sqrt_n+1 {
         if primes[p] === true {
             let i = p * p
@@ -21,7 +21,9 @@ fun sieve(n) {
     return count
 }
 
+let primes = new Array(5_000_001,true)
+
 const {now} = import("time")
 let time = now()
-print(sieve(1_000_000))
+print(sieve(primes))
 print((now()-time)*1000)

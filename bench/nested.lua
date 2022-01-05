@@ -13,5 +13,5 @@ function loop()
 end
 
 local time = os.clock()
-io.write(loop())
-io.write("\n",(os.clock()-time)*1000)
+print(loop())
+print((os.clock()-time)*1000)

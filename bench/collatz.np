@@ -1,10 +1,17 @@
+let max_steps = 0
+
 fun collatz(x) {
+	let steps = 0
 	while x > 1 {
+		steps+=1
 		if x % 2 === 0{
 			x/=2
 		} else {
 			x = x * 3 + 1
 		}
+	}
+	if steps > max_steps {
+		max_steps = steps
 	}
 }
 
@@ -14,5 +21,5 @@ let time = now()
 for i in 1..100000 {
     collatz(i)
 }
-
+print(max_steps)
 print((now()-time)*1000)

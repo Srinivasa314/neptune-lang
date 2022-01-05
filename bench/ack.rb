@@ -10,7 +10,7 @@ def Ack(m, n)
 end
 
 time = Benchmark.measure{
-print Ack(3,8)
+puts Ack(3,9)
 }
 
 puts time.real*1000

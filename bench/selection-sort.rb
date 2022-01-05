@@ -15,7 +15,7 @@ def sortDescending(arr)
     end
 end
 
-arr = Array.new(3000)
+arr = Array.new(4000)
 i = 0
 while i < arr.length do
     arr[i] = i
@@ -25,4 +25,5 @@ end
 time = Benchmark.measure {
 sortDescending arr
 }
+puts arr[0]
 puts time.real*1000
