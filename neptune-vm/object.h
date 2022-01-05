@@ -66,6 +66,8 @@ class String : public Object {
 
 public:
   String() = delete;
+  size_t get_len() { return len; }
+  static size_t find(String *haystack, String *needle, size_t start);
   static constexpr Type type = Type::String;
   operator StringSlice() const;
   operator rust::String() const;
