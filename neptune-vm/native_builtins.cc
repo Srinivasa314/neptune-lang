@@ -82,6 +82,7 @@ static bool array_insert(VM *vm, Value *slots) {
     if (index < 0 || static_cast<size_t>(index) > arr.size())
       THROW("IndexError", "Array index out of range");
     arr.insert(arr.begin() + index, slots[2]);
+    vm->return_value = Value::null();
     return true;
   } else
     THROW("TypeError",
@@ -95,14 +96,16 @@ static bool array_remove(VM *vm, Value *slots) {
     if (index < 0 || static_cast<size_t>(index) >= arr.size())
       THROW("IndexError", "Array index out of range");
     arr.erase(arr.begin() + index);
+    vm->return_value = Value::null();
     return true;
   } else
     THROW("TypeError",
           "Expected Int for array index got " << slots[1].type_string());
 }
 
-static bool array_clear(VM *, Value *slots) {
+static bool array_clear(VM *vm, Value *slots) {
   slots[0].as_object()->as<Array>()->inner.clear();
+  vm->return_value = Value::null();
   return true;
 }
 
