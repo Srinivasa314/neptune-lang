@@ -44,6 +44,15 @@ static bool class_name(VM *vm, Value *slots) {
   return true;
 }
 
+static bool class_getsuper(VM *vm, Value *slots) {
+  auto super = slots[0].as_object()->as<Class>()->super;
+  if (super == nullptr)
+    vm->return_value = Value::null();
+  else
+    vm->return_value = Value(super);
+  return true;
+}
+
 static bool array_pop(VM *vm, Value *slots) {
   auto &arr = slots[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
@@ -60,9 +69,40 @@ static bool array_push(VM *vm, Value *slots) {
   return true;
 }
 
-static bool array_length(VM *vm, Value *slots) {
+static bool array_len(VM *vm, Value *slots) {
   vm->return_value = Value(
       static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
+  return true;
+}
+
+static bool array_insert(VM *vm, Value *slots) {
+  auto &arr = slots[0].as_object()->as<Array>()->inner;
+  if (slots[1].is_int()) {
+    auto index = slots[1].as_int();
+    if (index < 0 || static_cast<size_t>(index) > arr.size())
+      THROW("IndexError", "Array index out of range");
+    arr.insert(arr.begin() + index, slots[2]);
+    return true;
+  } else
+    THROW("TypeError",
+          "Expected Int for array index got " << slots[1].type_string());
+}
+
+static bool array_remove(VM *vm, Value *slots) {
+  auto &arr = slots[0].as_object()->as<Array>()->inner;
+  if (slots[1].is_int()) {
+    auto index = slots[1].as_int();
+    if (index < 0 || static_cast<size_t>(index) >= arr.size())
+      THROW("IndexError", "Array index out of range");
+    arr.erase(arr.begin() + index);
+    return true;
+  } else
+    THROW("TypeError",
+          "Expected Int for array index got " << slots[1].type_string());
+}
+
+static bool array_clear(VM *, Value *slots) {
+  slots[0].as_object()->as<Array>()->inner.clear();
   return true;
 }
 
@@ -516,7 +556,10 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Object, getClass, 0, object_getclass);
   DECL_NATIVE_METHOD(Array, push, 1, array_push);
   DECL_NATIVE_METHOD(Array, pop, 0, array_pop);
-  DECL_NATIVE_METHOD(Array, len, 0, array_length);
+  DECL_NATIVE_METHOD(Array, len, 0, array_len);
+  DECL_NATIVE_METHOD(Array, insert, 2, array_insert);
+  DECL_NATIVE_METHOD(Array, remove, 1, array_remove);
+  DECL_NATIVE_METHOD(Array, clear, 0, array_clear);
   DECL_NATIVE_METHOD(Int, construct, 0, int_construct);
   DECL_NATIVE_METHOD(Float, construct, 0, float_construct);
   DECL_NATIVE_METHOD(Bool, construct, 0, bool_construct);
@@ -539,6 +582,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(ArrayIterator, next, 0, arrayiterator_next);
   DECL_NATIVE_METHOD(StringIterator, hasNext, 0, stringiterator_hasnext);
   DECL_NATIVE_METHOD(StringIterator, next, 0, stringiterator_next);
+  DECL_NATIVE_METHOD(Class_, getSuper, 0, class_getsuper);
   DECL_NATIVE_METHOD(Class_, name, 0, class_name);
   DECL_NATIVE_METHOD(Float, toInt, 0, float_toint);
   DECL_NATIVE_METHOD(Int, toFloat, 0, int_tofloat);
