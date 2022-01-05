@@ -1,3 +1,4 @@
+require 'benchmark'
 def Ack(m, n)
     if (m == 0) then
         return n + 1
@@ -8,4 +9,8 @@ def Ack(m, n)
     return Ack(m - 1, Ack(m, (n - 1)))
 end
 
+time = Benchmark.measure{
 print Ack(3,8)
+}
+
+puts time.real*1000

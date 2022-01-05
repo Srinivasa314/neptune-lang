@@ -15,6 +15,9 @@ fun check_tree(node){
     return 1
 }
 
+const {now} = import("time")
+let time = now()
+
 let min_depth = 4
 let max_depth = 15
 let stretch_depth = max_depth + 1
@@ -22,7 +25,7 @@ print('stretch tree of depth \(stretch_depth)\t check:\(check_tree(make_tree(str
 
 let long_lived_tree = make_tree(max_depth)
 
-let iterations = 32768//2**15
+let iterations = import("math").pow(2,15).toInt()
 
 let depth=min_depth
 
@@ -38,3 +41,5 @@ while depth < stretch_depth{
 }
 
 print('long lived tree of depth \(max_depth) \t check \(check_tree(long_lived_tree))')
+
+print((now()-time)*1000)

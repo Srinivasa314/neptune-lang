@@ -155,6 +155,8 @@ function energy() {
 
 const n = 100000;
 
+let time = performance.now()
+
 offsetMomentum();
 
 console.log(energy());
@@ -162,3 +164,4 @@ for (let i = 0; i < n; i++) {
     advance(0.01);
 }
 console.log(energy());
+console.log(performance.now() - time)

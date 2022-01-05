@@ -6,6 +6,7 @@
 # Modified by Scott Leggett
 # *reset*
 # slightly modified
+require 'benchmark'
 def item_check(left, right)
     if left
         1 + item_check(*left) + item_check(*right)
@@ -23,6 +24,7 @@ def bottom_up_tree(depth)
     end
 end
 
+time = Benchmark.measure {
 max_depth = 15
 min_depth = 4
 
@@ -49,3 +51,6 @@ min_depth.step(max_depth, 2) do |depth|
 end
 
 puts "long lived tree of depth #{max_depth}\t check: #{item_check(*long_lived_tree)}"
+}
+
+puts time.real*1000

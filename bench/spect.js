@@ -47,4 +47,6 @@ function spectralnorm(n) {
     return Math.sqrt(vBv / vv);
 }
 
+let time = performance.now()
 console.log(spectralnorm(400));
+console.log(performance.now() - time)

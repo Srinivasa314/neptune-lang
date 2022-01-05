@@ -6,4 +6,6 @@ function Ack(M, N) {
     return Ack(M - 1, Ack(M, (N - 1)))
 }
 
+let time = performance.now()
 console.log(Ack(3, 8))
+console.log(performance.now() - time)

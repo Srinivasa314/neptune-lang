@@ -8,6 +8,11 @@ fun collatz(x) {
 	}
 }
 
+const {now} = import("time")
+let time = now()
+
 for i in 1..100000 {
     collatz(i)
 }
+
+print((now()-time)*1000)

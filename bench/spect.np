@@ -47,4 +47,7 @@ fun spectralnorm(n) {
     return sqrt(vBv / vv)
 }
 
+const {now} = import("time")
+let time = now()
 print(spectralnorm(400))
+print((now()-time)*1000)

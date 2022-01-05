@@ -115,7 +115,9 @@ end
 local N = 100000
 local nbody = #bodies
 
+local time = os.clock()
 offsetMomentum(bodies, nbody)
 print(energy(bodies, nbody))
 for i=1,N do advance(bodies, nbody, 0.01) end
 print(energy(bodies, nbody))
+io.write("\n",(os.clock()-time)*1000)
