@@ -387,6 +387,40 @@ static bool random_range(VM *vm, Value *slots) {
   }
 }
 
+static bool map_clear(VM *vm, Value *slots) {
+  slots[0].as_object()->as<Map>()->inner.clear();
+  vm->return_value = Value::null();
+  return true;
+}
+
+static bool map_len(VM *vm, Value *slots) {
+  vm->return_value =
+      Value((int32_t)slots[0].as_object()->as<Map>()->inner.size());
+  return true;
+}
+
+static bool map_contains(VM *vm, Value *slots) {
+  vm->return_value =
+      Value(slots[0].as_object()->as<Map>()->inner.contains(slots[1]));
+  return true;
+}
+
+static bool map_remove(VM *vm, Value *slots) {
+  if (!slots[0].as_object()->as<Map>()->inner.erase(slots[1]))
+    THROW("KeyError", "Key " << slots[1] << " does not exist in map.");
+  vm->return_value = Value::null();
+  return true;
+}
+
+static bool range_start(VM *vm, Value *slots) {
+  vm->return_value = Value(slots[0].as_object()->as<Range>()->start);
+  return true;
+}
+
+static bool range_end(VM *vm, Value *slots) {
+  vm->return_value = Value(slots[0].as_object()->as<Range>()->end);
+  return true;
+}
 #undef THROW
 } // namespace native_builtins
 
@@ -464,6 +498,12 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(StringIterator, hasNext, 0, stringiterator_hasnext);
   DECL_NATIVE_METHOD(StringIterator, next, 0, stringiterator_next);
   DECL_NATIVE_METHOD(Class_, name, 0, class_name);
+  DECL_NATIVE_METHOD(Map, clear, 0, map_clear);
+  DECL_NATIVE_METHOD(Map, len, 0, map_len);
+  DECL_NATIVE_METHOD(Map, contains, 1, map_contains);
+  DECL_NATIVE_METHOD(Map, remove, 1, map_remove);
+  DECL_NATIVE_METHOD(Range, start, 0, range_start);
+  DECL_NATIVE_METHOD(Range, end, 0, range_end);
 
   create_module("vm");
   create_module("math");
