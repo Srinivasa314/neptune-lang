@@ -82,7 +82,9 @@ unsafe impl<'a> ExternType for EFuncContextInner<'a> {
     type Id = type_id!("neptune_vm::EFuncContext");
     type Kind = cxx::kind::Trivial;
 }
-
+fn validate_utf8(string: StringSlice) -> bool {
+    std::str::from_utf8(unsafe { std::slice::from_raw_parts(string.data, string.len) }).is_ok()
+}
 #[allow(dead_code)]
 #[cxx::bridge(namespace = neptune_vm)]
 mod ffi {
@@ -199,6 +201,10 @@ mod ffi {
         Underflow,
         OutOfBoundsError,
         PropertyError,
+    }
+
+    extern "Rust" {
+        fn validate_utf8(string: StringSlice) -> bool;
     }
 
     unsafe extern "C++" {

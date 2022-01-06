@@ -1,5 +1,6 @@
 #include "checked_arithmetic.cc"
 #include "neptune-vm.h"
+#include "neptune-lang/src/vm.rs.h"
 #include <cstring>
 #include <mimalloc.h>
 

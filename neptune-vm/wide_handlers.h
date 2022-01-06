@@ -275,7 +275,7 @@ handler(LoadSubscript, {
           accumulator = a->inner[static_cast<size_t>(i)];
       } else if (accumulator.is_object() &&
                  accumulator.as_object()->is<Range>()) {
-        auto r = *accumulator.as_object()->as<Range>();
+        auto &r = *accumulator.as_object()->as<Range>();
         auto a = obj.as_object()->as<Array>();
         if (r.start < 0 || static_cast<size_t>(r.start) >= a->inner.size() ||
             r.end < 0 || static_cast<size_t>(r.end) > a->inner.size()) {
@@ -303,6 +303,28 @@ handler(LoadSubscript, {
         accumulator = it->second;
       else
         THROW("KeyError", "Key " << accumulator << " does not exist in map");
+    } else if (obj.as_object()->is<String>()) {
+      if (accumulator.is_object() && accumulator.as_object()->is<Range>()) {
+        auto str = obj.as_object()->as<String>();
+        auto &r = *accumulator.as_object()->as<Range>();
+        if (r.start < 0 || static_cast<size_t>(r.start) >= str->len ||
+            r.end < 0 || static_cast<size_t>(r.end) > str->len) {
+          THROW("IndexError", "String index out of range");
+        }
+        if (r.start > r.end) {
+          auto new_str = allocate<String>("");
+          accumulator = Value(new_str);
+        } else {
+          auto bytes = StringSlice(str->data + r.start, r.end - r.start);
+          if (!validate_utf8(bytes))
+            THROW("IndexError", "Index is not a character boundary");
+          auto new_str = allocate<String>(bytes);
+          accumulator = Value(new_str);
+        }
+      } else {
+        THROW("TypeError",
+              "String indices must be Range not " << accumulator.type_string());
+      }
     } else {
       THROW("TypeError", "Cannot index type " << obj.type_string());
     }
