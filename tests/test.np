@@ -22,6 +22,20 @@ fun assert_failed(f,err_class,err_msg){
     }
 }
 
+fun array_equal(a,b){
+    if a.len()!=b.len(){
+        return false
+    }
+    for i in 0..a.len(){
+        if a[i]!=b[i]{
+            return false
+        }
+    }
+    return true
+}
+
+assert_eq(array_equal([1,2],[2,1]),false)
+
 assert_eq(1+1,2)
 assert_eq("\(1+1)","2")
 assert_eq('a'~'b','ab');
@@ -29,6 +43,16 @@ assert_eq(0.1+0.2,0.3)
 assert_eq("\(1.0/0.0)", "inf")
 assert_eq("\(-1.0/0.0)", "-inf")
 assert_eq("\(0.0/0.0)"=="nan" or "\(0.0/0.0)"=="-nan",true)
+assert_failed(||'a'>'b',TypeError,'Cannot compare types String and String')
+assert_eq(1==1.0,true)
+assert_eq('abc'=='abc',true)
+assert_eq({}=={},false)
+assert_eq(1===1.0,false)
+
+assert_eq(!false,true)
+assert_eq(!null,true)
+assert_eq(!'',false)
+assert_eq(![],false)
 
 let a=[0]
 a[0]=a
@@ -43,22 +67,24 @@ assert_failed(||{let x=2147483647;x+1},OverflowError,"Cannot add 2147483647 and 
 assert_failed(||{let x=-2147483647;x-5},OverflowError,"Cannot subtract -2147483647 and 5 as the result does not fit in an Int")
 assert_failed(||{let x=1000000;x*1000000},OverflowError,"Cannot multiply 1000000 and 1000000 as the result does not fit in an Int")
 assert_failed(||{let x=1;x/0},OverflowError,"Cannot divide 1 and 0 as the result does not fit in an Int")
+assert_failed(||{let x=-2147483648;x/-1},OverflowError,"Cannot divide -2147483648 and -1 as the result does not fit in an Int")
+assert_failed(||{let x=1;x%0},OverflowError,"Cannot mod 1 and 0 as the result does not fit in an Int")
+assert_eq(-2147483648%-1,0)
 assert_failed(||{let x=-2147483647-1;x=-x},OverflowError,"Cannot negate -2147483648 as the result cannot be stored in an Int")
 assert_failed(||'a'+'b',TypeError,"Cannot add types String and String")
+assert_failed(||'a'+1,TypeError,"Cannot add types String and Int")
 
-assert_eq(1==1.0,true)
-assert_eq(!![],true)
-assert_eq("a"~"b","ab")
+{
+    let str=''
+    assert_eq(import("vm").disassemble(||{
+        try{
+            str='\(1.2+3)'
+        }
+        catch e{
+        }
+    }),'Bytecode for <closure>\n81> 0 LoadConstant 1.2\n2 AddInt 3\n4 StoreR0 \n5 CallMethod r0 @toString 1 0\n10 StoreUpvalue 0\n82> 12 Jump 2\n85> 14 LoadNull \n15 Return \nUpvalues:\nUpvalue for local 0\nException handlers:\ntry block: 0-12\ncatch block: 14\nerror register: 0\n')
+}
 
-m=Map {@a:5,'b':10}
-assert_eq(m[@a],5)
-assert_eq(m['b'],10)
-assert_failed(||m[0],KeyError,"Key 0 does not exist in map")
-
-a=[]
-assert_failed(||a[0],IndexError, "Array index out of range")
-assert_failed(||a[-1], IndexError,"Array index out of range")
-assert_failed(||a[0.0], TypeError,"Array indices must be Int or Range not Float")
 
 let i=0
 if i==2{
@@ -80,9 +106,8 @@ while i<10 {
 }
 assert_eq(i,10)
 
-assert_failed(||{for i in 'a'..1{}},TypeError,"Expected Int and Int for the start and end of for loop got String and Int instead")
+assert_failed(||{for i in 'a'..1{}},TypeError,"Expected Int and Int for the start and end of the range got String and Int instead")
 let g=null
-let debug=''
 for i in 1..10{
     g=i
     if i==7{
@@ -107,7 +132,8 @@ fun fib(n){
     return fib(n-1)+fib(n-2)
 }
 assert_eq(fib(6),8)
-
+assert_failed(||fib(),ArgumentError,'Function fib takes 1 arguments but 0 were given')
+assert_failed(||6(),TypeError,'Type Int is not callable')
 fun f0(){}
 assert_eq(f0(),null)
 
@@ -153,13 +179,6 @@ assert_eq(g(),17)
 try{try{throw ''}catch e{g=10}}catch e{g=20}
 assert_eq(g,10)
 
-a=[1,2]
-assert_eq(a.len(),2)
-assert_eq(a.pop(),2)
-assert_eq(a.pop(),1)
-assert_failed(||a.pop(),IndexError,'Cannot pop from empty array')
-a.push(3)
-assert_eq(a[0],3)
 
 class A{}
 assert_failed(||new A(),NoMethodError,'Class A does not have a constructor')
@@ -168,8 +187,109 @@ assert_eq(new B().f(),3)
 class C extends B{construct(){}f(){return super.f()+5;}}
 assert_eq(new C().f(),8)
 assert_eq({a:5}.a,5)
-assert_eq(new Int(),0)
+assert_failed(||new C().f(3),ArgumentError,'Function f takes 0 arguments but 1 were given')
+assert_failed(||({}.x),PropertyError,'object does not have any property named x')
+assert_failed(||({}.f()),NoMethodError,'object does not have any method named f')
+assert_failed(||1.x,TypeError,'Cannot get property from type Int')
+assert_failed(||{1.x=5},TypeError,'Cannot set property for type Int')
+let o={x:||3}
+assert_eq(o.x(),3)
+const vm=import('vm')
+assert_failed(||vm.x,NoModuleVariableError,'Module vm does not export any variable named x')
+
+assert_eq(Int.name(),'Int')
+assert_eq(Int.getSuper(),Object)
+assert_eq(Object.getSuper(),null)
 assert_eq(2.getClass(),Int)
 assert_failed(||new 3(),TypeError,'new can be called only on classes not Int')
 assert_failed(||{class A extends 3{}},TypeError,'Expected to inherit from Class got Int')
 assert_failed(||{class A extends Int{}},TypeError, 'Cannot inherit from native class Int')
+
+
+assert_eq(new Int(),0)
+assert_eq(new Float(),0.0)
+assert_eq(new Bool(),false)
+assert_eq(new Null(),null)
+assert_eq(new Symbol('abc'),@abc)
+
+a=[]
+assert_failed(||a[0],IndexError, "Array index out of range")
+assert_failed(||a[-1], IndexError,"Array index out of range")
+assert_failed(||a[0.0], TypeError,"Array indices must be Int or Range not Float")
+a=[1,2]
+assert_eq(a.len(),2)
+assert_eq(a.pop(),2)
+assert_eq(a.pop(),1)
+assert_failed(||a.pop(),IndexError,'Cannot pop from empty array')
+a.push(3)
+assert_eq(a[0],3)
+a.insert(1,4)
+assert_eq(a[1],4)
+assert_failed(||a.insert(10,4),IndexError,'Array index out of range')
+a.remove(0)
+assert_eq(a[0],4)
+assert_failed(||a.remove(10),IndexError,'Array index out of range')
+a.clear()
+assert_eq(a.len(),0)
+a=new Array(10,3)
+assert_eq(a.len(),10)
+assert_eq(a[7],3)
+assert_failed(||{a=new Array(-1,10)},Error,'The array size must be non negative')
+assert_eq(array_equal([1,2,3][1..3],[2,3]),true)
+assert_eq(array_equal([1,2,3][2..1],[]),true)
+assert_failed(||[1,2,3][1..4],IndexError,'Array index out of range')
+
+m=Map {@a:5,'b':10}
+assert_eq(m[@a],5)
+assert_eq(m['b'],10)
+assert_failed(||m[0],KeyError,"Key 0 does not exist in map")
+m=new Map()
+assert_failed(||m['a'],KeyError,"Key 'a' does not exist in map")
+m['a']=9
+assert_eq(m['a'],9)
+assert_eq(m.len(),1)
+assert_eq(m.contains('a'),true)
+m.remove('a')
+assert_eq(m.contains('a'),false)
+m[1]=2
+m.clear()
+assert_eq(m.len(),0)
+
+assert_eq(new String(),'')
+assert_eq('abc'.find('bc'),1)
+assert_eq('abc'.find(''),0)
+assert_eq('abc'.find('x'),-1)
+assert_eq('abc'.replace('bc','d'),'ad')
+assert_eq('abc'.replace('','x'),'abc')
+assert_eq('abc'[1..3],'bc')
+assert_eq('abc'[2..1],'')
+assert_failed(||'abc'[9..10],IndexError,'String index out of range')
+assert_failed(||'💖'[0..2],IndexError,'Index is not a character boundary')
+
+assert_eq(new Range(1,2),1..2)
+assert_eq((1..2).start(),1)
+assert_eq((1..2).end(),2)
+assert_failed(||'a'..'b',TypeError,'Expected Int and Int for the start and end of the range got String and String instead')
+
+let {abs,sqrt, NaN,PI} = import("math")
+let {random, range,shuffle} =import("random")
+assert_eq(sqrt(0),0)
+assert_eq(PI.toInt(),3)
+assert_eq(3.toFloat()===3.0,true)
+assert_eq(2.toString(),'2')
+assert_eq(abs(-8)===8,true)
+assert_eq(NaN.isNaN(),true)
+assert_eq((1.0).isNaN(),false)
+
+
+assert_eq(random().getClass(),Float)
+let rand=range(1,100)
+assert_eq(rand.getClass()==Int and rand>=1 and rand<=100,true)
+a=[1,2]
+shuffle(a)
+assert_eq(array_equal(a,[1,2]) or array_equal(a,[2,1]),true)
+
+assert_eq(array_equal((1..4).collect(),[1,2,3]),true)
+assert_eq(array_equal('abc'.chars().collect(),['a','b','c']),true)
+let keys=Map{9:'b','a':10}.keys().collect()
+assert_eq(array_equal(keys,[9,'a']) or array_equal(keys,['a',9]),true)

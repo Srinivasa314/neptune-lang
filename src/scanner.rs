@@ -557,8 +557,15 @@ impl<'src> Scanner<'src> {
             self.add_token(TokenType::FloatLiteral(token));
         } else {
             let token = if errors.is_empty() {
-                match parse_int::parse(string) {
-                    Ok(f) => f,
+                match parse_int::parse::<u32>(string) {
+                    Ok(f) => match f {
+                        0..=2147483647 => f as i32,
+                        2147483648 => -1,
+                        _ => {
+                            self.error(format!("Cannot parse integer {}", string));
+                            0
+                        }
+                    },
                     Err(_) => {
                         self.error(format!("Cannot parse integer {}", string));
                         0

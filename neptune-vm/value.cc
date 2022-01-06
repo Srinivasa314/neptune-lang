@@ -184,6 +184,11 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
              rhs.as_object()->is<String>()) {
     return StringEquality{}(as_object()->as<String>(),
                             rhs.as_object()->as<String>());
+  } else if (is_object() && as_object()->is<Range>() && rhs.is_object() &&
+             rhs.as_object()->is<Range>()) {
+    auto r1 = as_object()->as<Range>();
+    auto r2 = rhs.as_object()->as<Range>();
+    return r1->start == r2->start && r1->end == r2->end;
 #ifdef NANBOX
   } else if (inner == rhs.inner) {
     return true;
@@ -310,6 +315,11 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
       b.as_object()->is<String>()) {
     return StringEquality{}(a.as_object()->as<String>(),
                             b.as_object()->as<String>());
+  } else if (a.is_object() && a.as_object()->is<Range>() && b.is_object() &&
+             b.as_object()->is<Range>()) {
+    auto r1 = a.as_object()->as<Range>();
+    auto r2 = b.as_object()->as<Range>();
+    return r1->start == r2->start && r1->end == r2->end;
   } else {
     return a.inner == b.inner;
   }
