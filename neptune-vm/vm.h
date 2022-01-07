@@ -78,8 +78,8 @@ public:
   Symbol *intern(StringSlice s);
   void release(Object *o);
   void collect();
-  void blacken(Object *o);
-  void grey(Object *o);
+  void trace(Object *o);
+  void mark(Object *o);
   std::string generate_stack_trace(bool include_native_function,
                                    uint32_t depth);
   const uint8_t *throw_(const uint8_t *ip, Value v);

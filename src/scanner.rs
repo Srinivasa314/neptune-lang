@@ -558,6 +558,9 @@ impl<'src> Scanner<'src> {
         } else {
             let token = if errors.is_empty() {
                 match parse_int::parse::<u32>(string) {
+                    // -1 is a sentinel value used to denote 2147483648
+                    // This number needs special treatment as -2147483648 
+                    // is a valid literal but 2147483648 isnt
                     Ok(f) => match f {
                         0..=2147483647 => f as i32,
                         2147483648 => -1,

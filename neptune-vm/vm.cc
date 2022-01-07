@@ -457,56 +457,56 @@ void VM::collect() {
 
   // Mark roots
   {
-    grey(builtin_classes.Object);
-    grey(builtin_classes.Class_);
-    grey(builtin_classes.Int);
-    grey(builtin_classes.Float);
-    grey(builtin_classes.Bool);
-    grey(builtin_classes.Null);
-    grey(builtin_classes.String);
-    grey(builtin_classes.Symbol);
-    grey(builtin_classes.Array);
-    grey(builtin_classes.Map);
-    grey(builtin_classes.Function);
-    grey(builtin_classes.Module);
-    grey(builtin_classes.Task);
-    grey(builtin_classes.Range);
-    grey(builtin_classes.ArrayIterator);
-    grey(builtin_classes.MapIterator);
-    grey(builtin_classes.StringIterator);
-    grey(builtin_symbols.construct);
-    grey(builtin_symbols.message);
-    grey(builtin_symbols.stack);
+    mark(builtin_classes.Object);
+    mark(builtin_classes.Class_);
+    mark(builtin_classes.Int);
+    mark(builtin_classes.Float);
+    mark(builtin_classes.Bool);
+    mark(builtin_classes.Null);
+    mark(builtin_classes.String);
+    mark(builtin_classes.Symbol);
+    mark(builtin_classes.Array);
+    mark(builtin_classes.Map);
+    mark(builtin_classes.Function);
+    mark(builtin_classes.Module);
+    mark(builtin_classes.Task);
+    mark(builtin_classes.Range);
+    mark(builtin_classes.ArrayIterator);
+    mark(builtin_classes.MapIterator);
+    mark(builtin_classes.StringIterator);
+    mark(builtin_symbols.construct);
+    mark(builtin_symbols.message);
+    mark(builtin_symbols.stack);
   }
 
   auto current_handle = handles;
   while (current_handle != nullptr) {
-    grey(current_handle->object);
+    mark(current_handle->object);
     current_handle = current_handle->next;
   }
   for (auto root : temp_roots)
     if (root.is_object())
-      grey(root.as_object());
+      mark(root.as_object());
   for (auto v : module_variables) {
     if (v.is_object())
-      grey(v.as_object());
+      mark(v.as_object());
   }
   for (auto module : modules) {
-    grey(module.second);
+    mark(module.second);
   }
   if (return_value.is_object())
-    grey(return_value.as_object());
+    mark(return_value.as_object());
   // this might not be necessary since native functions are constants but just
   // in case
-  grey(last_native_function);
-  grey(current_task);
+  mark(last_native_function);
+  mark(current_task);
   for (auto efunc : efuncs)
-    grey(efunc.first);
+    mark(efunc.first);
 
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
     greyobjects.pop_back();
-    blacken(o);
+    trace(o);
   }
 
   threshhold = bytes_allocated * HEAP_GROWTH_FACTOR;
@@ -526,7 +526,7 @@ void VM::collect() {
     std::cout << "Bytes allocated after: " << bytes_allocated << std::endl;
 }
 
-void VM::grey(Object *o) {
+void VM::mark(Object *o) {
   if (o != nullptr) {
     if (o->is_dark)
       return;
@@ -535,28 +535,28 @@ void VM::grey(Object *o) {
   }
 }
 
-void VM::blacken(Object *o) {
+void VM::trace(Object *o) {
   switch (o->type) {
   case Type::Array:
     for (auto v : o->as<Array>()->inner) {
       if (v.is_object())
-        grey(v.as_object());
+        mark(v.as_object());
     }
     bytes_allocated += sizeof(Array);
     break;
   case Type::Map:
     for (auto pair : o->as<Map>()->inner) {
       if (pair.first.is_object())
-        grey(pair.first.as_object());
+        mark(pair.first.as_object());
       if (pair.second.is_object())
-        grey(pair.second.as_object());
+        mark(pair.second.as_object());
     }
     bytes_allocated += sizeof(Map);
     break;
   case Type::FunctionInfo:
     for (auto constant : o->as<FunctionInfo>()->constants) {
       if (constant.is_object())
-        grey(constant.as_object());
+        mark(constant.as_object());
     }
     bytes_allocated += sizeof(FunctionInfo);
     break;
@@ -568,15 +568,15 @@ void VM::blacken(Object *o) {
     break;
   case Type::Function:
     bytes_allocated += size(o->as<Function>());
-    grey(o->as<Function>()->function_info);
+    mark(o->as<Function>()->function_info);
     for (size_t i = 0; i < o->as<Function>()->num_upvalues; i++) {
-      grey(o->as<Function>()->upvalues[i]);
+      mark(o->as<Function>()->upvalues[i]);
     }
     break;
   case Type::UpValue:
     bytes_allocated += sizeof(UpValue);
     if (o->as<UpValue>()->closed.is_object())
-      grey(o->as<UpValue>()->closed.as_object());
+      mark(o->as<UpValue>()->closed.as_object());
     break;
   case Type::NativeFunction:
     bytes_allocated += sizeof(NativeFunction);
@@ -584,14 +584,14 @@ void VM::blacken(Object *o) {
   case Type::Module:
     bytes_allocated += sizeof(Module);
     for (auto &pair : o->as<Module>()->module_variables) {
-      grey(pair.first);
+      mark(pair.first);
     }
     break;
   case Type::Class:
     bytes_allocated += sizeof(Class);
     for (auto pair : o->as<Class>()->methods) {
-      grey(pair.first);
-      grey(pair.second);
+      mark(pair.first);
+      mark(pair.second);
     }
     break;
   case Type::Task: {
@@ -599,22 +599,22 @@ void VM::blacken(Object *o) {
     auto task = o->as<Task>();
     for (auto v = task->stack.get(); v < task->stack_top; v++)
       if (v->is_object())
-        grey(v->as_object());
+        mark(v->as_object());
     for (auto frame : task->frames)
-      grey(frame.f);
+      mark(frame.f);
     auto upvalue = task->open_upvalues;
     while (upvalue != nullptr) {
-      grey(upvalue);
+      mark(upvalue);
       upvalue = upvalue->next;
     }
     break;
   }
   case Type::Instance:
-    grey(o->as<Instance>()->class_);
+    mark(o->as<Instance>()->class_);
     for (auto pair : o->as<Instance>()->properties) {
-      grey(pair.first);
+      mark(pair.first);
       if (pair.second.is_object())
-        grey(pair.second.as_object());
+        mark(pair.second.as_object());
     }
     bytes_allocated += sizeof(Instance);
     break;
@@ -623,19 +623,19 @@ void VM::blacken(Object *o) {
     break;
   case Type::ArrayIterator:
     bytes_allocated += sizeof(ArrayIterator);
-    grey(o->as<ArrayIterator>()->array);
+    mark(o->as<ArrayIterator>()->array);
     break;
   case Type::MapIterator: {
     bytes_allocated += sizeof(MapIterator);
     auto mi = o->as<MapIterator>();
-    grey(mi->map);
+    mark(mi->map);
     if (mi->last_key.is_object())
-      grey(mi->last_key.as_object());
+      mark(mi->last_key.as_object());
     break;
   }
   case Type::StringIterator:
     bytes_allocated += sizeof(StringIterator);
-    grey(o->as<StringIterator>()->string);
+    mark(o->as<StringIterator>()->string);
     break;
   default:
     unreachable();
