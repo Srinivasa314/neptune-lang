@@ -30,7 +30,7 @@ handler(ModInt, {
     int result;
     int i = READ(itype);
     if (unlikely(!SafeModulus(accumulator.as_int(), i, result))) {
-      THROW("TypeError", "Cannot mod types "
+      THROW("OverflowError", "Cannot mod "
                              << accumulator.as_int() << " and " << i
                              << " as the result does not fit in an Int");
     }

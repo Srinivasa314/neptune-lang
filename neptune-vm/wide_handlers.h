@@ -137,11 +137,11 @@ callop : {
       last_native_function = nullptr;
     } else {
       THROW("TypeError",
-            "Type" << accumulator.type_string() << " is not callable");
+            "Type " << accumulator.type_string() << " is not callable");
     }
   } else {
     THROW("TypeError",
-          "Type" << accumulator.type_string() << " is not callable");
+          "Type " << accumulator.type_string() << " is not callable");
   }
   DISPATCH();
 }
@@ -187,7 +187,7 @@ handler(CallMethod, {
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
     if (instance->properties.find(member) == instance->properties.end())
-      THROW("PropertyError", "object does not have any property named "
+      THROW("NoMethodError", "object does not have any method named "
                                  << static_cast<StringSlice>(*member));
     else
       accumulator = instance->properties[member];
@@ -440,7 +440,7 @@ handler(BeginForLoop, {
     }
   } else {
     THROW("TypeError",
-          "Expected Int and Int for the start and end of for loop got "
+          "Expected Int and Int for the start and end of the range got "
               << bp[iter].type_string() << " and " << bp[end].type_string()
               << " instead");
   }
@@ -455,7 +455,7 @@ handler(BeginForLoopConstant, {
     }
   } else {
     THROW("TypeError",
-          "Expected Int and Int for the start and end of for loop got "
+          "Expected Int and Int for the start and end of the range got "
               << bp[iter].type_string() << " and " << bp[end].type_string()
               << " instead");
   }

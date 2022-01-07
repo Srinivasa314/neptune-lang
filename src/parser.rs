@@ -579,9 +579,20 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
 
     fn unary(&mut self) -> CompileResult<Expr> {
         let op = self.previous.token_type.clone();
+        let expr = self.parse_precedence(Precedence::Unary);
+        if let Ok(Expr::Literal {
+            line,
+            inner: TokenType::IntLiteral(-1),
+        }) = expr
+        {
+            return Ok(Expr::Literal {
+                line,
+                inner: TokenType::IntLiteral(-2147483648),
+            });
+        }
         Ok(Expr::Unary {
             op,
-            right: Box::new(self.parse_precedence(Precedence::Unary)?),
+            right: Box::new(expr?),
             line: self.line(),
         })
     }

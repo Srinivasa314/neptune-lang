@@ -1415,7 +1415,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     ) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
-                TokenType::IntLiteral(i) => Ok(ExprResult::Int(*i)),
+                TokenType::IntLiteral(i) => {
+                    if *i != -1 {
+                        Ok(ExprResult::Int(*i))
+                    } else {
+                        Err(CompileError {
+                            message: "Cannot parse integer 2147483648".to_string(),
+                            line: *line,
+                        })
+                    }
+                }
                 TokenType::FloatLiteral(f) => Ok({
                     let c = self.bytecode.float_constant(*f);
                     self.load_const(c, *line)?;
@@ -2168,7 +2177,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         checked_div,
         "divide"
     );
-    binary_op!(modulus, ModRegister, ModInt, rem, checked_rem, "mod");
+    binary_op!(modulus, ModRegister, ModInt, rem, checked_mod, "mod");
 
     comparing_binary_op!(equal_equal,Equal,==);
     comparing_binary_op!(equal_equal_equal,StrictEqual,==);
@@ -2178,6 +2187,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     comparing_binary_op!(lesser_than,LesserThan,<);
     comparing_binary_op!(greater_than_or_equal,GreaterThanOrEqual,>=);
     comparing_binary_op!(lesser_than_or_equal,LesserThanOrEqual,<=);
+}
+
+trait CheckedMod {
+    fn checked_mod(self, rhs: Self) -> Option<Self>
+    where
+        Self: Sized;
+}
+impl CheckedMod for i32 {
+    fn checked_mod(self, rhs: i32) -> Option<i32> {
+        if self == i32::MIN && rhs == -1 {
+            Some(0)
+        } else {
+            self.checked_rem(rhs)
+        }
+    }
 }
 
 fn signed_to_unsigned(i: i32) -> u32 {
