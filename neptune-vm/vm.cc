@@ -1,6 +1,5 @@
 #include "checked_arithmetic.cc"
 #include "neptune-vm.h"
-#include "neptune-lang/src/vm.rs.h"
 #include <cstring>
 #include <mimalloc.h>
 
@@ -415,7 +414,7 @@ Value VM::to_string(Value val) {
   } else if (val.is_float()) {
     auto f = val.as_float();
     if (std::isnan(f)) {
-      const char *result = std::signbit(f) ? "-nan" : "nan";
+      const char *result = std::signbit(f) ? "-NaN" : "NaN";
       return Value(allocate<String>(StringSlice(result)));
     } else {
       char buffer[24];

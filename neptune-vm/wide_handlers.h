@@ -315,11 +315,13 @@ handler(LoadSubscript, {
           auto new_str = allocate<String>("");
           accumulator = Value(new_str);
         } else {
-          auto bytes = StringSlice(str->data + r.start, r.end - r.start);
-          if (!validate_utf8(bytes))
+          if (int8_t(str->data[r.start]) >= -0x40 &&
+              (r.end == str->len || int8_t(str->data[r.end]) >= -0x40)) {
+            auto bytes = StringSlice(str->data + r.start, r.end - r.start);
+            auto new_str = allocate<String>(bytes);
+            accumulator = Value(new_str);
+          } else
             THROW("IndexError", "Index is not a character boundary");
-          auto new_str = allocate<String>(bytes);
-          accumulator = Value(new_str);
         }
       } else {
         THROW("TypeError",

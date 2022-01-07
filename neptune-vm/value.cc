@@ -219,9 +219,9 @@ void operator<<(ValueFormatter vf, Value v) {
     auto f = v.as_float();
     if (std::isnan(f)) {
       if (std::signbit(f))
-        vf.os << "-nan";
+        vf.os << "-NaN";
       else
-        vf.os << "nan";
+        vf.os << "NaN";
     } else {
       vf.os << std::setprecision(14) << f;
       if (fmod(f, 1.0) == 0)
