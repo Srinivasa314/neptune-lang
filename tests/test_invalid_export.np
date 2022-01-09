@@ -1,0 +1,5 @@
+export let _x=5
+{
+    export let x=5
+}
+export
