@@ -1093,7 +1093,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         self.ignore_newline();
         self.consume(
             TokenType::LeftBrace,
-            "Expect { after range in for statement".into(),
+            "Expect { after iterator in for statement".into(),
         )?;
         let block = self.block()?;
         let end_line = self.previous.line;

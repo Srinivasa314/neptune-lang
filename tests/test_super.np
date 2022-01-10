@@ -1,0 +1,7 @@
+class C{
+    f(){
+        super._x()
+    }
+}
+
+super.f()

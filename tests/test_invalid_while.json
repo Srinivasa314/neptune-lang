@@ -1,0 +1,10 @@
+[
+  {
+    "message": "Expect { after condition in while statement at token while",
+    "line": 2
+  },
+  {
+    "message": "Expect expression at end",
+    "line": 2
+  }
+]

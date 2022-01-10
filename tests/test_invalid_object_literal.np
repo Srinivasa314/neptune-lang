@@ -1,0 +1,3 @@
+let a={1:2}
+let b={a:5 b:2}
+let c={a 5}
