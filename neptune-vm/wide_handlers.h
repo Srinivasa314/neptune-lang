@@ -126,7 +126,8 @@ callop : {
       return_value = Value::null();
       bp = bp + (task->stack_top - old_stack_top);
       if (!ok) {
-        if ((ip = throw_(ip, accumulator)) != nullptr) {
+        task->frames.back().ip = ip;
+        if ((ip = throw_(accumulator)) != nullptr) {
           bp = task->frames.back().bp;
           auto f = task->frames.back().f;
           constants = f->function_info->constants.data();
@@ -316,7 +317,8 @@ handler(LoadSubscript, {
           accumulator = Value(new_str);
         } else {
           if (int8_t(str->data[r.start]) >= -0x40 &&
-              (r.end == str->len || int8_t(str->data[r.end]) >= -0x40)) {
+              (size_t(r.end) == str->len ||
+               int8_t(str->data[r.end]) >= -0x40)) {
             auto bytes = StringSlice(str->data + r.start, r.end - r.start);
             auto new_str = allocate<String>(bytes);
             accumulator = Value(new_str);

@@ -180,27 +180,24 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
       return as_float() == double(rhs.as_int());
     else
       return false;
-  } else if (is_object() && as_object()->is<String>() && rhs.is_object() &&
-             rhs.as_object()->is<String>()) {
-    return StringEquality{}(as_object()->as<String>(),
-                            rhs.as_object()->as<String>());
-  } else if (is_object() && as_object()->is<Range>() && rhs.is_object() &&
-             rhs.as_object()->is<Range>()) {
-    auto r1 = as_object()->as<Range>();
-    auto r2 = rhs.as_object()->as<Range>();
-    return r1->start == r2->start && r1->end == r2->end;
-#ifdef NANBOX
-  } else if (inner == rhs.inner) {
-    return true;
-  } else {
-    return false;
-  }
-#else
   } else if (is_object() && rhs.is_object()) {
-    return as_object() == rhs.as_object();
-  } else {
-    return tag == rhs.tag;
+    if (as_object()->is<String>() && rhs.as_object()->is<String>()) {
+      return StringEquality{}(as_object()->as<String>(),
+                              rhs.as_object()->as<String>());
+    } else if (as_object()->is<Range>() && rhs.as_object()->is<Range>()) {
+      auto r1 = as_object()->as<Range>();
+      auto r2 = rhs.as_object()->as<Range>();
+      return r1->start == r2->start && r1->end == r2->end;
+    } else {
+      return as_object() == rhs.as_object();
+    }
   }
+#ifdef NANBOX
+  else
+    return inner == rhs.inner;
+#else
+  else
+    return tag == rhs.tag;
 #endif
 }
 const char *Value::type_string() const {
@@ -311,15 +308,17 @@ uint32_t ValueHasher::operator()(Value v) const {
 
 #ifdef NANBOX
 bool ValueStrictEquality::operator()(Value a, Value b) const {
-  if (a.is_object() && a.as_object()->is<String>() && b.is_object() &&
-      b.as_object()->is<String>()) {
-    return StringEquality{}(a.as_object()->as<String>(),
-                            b.as_object()->as<String>());
-  } else if (a.is_object() && a.as_object()->is<Range>() && b.is_object() &&
-             b.as_object()->is<Range>()) {
-    auto r1 = a.as_object()->as<Range>();
-    auto r2 = b.as_object()->as<Range>();
-    return r1->start == r2->start && r1->end == r2->end;
+  if (a.is_object() && b.is_object()) {
+    if (a.as_object()->is<String>() && b.as_object()->is<String>()) {
+      return StringEquality{}(a.as_object()->as<String>(),
+                              b.as_object()->as<String>());
+    } else if (a.as_object()->is<Range>() && b.as_object()->is<Range>()) {
+      auto r1 = a.as_object()->as<Range>();
+      auto r2 = b.as_object()->as<Range>();
+      return r1->start == r2->start && r1->end == r2->end;
+    } else {
+      return a.inner == b.inner;
+    }
   } else {
     return a.inner == b.inner;
   }
@@ -339,7 +338,11 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
     auto o2 = b.as_object();
     if (o1->is<String>() && o2->is<String>())
       return StringEquality{}(o1->as<String>(), o2->as<String>());
-    else
+    else if (o1->is<Range>() && o2->is<Range>) {
+      auto r1 = o1->as<Range>();
+      auto r2 = o2->as<Range>();
+      return r1->start == r2->start && r1->end == r2->end;
+    } else
       return reinterpret_cast<uintptr_t>(o1) == reinterpret_cast<uintptr_t>(o2);
   } else {
     return a.tag == b.tag;

@@ -168,30 +168,37 @@ impl Neptune {
         let n = Self { vm: new_vm() };
 
         n.vm.create_efunc_safe("compile", |vm, mut cx| -> bool {
-            match || -> Result<Result<FunctionInfoWriter, Vec<CompileError>>, EFuncError> {
+            let mut eval = false;
+            match || -> Result<Result<(FunctionInfoWriter, bool), Vec<CompileError>>, EFuncError> {
                 cx.get_property("source")?;
                 let source = cx.as_string()?.to_string();
                 cx.get_property("eval")?;
-                let eval = cx.as_bool()?;
+                eval = cx.as_bool()?;
                 cx.get_property("moduleName")?;
                 let module = cx.as_string()?.to_string();
                 cx.pop().unwrap();
-                Ok(compile(vm, module, &source, eval).map(|(fw, _)| fw))
+                Ok(compile(vm, module, &source, eval))
             }() {
                 Err(e) => {
                     e.to_neptune_value(&mut cx);
                     false
                 }
                 Ok(res) => match res {
-                    Ok(fw) => {
-                        unsafe { cx.function(fw) };
-                        true
+                    Ok((fw, is_expr)) => {
+                        if !is_expr && eval {
+                            cx.error("<prelude>", "CompileError", "Expect expression")
+                                .unwrap();
+                            false
+                        } else {
+                            unsafe { cx.function(fw) };
+                            true
+                        }
                     }
                     Err(e) => {
                         let mut message = "".to_owned();
                         use std::fmt::Write;
                         for c in &e {
-                            write!(message, "{}\n", c).unwrap();
+                            writeln!(message, "{}", c).unwrap();
                         }
                         cx.error("<prelude>", "CompileError", &message).unwrap();
                         e.to_neptune_value(&mut cx);
@@ -364,36 +371,30 @@ mod tests {
     #[test]
     fn test() {
         let n = Neptune::new(NoopModuleLoader);
-        assert_eq!(n.eval("fun f(){}", "").unwrap(), None);
+        assert_eq!(n.eval("<script>", "fun f(){}").unwrap(), None);
+        assert_eq!(n.eval("<script>", "\"'\"").unwrap(), Some("'\\''".into()));
         for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
             if let InterpretError::CompileError(_) = n.exec(test, &read(test)).unwrap_err() {
                 panic!("Expected a runtime error")
             }
         }
-        /*if let InterpretError::UncaughtPanic { error, stack_trace } = n
-            .exec(
-                "<script>",
-                r#"
-            fun f(){
-                fun g(){
-                    fun h(){
-                        panic 'abc'
-                    }
-                    h()
-                }
-                g()
-            }
-            f()
-        "#,
-            )
-            .unwrap_err()
+        if let InterpretError::UncaughtException(e) = n.exec("<script>", "throw 'abc'").unwrap_err()
         {
-            assert_eq!(error, "'abc'");
-            assert_eq!(stack_trace, "at h (<script>:5)\nat g (<script>:7)\nat f (<script>:9)\nat <script> (<script>:11)\n");
+            assert_eq!(e, "'abc'");
         } else {
             panic!("Expected error");
-        }*/
+        }
+        if let InterpretError::UncaughtException(e) =
+            n.exec("<script>", "throw new Error('abc')").unwrap_err()
+        {
+            assert_eq!(e, "Error: abc\nat <script> (<script>:1)\n");
+        } else {
+            panic!("Expected error");
+        }
         if let Err(e) = n.exec("test.np", &read("test.np")) {
+            panic!("{:?}", e);
+        }
+        if let Err(e) = n.exec("test2.np", &read("test2.np")) {
             panic!("{:?}", e);
         }
         let errors: Vec<String> = serde_json::from_str(&read("errors.json")).unwrap();
