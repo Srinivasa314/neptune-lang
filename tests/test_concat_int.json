@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Can only perform concat operation on strings. Consider using interpolation",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Can only perform concat operation on strings. Consider using interpolation",
+      "line": 1
+    }
+  ]
+}

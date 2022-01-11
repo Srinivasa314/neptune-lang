@@ -1206,7 +1206,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
     fn dot(&mut self, left: Box<Expr>) -> CompileResult<Expr> {
         self.consume(TokenType::Identifier, "Expect property name after .".into())?;
         let property: String = self.previous.inner.into();
-        if !matches!(*left, Expr::This { line: _ }) && Some('_') == property.chars().next() {
+        if !matches!(*left, Expr::This { line: _ }) && property.starts_with('_') {
             self.errors.push(CompileError {
                 message: format!("Cannot access private member {}", property),
                 line: self.previous.line,
@@ -1242,7 +1242,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         self.consume(TokenType::Dot, "Expect . after super".into())?;
         self.consume(TokenType::Identifier, "Expect method name after .".into())?;
         let method: String = self.previous.inner.into();
-        if Some('_') == method.chars().next() {
+        if method.starts_with('_') {
             self.errors.push(CompileError {
                 message: format!("Cannot access private method {}", method),
                 line: self.previous.line,

@@ -275,6 +275,8 @@ uint32_t ValueHasher::operator()(Value v) const {
       return StringHasher{}(o->as<Symbol>());
     else if (o->is<String>())
       return StringHasher{}(*o->as<String>());
+    else if (o->is<Range>())
+      return intHash(o->as<Range>()->start) ^ intHash(o->as<Range>()->end);
     else
       return intHash(v.inner);
   } else {
@@ -297,6 +299,9 @@ uint32_t ValueHasher::operator()(Value v) const {
       return StringHasher{}(o->as<Symbol>());
     else if (o->is<String>())
       return StringHasher{}(static_cast<StringSlice>(*o->as<String>()));
+    else if (o->is<Range>())
+      return intHash((uint32_t)o->as<Range>()->start) ^
+             intHash((uint32_t)o->as<Range>()->end);
     else
       return intHash(reinterpret_cast<uintptr_t>(o));
   }
@@ -338,7 +343,7 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
     auto o2 = b.as_object();
     if (o1->is<String>() && o2->is<String>())
       return StringEquality{}(o1->as<String>(), o2->as<String>());
-    else if (o1->is<Range>() && o2->is<Range>) {
+    else if (o1->is<Range>() && o2->is<Range>()) {
       auto r1 = o1->as<Range>();
       auto r2 = o2->as<Range>();
       return r1->start == r2->start && r1->end == r2->end;

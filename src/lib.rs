@@ -36,7 +36,7 @@ impl Display for InterpretError {
         match self {
             InterpretError::CompileError(c) => {
                 for error in c {
-                    write!(f, "{}\n", error)?;
+                    writeln!(f, "{}", error)?;
                 }
             }
             InterpretError::UncaughtException(error) => {
@@ -349,7 +349,9 @@ fn compile<'vm>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{InterpretError, Neptune, NoopModuleLoader};
+    use crate::{
+        EFuncError, EFuncErrorOr, Error, InterpretError, ModuleLoader, Neptune, ToNeptuneValue,
+    };
     use std::{
         env,
         fs::File,
@@ -362,22 +364,35 @@ mod tests {
         path.push(file);
         path
     }
-    fn read(file: &str) -> String {
+    fn read(file: &str) -> std::io::Result<String> {
         let path = open(file);
         let mut s = String::new();
-        File::open(path).unwrap().read_to_string(&mut s).unwrap();
-        s
+        File::open(path).unwrap().read_to_string(&mut s)?;
+        Ok(s)
     }
+
+    #[derive(Clone, Copy)]
+    struct TestModuleLoader;
+    impl ModuleLoader for TestModuleLoader {
+        fn resolve(&self, _: &str, module: &str) -> Option<String> {
+            Some(module.into())
+        }
+
+        fn load(&self, module: &str) -> Option<String> {
+            read(module).ok()
+        }
+    }
+
     #[test]
-    fn test() {
-        let n = Neptune::new(NoopModuleLoader);
+    fn test_basic() {
+        let n = Neptune::new(TestModuleLoader);
         assert_eq!(n.eval("<script>", "fun f(){}").unwrap(), None);
         assert_eq!(n.eval("<script>", "\"'\"").unwrap(), Some("'\\''".into()));
-        for test in ["assert_eq.np", "assert_failed.np", "assert_failed2.np"] {
-            if let InterpretError::CompileError(_) = n.exec(test, &read(test)).unwrap_err() {
-                panic!("Expected a runtime error")
-            }
-        }
+    }
+
+    #[test]
+    fn test_runtime() {
+        let n = Neptune::new(TestModuleLoader);
         if let InterpretError::UncaughtException(e) = n.exec("<script>", "throw 'abc'").unwrap_err()
         {
             assert_eq!(e, "'abc'");
@@ -391,35 +406,141 @@ mod tests {
         } else {
             panic!("Expected error");
         }
-        if let Err(e) = n.exec("test.np", &read("test.np")) {
-            panic!("{:?}", e);
+        for test in [
+            "test.np",
+            "test_lines.np",
+            "test_many_registers_constants.np",
+            "test_jumps.np",
+        ] {
+            if let Err(e) = n.exec(test, &read(test).unwrap()) {
+                panic!("Error in file {}, {:?}", test, e);
+            }
         }
-        if let Err(e) = n.exec("test2.np", &read("test2.np")) {
-            panic!("{:?}", e);
-        }
-        let errors: Vec<String> = serde_json::from_str(&read("errors.json")).unwrap();
+    }
+
+    #[test]
+    fn test_errors() {
+        let n = Neptune::new(TestModuleLoader);
+        let errors: Vec<String> = serde_json::from_str(&read("errors.json").unwrap()).unwrap();
         for error in errors {
             let fname = format!("{}.np", error);
-            let source = read(&fname);
+            let source = read(&fname).unwrap();
             let res = n.exec(fname, &source).unwrap_err();
-            if let InterpretError::CompileError(res) = res {
-                let result = serde_json::to_string_pretty(&res).unwrap();
-                if env::var("NEPTUNE_GEN_ERRORS").is_ok() {
-                    File::create(open(&format!("{}.json", error)))
-                        .unwrap()
-                        .write(result.as_bytes())
-                        .unwrap();
-                } else {
-                    let mut expected_result = String::new();
-                    File::open(open(&format!("{}.json", error)))
-                        .unwrap()
-                        .read_to_string(&mut expected_result)
-                        .unwrap();
-                    assert_eq!(expected_result, result);
-                }
+            let result = serde_json::to_string_pretty(&res).unwrap();
+            if env::var("NEPTUNE_GEN_ERRORS").is_ok() {
+                File::create(open(&format!("{}.json", error)))
+                    .unwrap()
+                    .write_all(result.as_bytes())
+                    .unwrap();
             } else {
-                panic!("Expected a compile error");
+                let mut expected_result = String::new();
+                File::open(open(&format!("{}.json", error)))
+                    .unwrap()
+                    .read_to_string(&mut expected_result)
+                    .unwrap();
+                assert_eq!(expected_result, result);
             }
+        }
+    }
+
+    struct FirstRest {
+        first: f64,
+        rest: Vec<f64>,
+    }
+
+    enum Bar {
+        Baz,
+        Ja,
+    }
+
+    impl ToNeptuneValue for Bar {
+        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+            match self {
+                Bar::Baz => cx.symbol("baz"),
+                Bar::Ja => cx.symbol("ja"),
+            }
+        }
+    }
+
+    struct Foo {
+        a: bool,
+        d: Vec<(i32, i32)>,
+        b: String,
+    }
+
+    impl ToNeptuneValue for Foo {
+        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+            cx.array();
+            cx.bool(self.a);
+            cx.push_to_array().unwrap();
+            cx.map();
+            for (a, b) in &self.d {
+                cx.int(*a);
+                cx.int(*b);
+                cx.insert_in_map().unwrap();
+            }
+            cx.push_to_array().unwrap();
+            cx.string(&self.b);
+            cx.push_to_array().unwrap();
+        }
+    }
+
+    impl ToNeptuneValue for FirstRest {
+        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+            cx.object();
+            self.first.to_neptune_value(cx);
+            cx.set_object_property("first").unwrap();
+            self.rest.to_neptune_value(cx);
+            cx.set_object_property("rest").unwrap();
+        }
+    }
+
+    #[test]
+    fn test_efunc() {
+        let n = Neptune::new(TestModuleLoader);
+        n.create_efunc("add", |ctx| -> Result<i32, EFuncError> {
+            ctx.get_property("a")?;
+            let i1 = ctx.as_int()?;
+            ctx.get_property("b")?;
+            let i2 = ctx.as_int()?;
+            ctx.pop().unwrap();
+            Ok(i1 + i2)
+        })
+        .unwrap();
+        n.create_efunc("firstRest", |ctx| -> Result<FirstRest, EFuncError> {
+            let len = ctx.array_length()?;
+            ctx.get_element(0)?;
+            let first = ctx.as_float()?;
+            let mut rest = vec![];
+            for i in 1..len {
+                ctx.get_element(i)?;
+                rest.push(ctx.as_float()?);
+            }
+            ctx.pop().unwrap();
+            Ok(FirstRest { first, rest })
+        })
+        .unwrap();
+        n.create_efunc("test_sym", |ctx| -> Result<Bar, EFuncErrorOr<Error>> {
+            match ctx.as_symbol()? {
+                "abc" => Ok(Bar::Baz),
+                "def" => Ok(Bar::Ja),
+                _ => Err(EFuncErrorOr::Other(Error("invalid!!!".into()))),
+            }
+        })
+        .unwrap();
+        //test capturing too!
+        let d = vec![(1, 2), (3, 4)];
+        n.create_efunc("foo", move |ctx| -> Result<Foo, EFuncError> {
+            ctx.get_element(0)?;
+            let b = ctx.as_string()?.to_string();
+            ctx.get_element(1)?;
+            let a = ctx.as_bool()?;
+            ctx.pop().unwrap();
+            Ok(Foo { a, b, d: d.clone() })
+        })
+        .unwrap();
+        if let Err(e) = n.exec("test_efunc.np", &read("test_efunc.np").unwrap()) {
+            panic!("{:?}", e);
         }
     }
 }

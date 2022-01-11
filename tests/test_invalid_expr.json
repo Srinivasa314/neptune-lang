@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Expect expression at end",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect expression at end",
+      "line": 1
+    }
+  ]
+}

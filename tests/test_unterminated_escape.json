@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Unterminated \\",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Unterminated \\",
+      "line": 1
+    }
+  ]
+}

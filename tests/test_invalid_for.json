@@ -1,22 +1,24 @@
-[
-  {
-    "message": "Cannot modify constant i",
-    "line": 2
-  },
-  {
-    "message": "Expect in after loop variable at token \n",
-    "line": 5
-  },
-  {
-    "message": "Expect { after iterator in for statement at token print",
-    "line": 8
-  },
-  {
-    "message": "i is not defined",
-    "line": 8
-  },
-  {
-    "message": "Expect identifier after for at end",
-    "line": 10
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot modify constant i",
+      "line": 2
+    },
+    {
+      "message": "Expect in after loop variable at token \n",
+      "line": 5
+    },
+    {
+      "message": "Expect { after iterator in for statement at token print",
+      "line": 8
+    },
+    {
+      "message": "i is not defined",
+      "line": 8
+    },
+    {
+      "message": "Expect identifier after for at end",
+      "line": 10
+    }
+  ]
+}

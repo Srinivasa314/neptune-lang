@@ -1,0 +1,3 @@
+const {assert_failed} = import("assert.np")
+
+assert_failed(||{throw new Error('abc')},Error,'def')

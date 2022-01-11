@@ -1,0 +1,3 @@
+{
+  "UncaughtException": "Error: Assertion failed: <Class Int>==<Class String>\nat assert_failed (assert.np:23)\nat <script> (assert_failed.np:3)\n"
+}

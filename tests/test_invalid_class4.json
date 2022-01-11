@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Expect identifier after class at end",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect identifier after class at end",
+      "line": 1
+    }
+  ]
+}

@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Cannot use return outside a function or method",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot use return outside a function or method",
+      "line": 1
+    }
+  ]
+}

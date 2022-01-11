@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Cannot return expression from a constructor",
-    "line": 3
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot return expression from a constructor",
+      "line": 3
+    }
+  ]
+}

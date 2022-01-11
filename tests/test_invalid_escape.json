@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Invalid escape sequence \\a",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Invalid escape sequence \\a",
+      "line": 1
+    }
+  ]
+}

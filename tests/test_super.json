@@ -1,10 +1,12 @@
-[
-  {
-    "message": "Cannot access private method _x",
-    "line": 3
-  },
-  {
-    "message": "Super calls can be done only in methods",
-    "line": 7
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot access private method _x",
+      "line": 3
+    },
+    {
+      "message": "Super calls can be done only in methods",
+      "line": 7
+    }
+  ]
+}

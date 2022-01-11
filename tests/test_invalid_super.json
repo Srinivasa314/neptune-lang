@@ -1,18 +1,20 @@
-[
-  {
-    "message": "Expect comma after argument at token b",
-    "line": 3
-  },
-  {
-    "message": "Expect ( after method name at token \n",
-    "line": 4
-  },
-  {
-    "message": "Expect method name after . at token return",
-    "line": 6
-  },
-  {
-    "message": "Expect . after super at token \n",
-    "line": 6
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect comma after argument at token b",
+      "line": 3
+    },
+    {
+      "message": "Expect ( after method name at token \n",
+      "line": 4
+    },
+    {
+      "message": "Expect method name after . at token return",
+      "line": 6
+    },
+    {
+      "message": "Expect . after super at token \n",
+      "line": 6
+    }
+  ]
+}

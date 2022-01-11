@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Unexpected end of file after @",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Unexpected end of file after @",
+      "line": 1
+    }
+  ]
+}

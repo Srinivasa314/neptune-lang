@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Expect identifier for variable name at token 1",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect identifier for variable name at token 1",
+      "line": 1
+    }
+  ]
+}

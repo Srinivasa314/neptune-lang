@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Expect } after block",
-    "line": 0
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect } after block",
+      "line": 0
+    }
+  ]
+}

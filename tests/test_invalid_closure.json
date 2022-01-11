@@ -1,10 +1,12 @@
-[
-  {
-    "message": "Expect comma after argument at token b",
-    "line": 1
-  },
-  {
-    "message": "Expect argument name at token 1",
-    "line": 2
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect comma after argument at token b",
+      "line": 1
+    },
+    {
+      "message": "Expect argument name at token 1",
+      "line": 2
+    }
+  ]
+}
