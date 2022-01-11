@@ -5,7 +5,7 @@
 #include <cstring>
 #include <mimalloc.h>
 #include <ostream>
-#include <tsl/robin_map.h>
+#include <rigtorp/HashMap.h>
 #include <vector>
 
 #define UNUSED(x) (void)(x)
@@ -97,10 +97,12 @@ template <> size_t size(Symbol *s);
 struct StringEquality {
   using is_transparent = void;
   bool operator()(Symbol *sym, StringSlice s) const {
-    return StringEquality{}(static_cast<StringSlice>(*sym), s);
+    return sym != nullptr &&
+           StringEquality{}(static_cast<StringSlice>(*sym), s);
   }
   bool operator()(StringSlice s, Symbol *sym) const {
-    return StringEquality{}(s, static_cast<StringSlice>(*sym));
+    return sym != nullptr &&
+           StringEquality{}(s, static_cast<StringSlice>(*sym));
   }
   bool operator()(Symbol *sym1, Symbol *sym2) const { return sym1 == sym2; }
   bool operator()(StringSlice s1, StringSlice s2) const {
@@ -137,19 +139,18 @@ public:
 };
 
 template <typename T>
-using ValueMap =
-    tsl::robin_map<Value, T, ValueHasher, ValueStrictEquality,
-                   mi_stl_allocator<std::pair<Value, Value>>, true>;
+using ValueMap = rigtorp::HashMap<Value, T, ValueHasher, ValueStrictEquality,
+                                  mi_stl_allocator<std::pair<Value, Value>>>;
 
 template <typename T>
-using SymbolMap = tsl::robin_map<Symbol *, T, StringHasher, StringEquality,
-                                 mi_stl_allocator<std::pair<Symbol *, T>>>;
+using SymbolMap = rigtorp::HashMap<Symbol *, T, StringHasher, StringEquality,
+                                   mi_stl_allocator<std::pair<Symbol *, T>>>;
 
 class Map : public Object {
 public:
   Map() = default;
   explicit Map(size_t size);
-  ValueMap<Value> inner;
+  ValueMap<Value> inner = ValueMap<Value>(16, Value(nullptr));
   static constexpr Type type = Type::Map;
 };
 
@@ -160,7 +161,8 @@ struct ModuleVariable {
 };
 
 class Module : public Object {
-  SymbolMap<ModuleVariable> module_variables;
+  SymbolMap<ModuleVariable> module_variables =
+      SymbolMap<ModuleVariable>(16, nullptr);
 
 public:
   std::string name;
@@ -172,7 +174,7 @@ class FunctionInfoWriter;
 class VM;
 class Function;
 class Class : public Object {
-  SymbolMap<Object *> methods;
+  SymbolMap<Object *> methods = SymbolMap<Object *>(16, nullptr);
 
 public:
   bool is_native = false;
@@ -188,7 +190,7 @@ public:
 class Instance : public Object {
 public:
   Class *class_;
-  SymbolMap<Value> properties;
+  SymbolMap<Value> properties = SymbolMap<Value>(16, nullptr);
   Instance() = default;
   explicit Instance(size_t size);
   static constexpr Type type = Type::Instance;

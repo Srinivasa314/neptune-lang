@@ -55,8 +55,8 @@ public:
 
   explicit FunctionInfoWriter(Handle<FunctionInfo> *hf_, const VM *vm_)
       : hf(hf_), vm(const_cast<VM *>(vm_)),
-        constants(std::unique_ptr<ValueMap<uint16_t>>(new ValueMap<uint16_t>)) {
-  }
+        constants(std::unique_ptr<ValueMap<uint16_t>>(
+            new ValueMap<uint16_t>(16, Value(nullptr)))) {}
   template <typename T> void write(T t);
   uint16_t constant(Value v);
   size_t write_op(Op op, uint32_t line);

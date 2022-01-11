@@ -144,7 +144,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
         vf.os << "[ ";
 
         new_vf << *it;
-        it++;
+        ++it;
         for (auto v = it; v != o.end(); v++) {
           new_vf.os << ", ";
           new_vf << *v;
@@ -168,8 +168,8 @@ void operator<<(ValueFormatter vf, Object *obj) {
         new_vf << it->first;
         new_vf.os << ": ";
         new_vf << it->second;
-        it++;
-        for (auto p = it; p != o.end(); p++) {
+        ++it;
+        for (auto p = it; p != o.end(); ++p) {
           new_vf.os << ", ";
           new_vf << p->first;
           new_vf.os << ": ";
@@ -217,8 +217,8 @@ void operator<<(ValueFormatter vf, Object *obj) {
         new_vf.os << static_cast<StringSlice>(*it->first);
         new_vf.os << ": ";
         new_vf << it->second;
-        it++;
-        for (auto p = it; p != o.end(); p++) {
+        ++it;
+        for (auto p = it; p != o.end(); ++p) {
           new_vf.os << ", ";
           new_vf.os << static_cast<StringSlice>(*p->first);
           new_vf.os << ": ";
@@ -281,7 +281,9 @@ MapIterator::MapIterator(Map *map) {
 }
 
 void Class::copy_methods(Class &other) {
-  methods.insert(other.methods.begin(), other.methods.end());
+  for (auto &method : other.methods) {
+    methods.insert(method);
+  }
 }
 
 // Boyer-Moore-Horspool algorithm

@@ -3,10 +3,10 @@
 #include "rust/cxx.h"
 #include <memory>
 #include <random>
+#include <rigtorp/HashMap.h>
+#include <rigtorp/HashSet.h>
 #include <sstream>
 #include <string>
-#include <tsl/robin_map.h>
-#include <tsl/robin_set.h>
 
 constexpr size_t INITIAL_FRAMES = 4;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
@@ -43,13 +43,17 @@ public:
   Task *current_task;
 
 private:
-  tsl::robin_map<std::string, Module *, StringHasher, StringEquality> modules;
+  rigtorp::HashMap<std::string, Module *, StringHasher, StringEquality>
+      modules =
+          rigtorp::HashMap<std::string, Module *, StringHasher, StringEquality>(
+              0, "");
   mutable std::vector<Value> module_variables;
   size_t bytes_allocated;
   // Linked list of all objects
   Object *first_obj;
   size_t threshhold;
-  tsl::robin_set<Symbol *, StringHasher, StringEquality> symbols;
+  rigtorp::HashSet<Symbol *, StringHasher, StringEquality> symbols =
+      rigtorp::HashSet<Symbol *, StringHasher, StringEquality>(16, nullptr);
   Handle<Object> *handles;
   std::vector<Object *> greyobjects;
   bool is_running;
@@ -61,7 +65,7 @@ private:
 public:
   BuiltinClasses builtin_classes;
   std::vector<Value> temp_roots;
-  SymbolMap<EFunc> efuncs;
+  SymbolMap<EFunc> efuncs = SymbolMap<EFunc>(16, nullptr);
   Value return_value;
   std::mt19937_64 rng;
   Value to_string(Value val);

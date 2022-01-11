@@ -478,11 +478,10 @@ handler(MakeClass, {
   } else
     THROW("TypeError",
           "Expected to inherit from Class got " << accumulator.type_string());
-  for (auto p : class_->methods)
+  for (auto &p : class_->methods)
     if (p.second->is<FunctionInfo>()) {
-      class_->methods[p.first] =
-          make_function(bp, p.second->as<FunctionInfo>());
-      class_->methods[p.first]->as<Function>()->super_class =
+      p.second = make_function(bp, p.second->as<FunctionInfo>());
+      p.second->as<Function>()->super_class =
           accumulator.as_object()->as<Class>();
     }
   temp_roots.pop_back();
@@ -507,13 +506,14 @@ handler(LoadProperty, {
                       << static_cast<StringSlice>(*property));
     else
       accumulator = module_variables[iter->second.position];
-  } else if (object.is_object() && object.as_object()->is<Instance>()) {
+  } else if (likely(object.is_object() && object.as_object()->is<Instance>())) {
     auto instance = object.as_object()->as<Instance>();
-    if (instance->properties.find(property) == instance->properties.end())
+    if (unlikely(instance->properties.find(property) ==
+                 instance->properties.end()))
       THROW("PropertyError", "object does not have any property named "
                                  << static_cast<StringSlice>(*property));
     else
-      accumulator = instance->properties[property];
+      accumulator = instance->properties.get_unchecked(property);
   } else {
     THROW("TypeError",
           "Cannot get property from type " << object.type_string());
@@ -523,7 +523,7 @@ handler(LoadProperty, {
 handler(StoreProperty, {
   auto object = bp[READ(utype)];
   auto property = constants[READ(utype)].as_object()->as<Symbol>();
-  if (object.is_object() && object.as_object()->is<Instance>()) {
+  if (likely(object.is_object() && object.as_object()->is<Instance>())) {
     auto instance = object.as_object()->as<Instance>();
     instance->properties[property] = accumulator;
   } else {

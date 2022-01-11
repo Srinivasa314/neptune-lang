@@ -13,7 +13,7 @@ fn main() {
     };
 
     build
-        .include("vendor/github.com/Tessil/robin-map/include")
+        .include("vendor/github.com/rigtorp/HashMap/include")
         .include("vendor/github.com/dcleblanc")
         .include("vendor/github.com/microsoft/mimalloc/src")
         .include("vendor/github.com/microsoft/mimalloc/include")

@@ -1,27 +1,6 @@
 // © 2017-2020 Erik Rigtorp <erik@rigtorp.se>
 // SPDX-License-Identifier: MIT
 
-/*
-HashMap
-
-A high performance hash map. Uses open addressing with linear
-probing.
-
-Advantages:
-  - Predictable performance. Doesn't use the allocator unless load factor
-    grows beyond 50%. Linear probing ensures cash efficency.
-  - Deletes items by rearranging items and marking slots as empty instead of
-    marking items as deleted. This is keeps performance high when there
-    is a high rate of churn (many paired inserts and deletes) since otherwise
-    most slots would be marked deleted and probing would end up scanning
-    most of the table.
-
-Disadvantages:
-  - Significant performance degradation at high load factors.
-  - Maximum load factor hard coded to 50%, memory inefficient.
-  - Memory is not reclaimed on erase.
- */
-
 #pragma once
 
 #include <algorithm>
@@ -34,14 +13,13 @@ Disadvantages:
 
 namespace rigtorp {
 
-template <typename Key, typename T, typename Hash = std::hash<Key>,
+template <typename Key, typename Hash = std::hash<Key>,
           typename KeyEqual = std::equal_to<void>,
-          typename Allocator = std::allocator<std::pair<Key, T>>>
-class HashMap {
+          typename Allocator = std::allocator<Key>>
+class HashSet {
 public:
   using key_type = Key;
-  using mapped_type = T;
-  using value_type = std::pair<Key, T>;
+  using value_type = Key;
   using size_type = std::size_t;
   using hasher = Hash;
   using key_equal = KeyEqual;
@@ -82,7 +60,7 @@ public:
 
     void advance_past_empty() {
       while (idx_ < hm_->buckets_.size() &&
-             key_equal()(hm_->buckets_[idx_].first, hm_->empty_key_)) {
+             key_equal()(hm_->buckets_[idx_], hm_->empty_key_)) {
         ++idx_;
       }
     }
@@ -92,22 +70,22 @@ public:
     friend ContT;
   };
 
-  using iterator = hm_iterator<HashMap, value_type>;
-  using const_iterator = hm_iterator<const HashMap, const value_type>;
+  using iterator = hm_iterator<HashSet, value_type>;
+  using const_iterator = hm_iterator<const HashSet, const value_type>;
 
 public:
-  HashMap(size_type bucket_count, key_type empty_key,
+  HashSet(size_type bucket_count, key_type empty_key,
           const allocator_type &alloc = allocator_type())
       : empty_key_(empty_key), buckets_(alloc) {
     size_t pow2 = 1;
     while (pow2 < bucket_count) {
       pow2 <<= 1;
     }
-    buckets_.resize(pow2, std::make_pair(empty_key_, T()));
+    buckets_.resize(pow2, empty_key_);
   }
 
-  HashMap(const HashMap &other, size_type bucket_count)
-      : HashMap(bucket_count, other.empty_key_, other.get_allocator()) {
+  HashSet(const HashSet &other, size_type bucket_count)
+      : HashSet(bucket_count, other.empty_key_, other.get_allocator()) {
     for (auto it = other.begin(); it != other.end(); ++it) {
       insert(*it);
     }
@@ -144,24 +122,15 @@ public:
   // Modifiers
   void clear() noexcept {
     for (auto &b : buckets_) {
-      if (b.first != empty_key_) {
-        b.first = empty_key_;
+      if (b != empty_key_) {
+        b = empty_key_;
       }
     }
     size_ = 0;
   }
 
   std::pair<iterator, bool> insert(const value_type &value) {
-    return emplace_impl(value.first, value.second);
-  }
-
-  std::pair<iterator, bool> insert(value_type &&value) {
-    return emplace_impl(value.first, std::move(value.second));
-  }
-
-  template <typename... Args>
-  std::pair<iterator, bool> emplace(Args &&...args) {
-    return emplace_impl(std::forward<Args>(args)...);
+    return emplace_impl(value);
   }
 
   void erase(iterator it) { erase_impl(it); }
@@ -170,25 +139,10 @@ public:
 
   template <typename K> size_type erase(const K &x) { return erase_impl(x); }
 
-  void swap(HashMap &other) noexcept {
+  void swap(HashSet &other) noexcept {
     std::swap(buckets_, other.buckets_);
     std::swap(size_, other.size_);
     std::swap(empty_key_, other.empty_key_);
-  }
-
-  // Lookup
-  mapped_type &at(const key_type &key) { return at_impl(key); }
-
-  template <typename K> mapped_type &at(const K &x) { return at_impl(x); }
-
-  const mapped_type &at(const key_type &key) const { return at_impl(key); }
-
-  template <typename K> const mapped_type &at(const K &x) const {
-    return at_impl(x);
-  }
-
-  mapped_type &operator[](const key_type &key) {
-    return emplace_impl(key).first->second;
   }
 
   size_type count(const key_type &key) const { return count_impl(key); }
@@ -215,12 +169,12 @@ public:
   // Hash policy
   void rehash(size_type count) {
     count = std::max(count, size() * 2);
-    HashMap other(*this, count);
+    HashSet other(*this, count);
     swap(other);
   }
 
   void reserve(size_type count) {
-    if (__builtin_expect(count * 2 > buckets_.size(), 0)) {
+    if (count * 2 > buckets_.size()) {
       rehash(count * 2);
     }
   }
@@ -230,31 +184,18 @@ public:
 
   key_equal key_eq() const { return key_equal(); }
 
-  template <typename K, typename... Args>
-
-  mapped_type get_unchecked(const K &key) {
-    assert(!key_equal()(empty_key_, key) && "empty key shouldn't be used");
-    for (size_t idx = key_to_idx(key);; idx = probe_next(idx)) {
-      if (__builtin_expect(key_equal()(buckets_[idx].first, key), 1)) {
-        return buckets_[idx].second;
-      }
-    }
-  }
-
 private:
   template <typename K, typename... Args>
-  __attribute__((always_inline)) std::pair<iterator, bool>
-  emplace_impl(const K &key, Args &&...args) {
+  std::pair<iterator, bool> emplace_impl(const K &key) {
     assert(!key_equal()(empty_key_, key) && "empty key shouldn't be used");
     reserve(size_ + 1);
     for (size_t idx = key_to_idx(key);; idx = probe_next(idx)) {
-      if (__builtin_expect(key_equal()(buckets_[idx].first, key), 1)) {
-        return {iterator(this, idx), false};
-      } else if (key_equal()(buckets_[idx].first, empty_key_)) {
-        buckets_[idx].second = mapped_type(std::forward<Args>(args)...);
-        buckets_[idx].first = key;
+      if (key_equal()(buckets_[idx], empty_key_)) {
+        buckets_[idx] = key;
         size_++;
         return {iterator(this, idx), true};
+      } else if (key_equal()(buckets_[idx], key)) {
+        return {iterator(this, idx), false};
       }
     }
   }
@@ -262,12 +203,12 @@ private:
   void erase_impl(iterator it) {
     size_t bucket = it.idx_;
     for (size_t idx = probe_next(bucket);; idx = probe_next(idx)) {
-      if (key_equal()(buckets_[idx].first, empty_key_)) {
-        buckets_[bucket].first = empty_key_;
+      if (key_equal()(buckets_[idx], empty_key_)) {
+        buckets_[bucket] = empty_key_;
         size_--;
         return;
       }
-      size_t ideal = key_to_idx(buckets_[idx].first);
+      size_t ideal = key_to_idx(buckets_[idx]);
       if (diff(bucket, ideal) < diff(idx, ideal)) {
         // swap, bucket is closer to ideal than idx
         buckets_[bucket] = buckets_[idx];
@@ -285,18 +226,6 @@ private:
     return 0;
   }
 
-  template <typename K> mapped_type &at_impl(const K &key) {
-    iterator it = find_impl(key);
-    if (it != end()) {
-      return it->second;
-    }
-    throw std::out_of_range("HashMap::at");
-  }
-
-  template <typename K> const mapped_type &at_impl(const K &key) const {
-    return const_cast<HashMap *>(this)->at_impl(key);
-  }
-
   template <typename K> size_t count_impl(const K &key) const {
     return find_impl(key) == end() ? 0 : 1;
   }
@@ -304,17 +233,17 @@ private:
   template <typename K> iterator find_impl(const K &key) {
     assert(!key_equal()(empty_key_, key) && "empty key shouldn't be used");
     for (size_t idx = key_to_idx(key);; idx = probe_next(idx)) {
-      if (key_equal()(buckets_[idx].first, key)) {
+      if (key_equal()(buckets_[idx], key)) {
         return iterator(this, idx);
       }
-      if (key_equal()(buckets_[idx].first, empty_key_)) {
+      if (key_equal()(buckets_[idx], empty_key_)) {
         return end();
       }
     }
   }
 
   template <typename K> const_iterator find_impl(const K &key) const {
-    return const_cast<HashMap *>(this)->find_impl(key);
+    return const_cast<HashSet *>(this)->find_impl(key);
   }
 
   template <typename K>

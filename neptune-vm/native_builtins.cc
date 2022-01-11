@@ -257,7 +257,7 @@ static bool mapiterator_next(VM *vm, Value *slots) {
     if (iter == mi->map->inner.end())
       mi->last_key = Value(nullptr);
     else {
-      iter++;
+      ++iter;
       if (iter == mi->map->inner.end())
         mi->last_key = Value(nullptr);
       else
@@ -529,7 +529,7 @@ static bool map_len(VM *vm, Value *slots) {
 
 static bool map_contains(VM *vm, Value *slots) {
   vm->return_value =
-      Value(slots[0].as_object()->as<Map>()->inner.contains(slots[1]));
+      Value(slots[0].as_object()->as<Map>()->inner.count(slots[1]) == 1);
   return true;
 }
 
