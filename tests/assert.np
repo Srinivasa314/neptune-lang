@@ -1,0 +1,32 @@
+export fun assert_eq(x,y){
+    if x.getClass() === Array and y.getClass() === Array {
+        if x.len() !== y.len() {
+            throw new Error("Assertion failed: \(x)==\(y)")
+        }
+        for i in 0..x.len(){
+            if x[i] !== y[i] {
+                throw new Error("Assertion failed: \(x)==\(y)")
+            }
+        }
+    }else if x!==y{
+        throw new Error("Assertion failed: \(x)==\(y)")
+    }
+}
+
+export fun assert_failed(f,err_class,err_msg){
+    let handled=false
+    try{ 
+        f()
+    }catch e{
+        handled=true
+        if err_class!=e.getClass(){
+            throw new Error("Assertion failed: \(e.getClass())==\(err_class)")
+        }
+        if err_msg!=e.message{
+            throw new Error("Assertion failed: \(e.message)==\(err_msg)")
+        }
+    }
+    if !handled{
+        throw new Error("Assertion failed: Expected it to throw")
+    }
+}

@@ -1,10 +1,12 @@
-[
-  {
-    "message": "Expect number after e for 1",
-    "line": 1
-  },
-  {
-    "message": "Expect newline or semicolon at token e",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect number after e for 1",
+      "line": 1
+    },
+    {
+      "message": "Expect newline or semicolon at token e",
+      "line": 1
+    }
+  ]
+}

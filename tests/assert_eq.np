@@ -1,7 +1,3 @@
-fun assert_eq(x,y){
-    if x!=y{
-        throw "Assertion failed: \(x)==\(y)"
-    }
-}
+const {assert_eq} = import("assert.np")
 
 assert_eq(2+2,5)

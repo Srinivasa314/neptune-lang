@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Nul character in file",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Nul character in file",
+      "line": 1
+    }
+  ]
+}

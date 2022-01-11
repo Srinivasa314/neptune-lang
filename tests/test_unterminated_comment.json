@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Unterminated multiline comment",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Unterminated multiline comment",
+      "line": 1
+    }
+  ]
+}

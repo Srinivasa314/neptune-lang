@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Unexpected character '😃'",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Unexpected character '😃'",
+      "line": 1
+    }
+  ]
+}

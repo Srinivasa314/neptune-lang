@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Unicode character not given",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Unicode character not given",
+      "line": 1
+    }
+  ]
+}

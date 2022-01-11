@@ -1,34 +1,36 @@
-[
-  {
-    "message": "a is not defined",
-    "line": 3
-  },
-  {
-    "message": "= is not an expression",
-    "line": 4
-  },
-  {
-    "message": "+= is not an expression",
-    "line": 5
-  },
-  {
-    "message": "-= is not an expression",
-    "line": 6
-  },
-  {
-    "message": "*= is not an expression",
-    "line": 7
-  },
-  {
-    "message": "/= is not an expression",
-    "line": 8
-  },
-  {
-    "message": "%= is not an expression",
-    "line": 9
-  },
-  {
-    "message": "~= is not an expression",
-    "line": 10
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "a is not defined",
+      "line": 3
+    },
+    {
+      "message": "= is not an expression",
+      "line": 4
+    },
+    {
+      "message": "+= is not an expression",
+      "line": 5
+    },
+    {
+      "message": "-= is not an expression",
+      "line": 6
+    },
+    {
+      "message": "*= is not an expression",
+      "line": 7
+    },
+    {
+      "message": "/= is not an expression",
+      "line": 8
+    },
+    {
+      "message": "%= is not an expression",
+      "line": 9
+    },
+    {
+      "message": "~= is not an expression",
+      "line": 10
+    }
+  ]
+}

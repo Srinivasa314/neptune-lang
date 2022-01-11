@@ -1,0 +1,16 @@
+{
+  "CompileError": [
+    {
+      "message": "Exported variable _x cannot start with _",
+      "line": 1
+    },
+    {
+      "message": "Cannot export non module variable",
+      "line": 3
+    },
+    {
+      "message": "Expected let,const or fun after export",
+      "line": 5
+    }
+  ]
+}

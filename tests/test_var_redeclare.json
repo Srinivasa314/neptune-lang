@@ -1,10 +1,12 @@
-[
-  {
-    "message": "Cannot redeclare module variable var1",
-    "line": 2
-  },
-  {
-    "message": "Cannot redeclare variable a in the same scope",
-    "line": 7
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot redeclare module variable var1",
+      "line": 2
+    },
+    {
+      "message": "Cannot redeclare variable a in the same scope",
+      "line": 7
+    }
+  ]
+}

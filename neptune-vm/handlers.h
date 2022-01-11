@@ -40,8 +40,8 @@ handler(
     if (accumulator.is_int()) {
       int result;
       if (unlikely(!SafeNegation(accumulator.as_int(), result))) {
-        THROW("OverflowError", "Cannot negate "
-                               << accumulator.as_int()
+        THROW("OverflowError",
+              "Cannot negate " << accumulator.as_int()
                                << " as the result cannot be stored in an Int");
       }
       accumulator = Value(result);
@@ -74,7 +74,8 @@ handler(Return, {
 });
 
 handler(Throw, {
-  if ((ip = throw_(ip, accumulator)) != nullptr) {
+  task->frames.back().ip = ip;
+  if ((ip = throw_(accumulator)) != nullptr) {
     bp = task->frames.back().bp;
     auto f = task->frames.back().f;
     constants = f->function_info->constants.data();

@@ -1,26 +1,28 @@
-[
-  {
-    "message": "= is not an expression",
-    "line": 1
-  },
-  {
-    "message": "Invalid target for assignment",
-    "line": 2
-  },
-  {
-    "message": "= is not an expression",
-    "line": 5
-  },
-  {
-    "message": "Invalid target for assignment",
-    "line": 6
-  },
-  {
-    "message": "= is not an expression",
-    "line": 9
-  },
-  {
-    "message": "Invalid target for assignment",
-    "line": 10
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "= is not an expression",
+      "line": 1
+    },
+    {
+      "message": "Invalid target for assignment",
+      "line": 2
+    },
+    {
+      "message": "= is not an expression",
+      "line": 5
+    },
+    {
+      "message": "Invalid target for assignment",
+      "line": 6
+    },
+    {
+      "message": "= is not an expression",
+      "line": 9
+    },
+    {
+      "message": "Invalid target for assignment",
+      "line": 10
+    }
+  ]
+}

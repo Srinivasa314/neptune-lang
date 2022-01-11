@@ -1,0 +1,16 @@
+{
+  "CompileError": [
+    {
+      "message": "Expected identifier in object literal",
+      "line": 1
+    },
+    {
+      "message": "Expect comma after object literal value at token b",
+      "line": 2
+    },
+    {
+      "message": "Expect comma after object literal value at token 5",
+      "line": 3
+    }
+  ]
+}

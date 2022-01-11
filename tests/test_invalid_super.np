@@ -1,0 +1,8 @@
+class C{
+    f(){
+        super.f(a b)
+        let f=super.f
+        super.
+        return super
+    }
+}

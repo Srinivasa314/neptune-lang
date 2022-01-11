@@ -1,6 +1,8 @@
-[
-  {
-    "message": "Expect { after name in class at end",
-    "line": 1
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect { after name in class at end",
+      "line": 1
+    }
+  ]
+}

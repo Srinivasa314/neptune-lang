@@ -1,16 +1,3 @@
-fun assert_failed(f,err){
-    let handled=false
-    try{ 
-        f()
-    }catch e{
-        handled=true
-        if err!=e{
-            throw "Assertion failed: \(e)==\(err)"
-        }
-    }
-    if !handled{
-        throw "Assertion failed: Expected it to throw"
-    }
-}
+const {assert_failed} = import("assert.np")
 
-assert_failed(||2+2,"")
+assert_failed(||{throw 2},String,2)

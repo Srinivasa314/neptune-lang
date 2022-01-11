@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect comma after argument at token 2",
+      "line": 2
+    },
+    {
+      "message": "Expect comma after argument at token 3",
+      "line": 3
+    }
+  ]
+}

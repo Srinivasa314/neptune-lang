@@ -470,7 +470,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
-    pub fn as_string<'b>(&'b mut self) -> Result<&'b str, EFuncError> {
+    pub fn as_string(&mut self) -> Result<&str, EFuncError> {
         let mut s = StringSlice::from("");
         match self.0.as_string(&mut s) {
             EFuncStatus::Ok => Ok(s.as_str()),
@@ -480,7 +480,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
-    pub fn as_symbol<'b>(&'b mut self) -> Result<&'b str, EFuncError> {
+    pub fn as_symbol(&mut self) -> Result<&str, EFuncError> {
         let mut s = StringSlice::from("");
         match self.0.as_symbol(&mut s) {
             EFuncStatus::Ok => Ok(s.as_str()),
@@ -622,8 +622,7 @@ impl ToNeptuneValue for EFuncError {
                 EFuncError::PropertyError => "PropertyError",
                 EFuncError::OutOfBoundsError => "OutOfBoundsError",
                 EFuncError::Underflow => "Underflow",
-            }
-            .into(),
+            },
         )
         .unwrap();
     }

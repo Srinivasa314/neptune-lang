@@ -1,53 +1,64 @@
-fun assert_eq(x,y){
-    if x!=y{
-        throw new Error("Assertion failed: \(x)==\(y)")
-    }
-}
+const {assert_eq,assert_failed} = import("assert.np")
 
-fun assert_failed(f,err_class,err_msg){
-    let handled=false
-    try{ 
-        f()
-    }catch e{
-        handled=true
-        if err_class!=e.getClass(){
-            throw new Error("Assertion failed: \(e.getClass())==\(err_class)")
-        }
-        if err_msg!=e.message{
-            throw new Error("Assertion failed: \(e.message)==\(err_msg)")
-        }
-    }
-    if !handled{
-        throw new Error("Assertion failed: Expected it to throw")
-    }
-}
-
-fun array_equal(a,b){
-    if a.len()!=b.len(){
-        return false
-    }
-    for i in 0..a.len(){
-        if a[i]!=b[i]{
-            return false
-        }
-    }
-    return true
-}
-
-assert_eq(array_equal([1,2],[2,1]),false)
+assert_eq([1,2],[1,2])
+assert_failed(||assert_eq([],[1]),Error,'Assertion failed: []==[ 1 ]')
+assert_failed(||assert_eq([1,2],[1,3]),Error,'Assertion failed: [ 1, 2 ]==[ 1, 3 ]')
 
 assert_eq(1+1,2)
 assert_eq("\(1+1)","2")
 assert_eq('a'~'b','ab');
 assert_eq(0.1+0.2,0.3)
+assert_eq(1+0.2,1.2)
+assert_eq(0.3+9,9.3)
+assert_eq(5%2,1)
+assert_eq((5.9%2-1.9)<0.0001,true)
 assert_eq("\(1.0/0.0)", "inf")
 assert_eq("\(-1.0/0.0)", "-inf")
-assert_eq("\(0.0/0.0)"=="nan" or "\(0.0/0.0)"=="-nan",true)
+assert_eq("\(0.0/0.0)"=="NaN" or "\(0.0/0.0)"=="-NaN",true)
 assert_failed(||'a'>'b',TypeError,'Cannot compare types String and String')
+
+assert_eq(1==1,true)
 assert_eq(1==1.0,true)
-assert_eq('abc'=='abc',true)
+assert_eq(1.0==1,true)
+assert_eq(1==2,false)
+assert_eq(2==1.0,false)
+assert_eq(1==2,false)
+assert_eq(1.0==1.0,true)
+assert_eq(1.0==2,false)
+assert_eq(2.0==1,false)
+assert_eq(1.0==2.0,false)
+assert_eq("a"=="ab",false)
+assert_eq("a"=="a",true)
+assert_eq(7=="a",false)
+assert_eq(1..2==1..2,true)
+assert_eq(1..2==3..4,false)
 assert_eq({}=={},false)
+assert_eq(true==null,false)
+assert_eq(null==null,true)
+
+assert_eq(1<2,true)
+assert_eq(2.2>=1,true)
+assert_eq(4>3.2,true)
+
+assert_eq(@abc,@abc)
+assert_eq(1,1)
+assert_eq(1.0,1.0)
+assert_eq(true,true)
 assert_eq(1===1.0,false)
+assert_eq(1.0===2.0,false)
+assert_eq(1===2,false)
+assert_eq(false===true,false)
+assert_eq('a','a')
+assert_eq("a"==="ab",false)
+assert_eq(@a===@ab,false)
+assert_eq(1..2,1..2)
+assert_eq(1..2===3..4,false)
+assert_eq([]===[],false)
+let obj = {}
+assert_eq(obj,obj)
+assert_eq(obj!=obj,false)
+
+
 
 assert_eq(!false,true)
 assert_eq(!null,true)
@@ -69,22 +80,11 @@ assert_failed(||{let x=1000000;x*1000000},OverflowError,"Cannot multiply 1000000
 assert_failed(||{let x=1;x/0},OverflowError,"Cannot divide 1 and 0 as the result does not fit in an Int")
 assert_failed(||{let x=-2147483648;x/-1},OverflowError,"Cannot divide -2147483648 and -1 as the result does not fit in an Int")
 assert_failed(||{let x=1;x%0},OverflowError,"Cannot mod 1 and 0 as the result does not fit in an Int")
+assert_failed(||'a'%9,TypeError,"Cannot mod types String and Int")
 assert_eq(-2147483648%-1,0)
 assert_failed(||{let x=-2147483647-1;x=-x},OverflowError,"Cannot negate -2147483648 as the result cannot be stored in an Int")
 assert_failed(||'a'+'b',TypeError,"Cannot add types String and String")
 assert_failed(||'a'+1,TypeError,"Cannot add types String and Int")
-
-{
-    let str=''
-    assert_eq(import("vm").disassemble(||{
-        try{
-            str='\(1.2+3)'
-        }
-        catch e{
-        }
-    }),'Bytecode for <closure>\n81> 0 LoadConstant 1.2\n2 AddInt 3\n4 StoreR0 \n5 CallMethod r0 @toString 1 0\n10 StoreUpvalue 0\n82> 12 Jump 2\n85> 14 LoadNull \n15 Return \nUpvalues:\nUpvalue for local 0\nException handlers:\ntry block: 0-12\ncatch block: 14\nerror register: 0\n')
-}
-
 
 let i=0
 if i==2{
@@ -125,6 +125,21 @@ for i in 1..10{
 }
 assert_eq(g,38)
 
+for i in 100..100{g+=1}
+for i in 1000..100{g+=1}
+assert_eq(g,38)
+
+fun sum(n) {
+    if n === 0 {
+        return 0
+    } else {
+        return n + sum(n-1)
+    }
+}
+
+assert_eq(sum(30),465)
+
+
 fun fib(n){
     if n<2{
         return n
@@ -145,6 +160,18 @@ fun f1(){
     return ||b
 }
 assert_eq(f1()(),10)
+
+fun counter(){
+    let count = 0
+    let closure = ||{count+=1;return count}
+    assert_eq(closure(),1)
+    return closure
+}
+let c=counter()
+assert_eq(c(),2)
+assert_eq(c(),3)
+
+
 
 a=[null,null,null]
 for i in 0..3{
@@ -201,6 +228,8 @@ assert_eq(Int.name(),'Int')
 assert_eq(Int.getSuper(),Object)
 assert_eq(Object.getSuper(),null)
 assert_eq(2.getClass(),Int)
+assert_eq(''.getClass(),String)
+assert_eq(new B().getClass(),B)
 assert_failed(||new 3(),TypeError,'new can be called only on classes not Int')
 assert_failed(||{class A extends 3{}},TypeError,'Expected to inherit from Class got Int')
 assert_failed(||{class A extends Int{}},TypeError, 'Cannot inherit from native class Int')
@@ -235,8 +264,8 @@ a=new Array(10,3)
 assert_eq(a.len(),10)
 assert_eq(a[7],3)
 assert_failed(||{a=new Array(-1,10)},Error,'The array size must be non negative')
-assert_eq(array_equal([1,2,3][1..3],[2,3]),true)
-assert_eq(array_equal([1,2,3][2..1],[]),true)
+assert_eq([1,2,3][1..3],[2,3])
+assert_eq([1,2,3][2..1],[])
 assert_failed(||[1,2,3][1..4],IndexError,'Array index out of range')
 
 m=Map {@a:5,'b':10}
@@ -252,8 +281,12 @@ assert_eq(m.contains('a'),true)
 m.remove('a')
 assert_eq(m.contains('a'),false)
 m[1]=2
+assert_eq(m[1],2)
 m.clear()
 assert_eq(m.len(),0)
+m[1..2]=-1
+assert_eq(m.contains(1..3),false)
+assert_eq(m.contains(1..2),true)
 
 assert_eq(new String(),'')
 assert_eq('abc'.find('bc'),1)
@@ -273,7 +306,8 @@ assert_failed(||'a'..'b',TypeError,'Expected Int and Int for the start and end o
 
 let {abs,sqrt, NaN,PI} = import("math")
 let {random, range,shuffle} =import("random")
-assert_eq(sqrt(0),0)
+assert_eq(sqrt(0),0.0)
+assert_failed(sqrt,ArgumentError,'Function sqrt takes 1 arguments but 0 were given')
 assert_eq(PI.toInt(),3)
 assert_eq(3.toFloat()===3.0,true)
 assert_eq(2.toString(),'2')
@@ -285,11 +319,32 @@ assert_eq((1.0).isNaN(),false)
 assert_eq(random().getClass(),Float)
 let rand=range(1,100)
 assert_eq(rand.getClass()==Int and rand>=1 and rand<=100,true)
-a=[1,2]
-shuffle(a)
-assert_eq(array_equal(a,[1,2]) or array_equal(a,[2,1]),true)
 
-assert_eq(array_equal((1..4).collect(),[1,2,3]),true)
-assert_eq(array_equal('abc'.chars().collect(),['a','b','c']),true)
+assert_eq((1..4).collect(),[1,2,3])
+assert_eq('abc'.chars().collect(),['a','b','c'])
 let keys=Map{9:'b','a':10}.keys().collect()
-assert_eq(array_equal(keys,[9,'a']) or array_equal(keys,['a',9]),true)
+try {
+    assert_eq(keys, [9,'a'])
+} catch e {
+    assert_eq(keys, ['a',9])
+} 
+
+assert_eq(true and false,false)
+assert_eq(false or true,true)
+let x=[]
+false and x.push(52)
+true and x.push(53)
+false or x.push(54)
+true or x.push(55)
+assert_eq(x,[53,54])
+
+assert_eq(eval("1+1"),2)
+assert_failed(||eval("for i in 1..2{}"),CompileError,"Expect expression")
+exec("x.push(4)")
+assert_eq(x[2],4)
+
+x=1
+assert_eq(x+100,101)
+assert_eq(x+200,201)
+assert_eq(x+1000,1001)
+assert_eq(x+100_000,100_001)

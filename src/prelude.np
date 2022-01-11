@@ -103,6 +103,13 @@ export fun eval(source) {
     return ecall(@compile, {moduleName: _getCallerModule(), eval: true, source})()
 }
 
+export fun exec(source) {
+    if source.getClass() !== String {
+        throw new TypeError('The first argument must be a String, not \(source.getClass().name())')
+    }
+    ecall(@compile, {moduleName: _getCallerModule(), eval: false, source})()
+}
+
 export class Iterator {
     each(f) {
         for elem in this {

@@ -1,14 +1,16 @@
-[
-  {
-    "message": "Expect } after block",
-    "line": 0
-  },
-  {
-    "message": "x is not defined",
-    "line": 1
-  },
-  {
-    "message": "y is not defined",
-    "line": 2
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Expect } after block",
+      "line": 0
+    },
+    {
+      "message": "x is not defined",
+      "line": 1
+    },
+    {
+      "message": "y is not defined",
+      "line": 2
+    }
+  ]
+}

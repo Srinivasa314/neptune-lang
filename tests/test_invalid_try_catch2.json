@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect catch after try block at token try",
+      "line": 5
+    },
+    {
+      "message": "Expect identifier after catch at end",
+      "line": 7
+    }
+  ]
+}

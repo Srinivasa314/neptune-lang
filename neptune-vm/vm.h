@@ -86,7 +86,7 @@ public:
   void mark(Object *o);
   std::string generate_stack_trace(bool include_native_function,
                                    uint32_t depth);
-  const uint8_t *throw_(const uint8_t *ip, Value v);
+  const uint8_t *throw_(Value v);
   const uint8_t *throw_(const uint8_t *ip, const char *type);
   bool declare_native_function(std::string module, std::string name,
                                bool exported, uint8_t arity,

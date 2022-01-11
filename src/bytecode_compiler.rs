@@ -86,7 +86,7 @@ impl<'vm> Compiler<'vm> {
     }
 
     fn register_module_variable(&mut self, name: &str, mutable: bool, exported: bool, line: u32) {
-        if name.chars().next().unwrap() == '_' {
+        if name.starts_with('_') {
             self.errors.push(CompileError {
                 message: format!("Exported variable {} cannot start with _", name),
                 line,
@@ -269,6 +269,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
+    fn write1_signed(&mut self, op: Op, i: i32, line: u32) {
+        if let Ok(i) = i8::try_from(i) {
+            self.write0(op, line);
+            self.bytecode.write_u8(i as u8);
+        } else if let Ok(i) = i16::try_from(i) {
+            self.write0(Op::Wide, line);
+            self.bytecode.write_u8(op.repr);
+            self.bytecode.write_u16(i as u16);
+        } else {
+            self.write0(Op::ExtraWide, line);
+            self.bytecode.write_u8(op.repr);
+            self.bytecode.write_u32(i as u32);
+        }
+    }
+
     fn write2(&mut self, op: Op, u1: u16, u2: u16, line: u32) {
         match (u8::try_from(u1), u8::try_from(u2)) {
             (Ok(u1), Ok(u2)) => {
@@ -410,9 +425,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn load_int(&mut self, i: i32, line: u32) -> CompileResult<()> {
-        match i {
-            0..=255 => self.write1(Op::LoadSmallInt, i as u32, line),
-            -256..=-1 => self.write1(Op::LoadSmallInt, i as i8 as u8 as u32, line),
+        match i8::try_from(i) {
+            Ok(i) => self.write1(Op::LoadSmallInt, i as u8 as u32, line),
             _ => {
                 let c = self.bytecode.int_constant(i);
                 self.load_const(c, line)?;
@@ -472,7 +486,7 @@ macro_rules! binary_op {
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
                     self.store_in_accumulator(left, line)?;
-                    self.write1(Op::$int_inst, signed_to_unsigned(i), line);
+                    self.write1_signed(Op::$int_inst, i, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
@@ -867,7 +881,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let res = self.evaluate_expr(condition);
                     let line = condition.line();
                     match res {
-                        Err(e) => self.error(e.clone()),
+                        Err(e) => self.error(e),
                         Ok(res) => {
                             if let Err(e) = self.store_in_accumulator(res, line) {
                                 self.error(e);
@@ -906,7 +920,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         breaks: vec![],
                     });
                     match self.evaluate_expr(condition) {
-                        Err(e) => self.error(e.clone()),
+                        Err(e) => self.error(e),
                         Ok(res) => {
                             if let Err(e) = self.store_in_accumulator(res, condition.line()) {
                                 self.error(e);
@@ -1166,12 +1180,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         let expr_res = self.evaluate_expr(expr)?;
                         self.store_in_accumulator(expr_res, *line)?;
+                    } else if self.bctype == BytecodeType::Constructor {
+                        self.write0(Op::LoadR0, *line);
                     } else {
-                        if self.bctype == BytecodeType::Constructor {
-                            self.write0(Op::LoadR0, *line);
-                        } else {
-                            self.write0(Op::LoadNull, *line);
-                        }
+                        self.write0(Op::LoadNull, *line);
                     }
                     self.write0(Op::Return, *line);
                 }
@@ -1237,7 +1249,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         });
                     }
                     let class = self.bytecode.class_constant(name.as_str().into());
-                    if let Err(_) = class {
+                    if class.is_err() {
                         self.error(CompileError {
                             line: *line,
                             message: "Cannot have more than 65535 constants per function".into(),
@@ -1325,7 +1337,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     start = *start_reg;
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
-                        if let Ok(_) = u8::try_from(start) {
+                        if u8::try_from(start).is_ok() {
                             breaks.push(break_pos + 2)
                         } else {
                             breaks.push(break_pos + 3)
@@ -1339,7 +1351,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 } => {
                     start = *start_reg;
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
-                        if let Ok(_) = u8::try_from(start) {
+                        if u8::try_from(start).is_ok() {
                             breaks.push(break_pos + 2)
                         } else {
                             breaks.push(break_pos + 3)
@@ -1387,7 +1399,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let start_reg = *start_reg;
                     let continue_pos = self.bytecode.size();
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
-                        if let Ok(_) = u8::try_from(start_reg) {
+                        if u8::try_from(start_reg).is_ok() {
                             continues.push(continue_pos + 2);
                         } else {
                             continues.push(continue_pos + 3);
@@ -1568,7 +1580,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         Substring::Expr(e) => {
                             let expr_res = self.evaluate_expr(e)?;
-                            self.to_string(expr_res, *line)?;
+                            self.expr_to_string(expr_res, *line)?;
                         }
                     }
                     if inner.len() > 1 {
@@ -1586,7 +1598,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                                 }
                                 Substring::Expr(expr) => {
                                     let expr = self.evaluate_expr(expr)?;
-                                    self.to_string(expr, *line)?;
+                                    self.expr_to_string(expr, *line)?;
                                 }
                             }
                             self.write1(Op::ConcatRegister, reg as u32, *line);
@@ -2003,7 +2015,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn to_string(&mut self, expr_res: ExprResult, line: u32) -> CompileResult<()> {
+    fn expr_to_string(&mut self, expr_res: ExprResult, line: u32) -> CompileResult<()> {
         let reg = self.store_in_register(expr_res, line)?;
         let property = self
             .bytecode
@@ -2126,7 +2138,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
             }
             Expr::Member { object, property } => {
-                let res = self.evaluate_expr(&object)?;
+                let res = self.evaluate_expr(object)?;
                 let object = self.store_in_register(res, line)?;
                 let sym = self
                     .bytecode
@@ -2201,15 +2213,5 @@ impl CheckedMod for i32 {
         } else {
             self.checked_rem(rhs)
         }
-    }
-}
-
-fn signed_to_unsigned(i: i32) -> u32 {
-    match i8::try_from(i) {
-        Ok(i) => i as u8 as u32,
-        Err(_) => match i16::try_from(i) {
-            Ok(i) => i as u16 as u32,
-            Err(_) => i as u32,
-        },
     }
 }

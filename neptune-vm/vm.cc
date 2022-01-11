@@ -682,12 +682,12 @@ std::string VM::generate_stack_trace(bool include_native_function,
 const uint8_t *VM::throw_(const uint8_t *ip, const char *type) {
   auto message = throw_message.str();
   throw_message.str("");
-  return throw_(ip, create_error(type, message));
+  current_task->frames.back().ip = ip;
+  return throw_(create_error(type, message));
 }
 
-const uint8_t *VM::throw_(const uint8_t *ip, Value v) {
+const uint8_t *VM::throw_(Value v) {
   auto task = current_task;
-  task->frames.back().ip = ip;
   do {
     auto frame = task->frames.back();
     auto bytecode = frame.f->function_info->bytecode.data();

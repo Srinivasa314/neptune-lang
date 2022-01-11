@@ -1,0 +1,39 @@
+const {assert_eq,assert_failed} = import("assert.np")
+
+{
+    let str=''
+    assert_eq(import("vm").disassemble(||{
+        try{
+            str='\(1.2+3)'
+        }
+        catch e{
+        }
+    }),'Bytecode for <closure>\n7> 0 LoadConstant 1.2\n2 AddInt 3\n4 StoreR0 \n5 CallMethod r0 @toString 1 0\n10 StoreUpvalue 0\n8> 12 Jump 2\n11> 14 LoadNull \n15 Return \nUpvalues:\nUpvalue for local 0\nException handlers:\ntry block: 0-12\ncatch block: 14\nerror register: 0\n')
+}
+
+
+fun ef1(){
+    throw new Error('')
+}
+
+fun ef2(){
+    ef1()
+}
+
+fun ef3(){
+    ef2()
+}
+
+
+let stack_trace = ''; 
+try {
+    ef3()
+} catch e {
+    stack_trace = e.stack
+}
+
+assert_eq(stack_trace,'at ef1 (test_lines.np:16)
+at ef2 (test_lines.np:20)
+at ef3 (test_lines.np:24)
+at <script> (test_lines.np:30)
+')

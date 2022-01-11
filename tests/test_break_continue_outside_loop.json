@@ -1,10 +1,12 @@
-[
-  {
-    "message": "Cannot use break outside a loop",
-    "line": 1
-  },
-  {
-    "message": "Cannot use continue outside a loop",
-    "line": 2
-  }
-]
+{
+  "CompileError": [
+    {
+      "message": "Cannot use break outside a loop",
+      "line": 1
+    },
+    {
+      "message": "Cannot use continue outside a loop",
+      "line": 2
+    }
+  ]
+}

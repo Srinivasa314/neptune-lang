@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect comma after variable name at token b",
+      "line": 1
+    },
+    {
+      "message": "Variable must be initialized at end",
+      "line": 2
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect comma after array element at token 2",
+      "line": 1
+    }
+  ]
+}

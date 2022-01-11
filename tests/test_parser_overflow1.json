@@ -1,0 +1,8 @@
+{
+  "CompileError": [
+    {
+      "message": "Maximum depth exceeded",
+      "line": 1
+    }
+  ]
+}
