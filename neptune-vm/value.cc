@@ -201,9 +201,6 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
 #endif
 }
 
-ALWAYS_INLINE bool Value::operator!=(Value rhs) const {
-  return !(*this == rhs);
-}
 const char *Value::type_string() const {
   if (is_int())
     return "Int";
