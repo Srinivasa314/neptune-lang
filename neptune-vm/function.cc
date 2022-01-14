@@ -34,7 +34,7 @@ uint16_t FunctionInfoWriter::constant(Value v) {
     } else {
       hf->object->constants.push_back(v);
       uint16_t pos = static_cast<uint16_t>(hf->object->constants.size() - 1);
-      (*constants)[v] = pos;
+      constants->insert({v, pos});
       return pos;
     }
   }

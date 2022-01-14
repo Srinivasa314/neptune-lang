@@ -1,17 +1,16 @@
 #pragma once
+#include "hash_table.h"
 #include "native_function.h"
 #include "rust/cxx.h"
 #include <memory>
 #include <random>
-#include <rigtorp/HashMap.h>
-#include <rigtorp/HashSet.h>
 #include <sstream>
 #include <string>
 
 constexpr size_t INITIAL_FRAMES = 4;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
 constexpr size_t INITIAL_HEAP_SIZE = 10 * 1024 * 1024;
-constexpr bool STRESS_GC = false;
+constexpr bool STRESS_GC = true;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
@@ -43,17 +42,17 @@ public:
   Task *current_task;
 
 private:
-  rigtorp::HashMap<std::string, Module *, StringHasher, StringEquality>
-      modules =
-          rigtorp::HashMap<std::string, Module *, StringHasher, StringEquality>(
-              0, "");
+  HashMap<String *, Module *, StringHasher, StringEquality,
+          NullptrEmpty<String>>
+      modules;
   mutable std::vector<Value> module_variables;
   size_t bytes_allocated;
   // Linked list of all objects
   Object *first_obj;
   size_t threshhold;
-  rigtorp::HashSet<Symbol *, StringHasher, StringEquality> symbols =
-      rigtorp::HashSet<Symbol *, StringHasher, StringEquality>(16, nullptr);
+  HashSet<Symbol *, StringHasher, StringEquality, NullptrEmpty<Symbol>,
+          mi_stl_allocator<Symbol *>>
+      symbols;
   Handle<Object> *handles;
   std::vector<Object *> greyobjects;
   bool is_running;
@@ -65,7 +64,7 @@ private:
 public:
   BuiltinClasses builtin_classes;
   std::vector<Value> temp_roots;
-  SymbolMap<EFunc> efuncs = SymbolMap<EFunc>(16, nullptr);
+  SymbolMap<EFunc> efuncs;
   Value return_value;
   std::mt19937_64 rng;
   Value to_string(Value val);

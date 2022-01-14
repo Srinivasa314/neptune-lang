@@ -187,11 +187,12 @@ handler(CallMethod, {
 
   } else if (object.is_object() && object.as_object()->is<Instance>()) {
     auto instance = object.as_object()->as<Instance>();
-    if (instance->properties.find(member) == instance->properties.end())
+    auto iter = instance->properties.find(member);
+    if (iter == instance->properties.end())
       THROW("NoMethodError", "object does not have any method named "
                                  << static_cast<StringSlice>(*member));
     else
-      accumulator = instance->properties[member];
+      accumulator = iter->second;
     callop_offset++;
     callop_actual_nargs = n;
     callop_nargs = n;
@@ -240,8 +241,9 @@ handler(Construct, {
       obj = Value(instance);
     }
     temp_roots.pop_back();
-    if (class_->methods.find(construct_sym) != class_->methods.end()) {
-      accumulator = Value(class_->methods[construct_sym]);
+    auto iter = class_->methods.find(construct_sym);
+    if (iter != class_->methods.end()) {
+      accumulator = Value(iter->second);
       bp[callop_offset] = obj;
       callop_actual_nargs = n + 1;
       callop_nargs = n;
@@ -361,7 +363,7 @@ handler(StoreSubscript, {
       }
     } else if (obj.as_object()->is<Map>()) {
       auto m = obj.as_object()->as<Map>();
-      m->inner[subscript] = accumulator;
+      m->inner.insert({subscript, accumulator});
     } else {
       THROW("TypeError", "Cannot index type " << obj.type_string());
     }
@@ -510,12 +512,12 @@ handler(LoadProperty, {
       accumulator = module_variables[iter->second.position];
   } else if (likely(object.is_object() && object.as_object()->is<Instance>())) {
     auto instance = object.as_object()->as<Instance>();
-    if (unlikely(instance->properties.find(property) ==
-                 instance->properties.end()))
+    auto iter = instance->properties.find(property);
+    if (unlikely(iter == instance->properties.end()))
       THROW("PropertyError", "object does not have any property named "
                                  << static_cast<StringSlice>(*property));
     else
-      accumulator = instance->properties.get_unchecked(property);
+      accumulator = iter->second;
   } else {
     THROW("TypeError",
           "Cannot get property from type " << object.type_string());
@@ -527,7 +529,7 @@ handler(StoreProperty, {
   auto property = constants[READ(utype)].as_object()->as<Symbol>();
   if (likely(object.is_object() && object.as_object()->is<Instance>())) {
     auto instance = object.as_object()->as<Instance>();
-    instance->properties[property] = accumulator;
+    instance->properties.insert({property, accumulator});
   } else {
     THROW("TypeError", "Cannot set property for type " << object.type_string());
   }

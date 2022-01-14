@@ -210,12 +210,10 @@ bool VM::add_module_variable(StringSlice module, StringSlice name,
     return false;
   else {
     auto module = module_iter->second;
-    if (!module->module_variables
-             .insert(
-                 {const_cast<VM *>(this)->intern(name),
-                  ModuleVariable{static_cast<uint32_t>(module_variables.size()),
-                                 mutable_, exported}})
-             .second)
+    if (!module->module_variables.insert(
+            {const_cast<VM *>(this)->intern(name),
+             ModuleVariable{static_cast<uint32_t>(module_variables.size()),
+                            mutable_, exported}}))
       return false;
     module_variables.push_back(Value::null());
     return true;
@@ -492,6 +490,7 @@ void VM::collect() {
       mark(v.as_object());
   }
   for (auto module : modules) {
+    mark(module.first);
     mark(module.second);
   }
   if (return_value.is_object())
@@ -769,9 +768,11 @@ bool VM::module_exists(StringSlice module_name) const {
 void VM::create_module(StringSlice module_name) const {
   if (!module_exists(module_name)) {
     auto this_ = const_cast<VM *>(this);
-    this_->modules.insert({std::string(module_name.data, module_name.len),
-                           this_->allocate<Module>(std::string(
-                               module_name.data, module_name.len))});
+    auto name = this_->allocate<String>(module_name);
+    this_->temp_roots.push_back(Value(name));
+    this_->modules.insert({name, this_->allocate<Module>(std::string(
+                                     module_name.data, module_name.len))});
+    this_->temp_roots.pop_back();
   }
 }
 
@@ -780,8 +781,10 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
     auto this_ = const_cast<VM *>(this);
     auto module =
         this_->allocate<Module>(std::string(module_name.data, module_name.len));
-    this_->modules.insert(
-        {std::string(module_name.data, module_name.len), module});
+    auto name = this_->allocate<String>(module_name);
+    this_->temp_roots.push_back(Value(name));
+    this_->modules.insert({name, module});
+    this_->temp_roots.pop_back();
     auto prelude = modules.find(StringSlice("<prelude>"))->second;
     for (auto &pair : prelude->module_variables)
       if (pair.second.exported) {
@@ -850,16 +853,6 @@ Class *VM::get_class(Value v) const {
   else
     unreachable();
 }
-static size_t power_of_two_ceil(size_t n) {
-  n--;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n++;
-  return n;
-}
 
 Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   size_t needed = stack_size + extra_needed;
@@ -905,11 +898,12 @@ Value VM::create_error(StringSlice module, StringSlice type,
       auto error = allocate<Instance>();
       error->class_ = class_;
       temp_roots.push_back(Value(error));
-      error->properties[builtin_symbols.message] =
-          Value(allocate<String>(message));
+      error->properties.insert(
+          {builtin_symbols.message, Value(allocate<String>(message))});
       auto stack_trace = generate_stack_trace(true, 0);
-      error->properties[builtin_symbols.stack] =
-          Value(allocate<String>(std::move(stack_trace)));
+      error->properties.insert(
+          {builtin_symbols.stack,
+           Value(allocate<String>(std::move(stack_trace)))});
       temp_roots.pop_back();
       return Value(error);
     } else

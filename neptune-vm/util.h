@@ -62,6 +62,17 @@ template <typename T> static size_t header_size() {
     return 1;
 }
 
+template <typename T> static T power_of_two_ceil(T n) {
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+  return n;
+}
+
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)

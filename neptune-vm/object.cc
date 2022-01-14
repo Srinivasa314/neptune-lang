@@ -45,9 +45,8 @@ uint32_t StringHasher::operator()(StringSlice s) const {
 }
 
 uint32_t StringHasher::operator()(Symbol *sym) const { return sym->hash; }
-
-uint32_t StringHasher::operator()(const std::string &s) const {
-  return StringHasher{}(StringSlice(s.data(), s.length()));
+uint32_t StringHasher::operator()(String *s) const {
+  return StringHasher{}(static_cast<StringSlice>(*s));
 }
 
 const char *Object::type_string() const {
@@ -253,18 +252,19 @@ Array::Array(size_t size)
 Array::Array(size_t size, Value v)
     : inner(std::vector<Value, mi_stl_allocator<Value>>(size, v)) {}
 
-Map::Map(size_t size) { inner.reserve(size); }
+Map::Map(uint32_t size) : inner(size) {}
 Object *Class::find_method(Symbol *method) {
   auto class_ = this;
   while (class_ != nullptr) {
-    if (class_->methods.find(method) != class_->methods.end()) {
-      return class_->methods[method];
+    auto iter = class_->methods.find(method);
+    if (iter != class_->methods.end()) {
+      return iter->second;
     }
     class_ = class_->super;
   }
   return nullptr;
 }
-Instance::Instance(size_t size) { properties.reserve(size); }
+Instance::Instance(size_t size) : properties(size) {}
 
 std::ostream &operator<<(std::ostream &os, StringSlice s) {
   os.write(s.data, std::streamsize(s.len));
@@ -331,4 +331,8 @@ String *String::replace(VM *vm, String *from, String *to) {
   };
   return vm->allocate<String>(result);
 }
+
+bool ValueEmpty::is_empty(Value v) { return v.is_empty(); }
+Value ValueEmpty::empty() { return Value(nullptr); }
+
 } // namespace neptune_vm

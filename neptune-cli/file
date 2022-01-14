@@ -1,0 +1,83 @@
+    Finished dev [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target/debug/neptune-cli`
+=================================================================
+==40567==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60c000000180 at pc 0x555a420aeb8c bp 0x7fff29166eb0 sp 0x7fff29166660
+READ of size 16 at 0x60c000000180 thread T0
+    #0 0x555a420aeb8b in __asan_memcpy (/home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/neptune-cli+0x212b8b)
+    #1 0x555a4243409f in neptune_vm::HashTable<std::pair<neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapHash<neptune_vm::StringHasher, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEqual<neptune_vm::StringEquality, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEmpty<neptune_vm::NullptrEmpty<neptune_vm::String>, neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> >, 4u>::next_entry(std::pair<neptune_vm::String*, neptune_vm::Module*>*) const /home/srinivasa/rust/neptune-lang/neptune-vm/hash_table.h:121:56
+    #2 0x555a42397910 in neptune_vm::HashTableIterator<std::pair<neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapHash<neptune_vm::StringHasher, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEqual<neptune_vm::StringEquality, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEmpty<neptune_vm::NullptrEmpty<neptune_vm::String>, neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> >, 4u>::operator++() /home/srinivasa/rust/neptune-lang/neptune-vm/hash_table.h:146:56
+    #3 0x555a423955b7 in neptune_vm::VM::collect() /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:494:20
+    #4 0x555a4238da6f in neptune_vm::Symbol* neptune_vm::VM::manage<neptune_vm::Symbol>(neptune_vm::Symbol*) /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:269:5
+    #5 0x555a421cf916 in neptune_vm::VM::intern(neptune_vm::StringSlice) /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:314:5
+    #6 0x555a42381cb3 in neptune_vm::VM::VM() /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:77:31
+    #7 0x555a4238c018 in neptune_vm::new_vm() /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:236:63
+    #8 0x555a421be11a in neptune_vm$cxxbridge1$new_vm /home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/build/neptune-lang-1c03413393bf0cc1/out/cxxbridge/sources/neptune-lang/src/vm.rs.cc:479:10
+    #9 0x555a421b8299 in neptune_lang::vm::ffi::new_vm::h65c2bf6a73eaa2e5 /home/srinivasa/rust/neptune-lang/src/vm.rs:267:12
+    #10 0x555a420e9079 in neptune_lang::Neptune::new::hf785dc8be3996ca7 /home/srinivasa/rust/neptune-lang/src/lib.rs:168:28
+    #11 0x555a42103063 in neptune_cli::main::h7dc11cbd8d29d91f /home/srinivasa/rust/neptune-lang/neptune-cli/src/main.rs:12:13
+    #12 0x555a42101eba in core::ops::function::FnOnce::call_once::hb8bd39ec3a939d71 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/core/src/ops/function.rs:227:5
+    #13 0x555a42105e2d in std::sys_common::backtrace::__rust_begin_short_backtrace::he3dd026ec36acd4b /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/sys_common/backtrace.rs:123:18
+    #14 0x555a420e6100 in std::rt::lang_start::_$u7b$$u7b$closure$u7d$$u7d$::hf8ee772fafc03e49 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/rt.rs:146:18
+    #15 0x555a425055aa in core::ops::function::impls::_$LT$impl$u20$core..ops..function..FnOnce$LT$A$GT$$u20$for$u20$$RF$F$GT$::call_once::hc56adab7a77ec6e3 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/core/src/ops/function.rs:259:13
+    #16 0x555a425055aa in std::panicking::try::do_call::h29f013120c5abc65 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panicking.rs:403:40
+    #17 0x555a425055aa in std::panicking::try::h86d5b2b66caec4cf /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panicking.rs:367:19
+    #18 0x555a425055aa in std::panic::catch_unwind::h7dd136d787f51397 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panic.rs:133:14
+    #19 0x555a425055aa in std::rt::lang_start_internal::_$u7b$$u7b$closure$u7d$$u7d$::h4a199351e630a8a5 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/rt.rs:128:48
+    #20 0x555a425055aa in std::panicking::try::do_call::h20ceb9e5dff838c6 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panicking.rs:403:40
+    #21 0x555a425055aa in std::panicking::try::hc2abb46a5e41bd43 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panicking.rs:367:19
+    #22 0x555a425055aa in std::panic::catch_unwind::h52c3eb4408ad6dfb /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/panic.rs:133:14
+    #23 0x555a425055aa in std::rt::lang_start_internal::hd15a47be08101c28 /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/rt.rs:128:20
+    #24 0x555a420e60cf in std::rt::lang_start::hefcea885b43364cb /rustc/f1edd0429582dd29cccacaf50fd134b05593bd9c/library/std/src/rt.rs:145:17
+    #25 0x555a4210543b in main (/home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/neptune-cli+0x26943b)
+    #26 0x7fc72a459b24 in __libc_start_main (/usr/lib/libc.so.6+0x27b24)
+    #27 0x555a4200720d in _start (/home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/neptune-cli+0x16b20d)
+
+0x60c000000180 is located 0 bytes to the right of 128-byte region [0x60c000000100,0x60c000000180)
+allocated by thread T0 here:
+    #0 0x555a420afd29 in malloc (/home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/neptune-cli+0x213d29)
+    #1 0x7fc72a83844c in operator new(unsigned long) /build/gcc/src/gcc/libstdc++-v3/libsupc++/new_op.cc:50:22
+    #2 0x555a42417fda in std::allocator_traits<std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > >::allocate(std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> >&, unsigned long) /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/11.1.0/../../../../include/c++/11.1.0/bits/alloc_traits.h:460:20
+    #3 0x555a42417f6f in std::_Vector_base<std::pair<neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > >::_M_allocate(unsigned long) /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/11.1.0/../../../../include/c++/11.1.0/bits/stl_vector.h:346:20
+    #4 0x555a42417a13 in std::_Vector_base<std::pair<neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > >::_M_create_storage(unsigned long) /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/11.1.0/../../../../include/c++/11.1.0/bits/stl_vector.h:361:33
+    #5 0x555a424171f3 in std::_Vector_base<std::pair<neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > >::_Vector_base(unsigned long, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > const&) /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/11.1.0/../../../../include/c++/11.1.0/bits/stl_vector.h:305:9
+    #6 0x555a42416e51 in std::vector<std::pair<neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > >::vector(unsigned long, std::pair<neptune_vm::String*, neptune_vm::Module*> const&, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> > const&) /usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/11.1.0/../../../../include/c++/11.1.0/bits/stl_vector.h:524:9
+    #7 0x555a4243bd39 in neptune_vm::HashTable<std::pair<neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapHash<neptune_vm::StringHasher, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEqual<neptune_vm::StringEquality, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEmpty<neptune_vm::NullptrEmpty<neptune_vm::String>, neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> >, 4u>::HashTable(unsigned int) /home/srinivasa/rust/neptune-lang/neptune-vm/hash_table.h:28:9
+    #8 0x555a4238222d in neptune_vm::HashTable<std::pair<neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapHash<neptune_vm::StringHasher, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEqual<neptune_vm::StringEquality, neptune_vm::String*, neptune_vm::Module*>, neptune_vm::HashMapEmpty<neptune_vm::NullptrEmpty<neptune_vm::String>, neptune_vm::String*, neptune_vm::Module*>, std::allocator<std::pair<neptune_vm::String*, neptune_vm::Module*> >, 4u>::HashTable() /home/srinivasa/rust/neptune-lang/neptune-vm/hash_table.h:26:17
+    #9 0x555a42381812 in neptune_vm::VM::VM() /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:72:5
+    #10 0x555a4238c018 in neptune_vm::new_vm() /home/srinivasa/rust/neptune-lang/neptune-vm/vm.cc:236:63
+    #11 0x555a421be11a in neptune_vm$cxxbridge1$new_vm /home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/build/neptune-lang-1c03413393bf0cc1/out/cxxbridge/sources/neptune-lang/src/vm.rs.cc:479:10
+    #12 0x555a421b8299 in neptune_lang::vm::ffi::new_vm::h65c2bf6a73eaa2e5 /home/srinivasa/rust/neptune-lang/src/vm.rs:267:12
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/home/srinivasa/rust/neptune-lang/neptune-cli/target/debug/neptune-cli+0x212b8b) in __asan_memcpy
+Shadow bytes around the buggy address:
+  0x0c187fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c187fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c187fff8000: fa fa fa fa fa fa fa fa fd fd fd fd fd fd fd fd
+  0x0c187fff8010: fd fd fd fd fd fd fd fa fa fa fa fa fa fa fa fa
+  0x0c187fff8020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0c187fff8030:[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c187fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c187fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c187fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c187fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c187fff8080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==40567==ABORTING

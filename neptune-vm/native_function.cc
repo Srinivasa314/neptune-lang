@@ -205,10 +205,11 @@ EFuncStatus EFuncContext::get_object_property(StringSlice prop) {
   if (obj.is_object() && obj.as_object()->is<Instance>()) {
     auto &map = obj.as_object()->as<Instance>()->properties;
     auto key = vm->intern(prop);
-    if (map.find(key) == map.end())
+    auto iter = map.find(key);
+    if (iter == map.end())
       return EFuncStatus::PropertyError;
     else {
-      push(map[key]);
+      push(iter->second);
       return EFuncStatus::Ok;
     }
   } else

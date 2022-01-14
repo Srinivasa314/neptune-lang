@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-changed=neptune-vm");
     let mut build = cxx_build::bridge("src/vm.rs");
 
     let profile = std::env::var("PROFILE").unwrap();
@@ -13,7 +14,6 @@ fn main() {
     };
 
     build
-        .include("vendor/github.com/rigtorp/HashMap/include")
         .include("vendor/github.com/dcleblanc")
         .include("vendor/github.com/microsoft/mimalloc/src")
         .include("vendor/github.com/microsoft/mimalloc/include")

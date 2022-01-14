@@ -31,8 +31,8 @@ handler(ModInt, {
     int i = READ(itype);
     if (unlikely(!SafeModulus(accumulator.as_int(), i, result))) {
       THROW("OverflowError", "Cannot mod "
-                             << accumulator.as_int() << " and " << i
-                             << " as the result does not fit in an Int");
+                                 << accumulator.as_int() << " and " << i
+                                 << " as the result does not fit in an Int");
     }
     accumulator = Value(result);
   } else if (accumulator.is_float()) {

@@ -1,11 +1,11 @@
 #pragma once
+#include "hash_table.h"
 #include "rust/cxx.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <mimalloc.h>
 #include <ostream>
-#include <rigtorp/HashMap.h>
 #include <vector>
 
 #define UNUSED(x) (void)(x)
@@ -112,21 +112,18 @@ struct StringEquality {
     return StringEquality{}(static_cast<StringSlice>(*s1),
                             static_cast<StringSlice>(*s2));
   }
-  bool operator()(const std::string &s1, const std::string &s2) const {
-    return s1 == s2;
+  bool operator()(String *s1, StringSlice s2) const {
+    return StringEquality{}(static_cast<StringSlice>(*s1), s2);
   }
-  bool operator()(const std::string &s1, StringSlice s2) const {
-    return StringEquality{}(StringSlice(s1.data(), s1.size()), s2);
-  }
-  bool operator()(StringSlice s1, const std::string &s2) const {
-    return StringEquality{}(s2, s1);
+  bool operator()(StringSlice s1, String *s2) const {
+    return StringEquality{}(s1, static_cast<StringSlice>(*s2));
   }
 };
 
 struct StringHasher {
   uint32_t operator()(StringSlice s) const;
   uint32_t operator()(Symbol *sym) const;
-  uint32_t operator()(const std::string &s) const;
+  uint32_t operator()(String *s) const;
 };
 
 class Array : public Object {
@@ -138,19 +135,25 @@ public:
   static constexpr Type type = Type::Array;
 };
 
-template <typename T>
-using ValueMap = rigtorp::HashMap<Value, T, ValueHasher, ValueStrictEquality,
-                                  mi_stl_allocator<std::pair<Value, Value>>>;
+struct ValueEmpty {
+  bool is_empty(Value v);
+  Value empty();
+};
 
 template <typename T>
-using SymbolMap = rigtorp::HashMap<Symbol *, T, StringHasher, StringEquality,
-                                   mi_stl_allocator<std::pair<Symbol *, T>>>;
+using ValueMap = HashMap<Value, T, ValueHasher, ValueStrictEquality, ValueEmpty,
+                         mi_stl_allocator<std::pair<Value, T>>>;
+
+template <typename T>
+using SymbolMap =
+    HashMap<Symbol *, T, StringHasher, StringEquality, NullptrEmpty<Symbol>,
+            mi_stl_allocator<std::pair<Symbol *, T>>>;
 
 class Map : public Object {
 public:
   Map() = default;
-  explicit Map(size_t size);
-  ValueMap<Value> inner = ValueMap<Value>(16, Value(nullptr));
+  explicit Map(uint32_t size);
+  ValueMap<Value> inner;
   static constexpr Type type = Type::Map;
 };
 
@@ -161,8 +164,7 @@ struct ModuleVariable {
 };
 
 class Module : public Object {
-  SymbolMap<ModuleVariable> module_variables =
-      SymbolMap<ModuleVariable>(16, nullptr);
+  SymbolMap<ModuleVariable> module_variables;
 
 public:
   std::string name;
@@ -174,7 +176,7 @@ class FunctionInfoWriter;
 class VM;
 class Function;
 class Class : public Object {
-  SymbolMap<Object *> methods = SymbolMap<Object *>(16, nullptr);
+  SymbolMap<Object *> methods;
 
 public:
   bool is_native = false;
@@ -190,7 +192,7 @@ public:
 class Instance : public Object {
 public:
   Class *class_;
-  SymbolMap<Value> properties = SymbolMap<Value>(16, nullptr);
+  SymbolMap<Value> properties;
   Instance() = default;
   explicit Instance(size_t size);
   static constexpr Type type = Type::Instance;
