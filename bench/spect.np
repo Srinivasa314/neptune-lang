@@ -2,7 +2,7 @@ const {sqrt} = import("math")
 
 fun A(i, j) {
   const ij = i+j
-  return 1.0 / (ij * (ij+1) * 0.5 + i + 1)
+  return 1.0 / ( i + 1 + 0.5 *(ij * (ij+1)))
 }
 
 fun Au(u, v, n) {

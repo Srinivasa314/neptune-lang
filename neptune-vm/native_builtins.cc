@@ -298,7 +298,8 @@ static bool stringiterator_next(VM *vm, Value *slots) {
     auto old_pos = si->position;
     do {
       si->position++;
-    } while (((uint8_t)str.data[si->position] & 0xc0) == 0x80);
+    } while (si->position < str.len &&
+             ((uint8_t)str.data[si->position] & 0xc0) == 0x80);
     vm->return_value = Value(vm->allocate<String>(
         StringSlice(str.data + old_pos, si->position - old_pos)));
   } else {

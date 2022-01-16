@@ -14,7 +14,7 @@ template <typename Entry, typename Hash, typename Equal, typename Empty,
 class HashTableConstIterator;
 
 template <typename Entry, typename Hash, typename Equal, typename Empty,
-          typename Allocator, uint32_t default_size = 4>
+          typename Allocator, uint32_t default_size = 16>
 class HashTable {
 public:
   using iterator =
@@ -23,42 +23,75 @@ public:
                                                 Allocator, default_size>;
 
   HashTable() : HashTable(default_size) {}
-  HashTable(uint32_t size)
-      :  alloc(Allocator{}),size_(0),capacity(power_of_two_ceil(2 * size)) {
-        entries=alloc.allocate(capacity);
-        for(uint32_t i=0;i<capacity;i++)
-          entries[i]=Empty{}.empty();
-      }
+  HashTable(uint32_t size) : alloc(Allocator{}), size_(0) {
+    capacity = power_of_two_ceil(2 * size);
+    if (capacity < default_size)
+      capacity = power_of_two_ceil(2 * default_size);
+    entries = alloc.allocate(capacity);
+    for (uint32_t i = 0; i < capacity; i++)
+      alloc.construct(&entries[i], Empty{}.empty());
+  }
+
+  HashTable(HashTable &other) : HashTable() {
+    for (uint32_t i = 0; i < other.capacity; i++)
+      if (!(Empty{}.is_empty(other.entries[i])))
+        insert(other.entries[i]);
+  }
+
+  friend void swap(HashTable &first, HashTable &second) {
+    using std::swap;
+    swap(first.alloc, second.alloc);
+    swap(first.entries, second.entries);
+    swap(first.size_, second.size_);
+    swap(first.capacity, second.capacity);
+  }
+
+  HashTable(HashTable &&other) noexcept {
+    entries = nullptr;
+    swap(*this, other);
+  }
+
+  HashTable &operator=(HashTable &other) {
+    HashTable tmp(other);
+    swap(*this, tmp);
+    return *this;
+  }
+
+  HashTable &operator=(HashTable &&other) {
+    swap(*this, other);
+    return *this;
+  }
 
   template <typename Key> const_iterator find(Key key) const {
     return const_cast<HashTable *>(this)->find(key);
   }
 
-  template <typename Key> iterator find(Key key) {
+  template <typename Key>
+  ALWAYS_INLINE iterator find(Key key) {
     uint32_t index = Hash{}(key) & (capacity - 1);
     for (uint32_t i = index;; i = (i + 1) & (capacity - 1)) {
+      if (likely(Equal{}(entries[i], key)) {
+        return iterator(this, &entries[i]);
+      }
       if (Empty{}.is_empty(entries[i])) {
         return iterator(this, nullptr);
       }
-      if (Equal{}(entries[i], key)) {
-        return iterator(this, &entries[i]);
-      }
     }
   }
-  bool insert(Entry e) {
-    reserve(size_ + 1);
+  ALWAYS_INLINE bool insert(Entry e) {
+    if (unlikely((size_ + 1) * 2 > capacity)) {
+      reserve(size_ + 1);
+    }
     uint32_t index = Hash{}(e) & (capacity - 1);
     for (uint32_t i = index;; i = (i + 1) & (capacity - 1)) {
-      std::cout<<__PRETTY_FUNCTION__<<" Checking "<<i<<"/"<<capacity<<" of "<<entries<<std::endl;
+      if (likely(Equal{}(entries[i], e))) {
+        entries[i] = e;
+        return false;
+      }
       if (Empty{}.is_empty(entries[i])) {
         entries[i] = e;
         size_++;
         return true;
-      }
-      if (Equal{}(entries[i], e)) {
-        entries[i] = e;
-        size_++;
-        return false;
       }
     }
   }
@@ -82,7 +115,8 @@ public:
 
   void erase(iterator it) {
     uint32_t bucket = it.inner - entries;
-    for (uint32_t i = (bucket+1)&(capacity-1);; i = (i + 1) & (capacity - 1)) {
+    for (uint32_t i = (bucket + 1) & (capacity - 1);;
+         i = (i + 1) & (capacity - 1)) {
       if (Empty{}.is_empty(entries[i])) {
         entries[bucket] = Empty{}.empty();
         size_--;
@@ -97,14 +131,20 @@ public:
   }
   void clear() { *this = HashTable(); }
   uint32_t size() const { return size_; }
-  template <typename Key> bool count(Key k) const { return find(k) == end(); }
+  template <typename Key> bool count(Key k) const { return find(k) != end(); }
 
-  ~HashTable(){
-    alloc.deallocate(entries,capacity);
+  ~HashTable() {
+    if (entries) {
+      for (uint32_t i = 0; i < capacity; i++) {
+        alloc.destroy(&entries[i]);
+      }
+      alloc.deallocate(entries, capacity);
+    }
   }
+
 private:
-   Allocator alloc;
-  Entry* entries;
+  Allocator alloc;
+  Entry *entries;
   uint32_t size_;
   uint32_t capacity;
 
@@ -114,7 +154,7 @@ private:
       for (uint32_t i = 0; i < capacity; i++)
         if (!(Empty{}.is_empty(entries[i])))
           tmp.insert(entries[i]);
-      *this = tmp;
+      *this = std::move(tmp);
     }
   }
   uint32_t diff(uint32_t a, uint32_t b) const {
@@ -213,9 +253,7 @@ public:
 
 template <typename Empty, typename K, typename V> class HashMapEmpty {
 public:
-  bool is_empty(std::pair<K, V> pair) { 
-    return Empty{}.is_empty(pair.first); 
-    }
+  bool is_empty(std::pair<K, V> pair) { return Empty{}.is_empty(pair.first); }
   std::pair<K, V> empty() { return std::pair<K, V>(Empty{}.empty(), V{}); }
 };
 

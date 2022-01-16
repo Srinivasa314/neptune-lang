@@ -279,18 +279,20 @@ handler(LoadSubscript, {
       } else if (accumulator.is_object() &&
                  accumulator.as_object()->is<Range>()) {
         auto &r = *accumulator.as_object()->as<Range>();
+        auto start = r.start;
+        auto end = r.end;
         auto a = obj.as_object()->as<Array>();
-        if (r.start < 0 || static_cast<size_t>(r.start) >= a->inner.size() ||
-            r.end < 0 || static_cast<size_t>(r.end) > a->inner.size()) {
+        if (start < 0 || static_cast<size_t>(start) >= a->inner.size() ||
+            end < 0 || static_cast<size_t>(end) > a->inner.size()) {
           THROW("IndexError", "Array index out of range");
         }
-        if (r.start > r.end) {
+        if (start > end) {
           auto new_arr = allocate<Array>(0);
           accumulator = Value(new_arr);
         } else {
-          auto new_arr = allocate<Array>(r.end - r.start);
-          for (int32_t i = r.start; i < r.end; i++) {
-            new_arr->inner[i - r.start] = a->inner[i];
+          auto new_arr = allocate<Array>(end - start);
+          for (int32_t i = start; i < end; i++) {
+            new_arr->inner[i - start] = a->inner[i];
           }
           accumulator = Value(new_arr);
         }

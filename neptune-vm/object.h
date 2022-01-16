@@ -109,14 +109,16 @@ struct StringEquality {
     return s1.len == s2.len && memcmp(s1.data, s2.data, s1.len) == 0;
   }
   bool operator()(String *s1, String *s2) const {
+    if (s1 == nullptr || s2 == nullptr)
+      return s1 == s2;
     return StringEquality{}(static_cast<StringSlice>(*s1),
                             static_cast<StringSlice>(*s2));
   }
   bool operator()(String *s1, StringSlice s2) const {
-    return StringEquality{}(static_cast<StringSlice>(*s1), s2);
+    return s1 != nullptr && StringEquality{}(static_cast<StringSlice>(*s1), s2);
   }
   bool operator()(StringSlice s1, String *s2) const {
-    return StringEquality{}(s1, static_cast<StringSlice>(*s2));
+    return s2 != nullptr && StringEquality{}(s1, static_cast<StringSlice>(*s2));
   }
 };
 

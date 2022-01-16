@@ -317,6 +317,8 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
   if (a.is_object() && b.is_object()) {
     auto o1 = a.as_object();
     auto o2 = b.as_object();
+    if (unlikely(o1 == nullptr || o2 == nullptr))
+      return o1 == o2;
     if (likely(o1->is<Symbol>() && o2->is<Symbol>()))
       return o1 == o2;
     else if (o1->is<String>() && o2->is<String>()) {

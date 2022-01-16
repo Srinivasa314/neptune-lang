@@ -72,4 +72,5 @@ struct EFunc {
   Data *data;
   FreeDataCallback *free_data;
 };
+
 }; // namespace neptune_vm

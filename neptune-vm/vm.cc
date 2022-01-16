@@ -781,10 +781,10 @@ void VM::create_module_with_prelude(StringSlice module_name) const {
     auto this_ = const_cast<VM *>(this);
     auto module =
         this_->allocate<Module>(std::string(module_name.data, module_name.len));
+    this_->temp_roots.push_back(Value(module));
     auto name = this_->allocate<String>(module_name);
-    this_->temp_roots.push_back(Value(name));
-    this_->modules.insert({name, module});
     this_->temp_roots.pop_back();
+    this_->modules.insert({name, module});
     auto prelude = modules.find(StringSlice("<prelude>"))->second;
     for (auto &pair : prelude->module_variables)
       if (pair.second.exported) {
