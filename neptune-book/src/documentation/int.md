@@ -1,12 +1,12 @@
 ## Int
 * ```construct()```
 
-Returns 0
+    Returns 0
 
-Example: ```new Int()//0```
+    Example: ```new Int() //0```
 
 * ```toFloat()```
 
-Returns it as a float
+    Returns it as a float
 
-Example ```1.toFloat()//1.0```
+    Example ```1.toFloat() //1.0```

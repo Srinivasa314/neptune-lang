@@ -388,6 +388,15 @@ mod tests {
         let n = Neptune::new(TestModuleLoader);
         assert_eq!(n.eval("<script>", "fun f(){}").unwrap(), None);
         assert_eq!(n.eval("<script>", "\"'\"").unwrap(), Some("'\\''".into()));
+        n.create_efunc("test_str", |cx|->Result<(),()>{
+            let s=cx.as_string().unwrap();
+            assert_eq!(s,"\n\r\t\0");
+            Ok(())
+        }).unwrap();
+        n.exec("<script>", r#"
+        const {ecall} = import('vm')
+        ecall(@test_str,'\n\r\t\0')
+        "#).unwrap();
     }
 
     #[test]

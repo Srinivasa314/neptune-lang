@@ -569,6 +569,11 @@ static bool float_isnan(VM *vm, Value *slots) {
   return true;
 }
 
+static bool string_len(VM* vm,Value* slots){
+  vm->return_value=Value(int32_t(slots[0].as_object()->as<String>()->get_len()));
+  return true;
+}
+
 #undef THROW
 } // namespace native_builtins
 
@@ -661,6 +666,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Float, toInt, 0, float_toint);
   DECL_NATIVE_METHOD(Int, toFloat, 0, int_tofloat);
   DECL_NATIVE_METHOD(Float, isNaN, 0, float_isnan);
+  DECL_NATIVE_METHOD(String,len,0,string_len);
 
   create_module("vm");
   create_module("math");

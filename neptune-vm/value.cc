@@ -9,6 +9,8 @@ namespace neptune_vm {
 /*
   On x86_64 and aarch64 the following scheme is used to represent values.
 
+  Empty   0x0000 0000 0000 0000
+  (nullptr)
   Null    0x0000 0000 0000 0001
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
@@ -347,6 +349,8 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
   } else if (a.is_object() && b.is_object()) {
     auto o1 = a.as_object();
     auto o2 = b.as_object();
+    if (unlikely(o1 == nullptr || o2 == nullptr))
+      return o1 == o2;
     if (likely(o1->is<Symbol>() && o2->is<Symbol>()))
       return o1 == o2;
     else if (o1->is<String>() && o2->is<String>())

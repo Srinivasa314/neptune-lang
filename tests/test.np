@@ -1,15 +1,43 @@
 const {assert_eq,assert_failed} = import("assert.np")
 
-assert_eq([1,2],[1,2])
+// Single line comment
+
+/* Multiline comment
+   /* nested comment */
+*/
+
+//ASI Tests
+
+let foo1 = (
+    1
+    +
+    1
+)
+assert_eq(foo1,2)
+let foo2 = {
+    a
+    :
+    1,
+}
+assert_eq(foo2
+.a,1);
+
+
+assert_eq([1,2,],[1,2])
 assert_failed(||assert_eq([],[1]),Error,'Assertion failed: []==[ 1 ]')
 assert_failed(||assert_eq([1,2],[1,3]),Error,'Assertion failed: [ 1, 2 ]==[ 1, 3 ]')
 
 assert_eq(1+1,2)
+assert_eq(1+(2+3),(1+2)+3)
 assert_eq("\(1+1)","2")
 assert_eq('a'~'b','ab');
 assert_eq(0.1+0.2,0.3)
 assert_eq(1+0.2,1.2)
 assert_eq(0.3+9,9.3)
+assert_eq(0o156,110)
+assert_eq(0xfa8e,64142)
+assert_eq(1.1e3,1100.0)
+assert_eq(1e4,10000.0)
 assert_eq(5%2,1)
 assert_eq((5.9%2-1.9)<0.0001,true)
 assert_eq("\(1.0/0.0)", "inf")
@@ -86,8 +114,24 @@ assert_failed(||{let x=-2147483647-1;x=-x},OverflowError,"Cannot negate -2147483
 assert_failed(||'a'+'b',TypeError,"Cannot add types String and String")
 assert_failed(||'a'+1,TypeError,"Cannot add types String and Int")
 
+
 let i=0
-if i==2{
+
+{
+    let i = 3
+    assert_eq(i,3)
+}
+
+while i < 100 {
+    if i === 56 {
+        break
+    }
+    i+=1
+}
+assert_eq(i, 56)
+
+if i==2
+{
     i=7
 } else{
     i=8
@@ -108,7 +152,8 @@ assert_eq(i,10)
 
 assert_failed(||{for i in 'a'..1{}},TypeError,"Expected Int and Int for the start and end of the range got String and Int instead")
 let g=null
-for i in 1..10{
+for i in 1..10
+{
     g=i
     if i==7{
         break
@@ -125,9 +170,20 @@ for i in 1..10{
 }
 assert_eq(g,38)
 
+i=0
+while i < 100 {
+    i+=1
+    if i>30 {
+        continue
+    }
+    g+=1
+}
+assert_eq(g,68)
+
+
 for i in 100..100{g+=1}
 for i in 1000..100{g+=1}
-assert_eq(g,38)
+assert_eq(g,68)
 
 fun sum(n) {
     if n === 0 {
@@ -173,13 +229,21 @@ assert_eq(c(),3)
 
 
 
-a=[null,null,null]
+a=new Array(3,null)
 for i in 0..3{
     a[i]=||i
 }
 assert_eq(a[0](),0)
 assert_eq(a[1](),1)
 assert_eq(a[2](),2)
+
+let r = 10..13
+for i in r {
+    a[i-10]=||i
+}
+assert_eq(a[0](),10)
+assert_eq(a[1](),11)
+assert_eq(a[2](),12)
 
 let g3=null
 fun g1(){
@@ -208,6 +272,7 @@ assert_eq(g,10)
 
 
 class A{}
+assert_eq(A.getSuper(),Object)
 assert_failed(||new A(),NoMethodError,'Class A does not have a constructor')
 class B{construct(){}f(){return 3;}}
 assert_eq(new B().f(),3)
@@ -221,6 +286,11 @@ assert_failed(||1.x,TypeError,'Cannot get property from type Int')
 assert_failed(||{1.x=5},TypeError,'Cannot set property for type Int')
 let o={x:||3}
 assert_eq(o.x(),3)
+{
+    let {x,y}={x:1,y:2}
+    assert_eq(x,1)
+    assert_eq(y,2)
+}
 const vm=import('vm')
 assert_failed(||vm.x,NoModuleVariableError,'Module vm does not export any variable named x')
 
@@ -294,6 +364,18 @@ for i in 0..100{
     assert_eq(m[i],2*i)
 }
 
+// Map and array stored in register
+{
+    let a = [1,2]
+    a[0]=7
+    let m=Map{}
+    m[5]=3
+    assert_eq(a[0],7)
+    assert_eq(m[5],3)
+}
+
+assert_eq('abc'.len(),3)
+assert_eq(''.len(),0)
 assert_eq(new String(),'')
 assert_eq('abc'.find('bc'),1)
 assert_eq('abc'.find(''),0)
@@ -388,3 +470,11 @@ iter=itarr.iter()
 assert_eq(iter.count(),4)
 iter=itarr.iter()
 assert_eq(iter.reduce(|x,y|x+y,1),11)
+let s=0
+for i in [1,7,8].iter() {
+    s+=i
+}
+assert_eq(s,16)
+
+assert_failed(||import(1),TypeError,"The first argument must be a String, not Int")
+assert_eq(import("assert.np").assert_eq,assert_eq)

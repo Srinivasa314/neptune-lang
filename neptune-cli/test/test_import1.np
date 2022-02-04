@@ -1,0 +1,17 @@
+fun assert_eq(x,y) {
+    if x!==y {
+        throw new Error("\(x)!==\(y)")
+    }    
+}
+
+let mod1=import("./test_import2.np")
+let mod2=import("../test/test_import2.np")
+assert_eq(mod1,mod2)
+assert_eq(mod1.X,42)
+let message="Exception not thrown"
+try{
+    import("y")
+}catch e{
+    message=e.message
+}
+assert_eq(message,"Cannot find module y")

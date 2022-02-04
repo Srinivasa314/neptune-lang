@@ -14,7 +14,7 @@ template <typename Entry, typename Hash, typename Equal, typename Empty,
 class HashTableConstIterator;
 
 template <typename Entry, typename Hash, typename Equal, typename Empty,
-          typename Allocator, uint32_t default_size = 16>
+          typename Allocator, uint32_t default_size = 4>
 class HashTable {
 public:
   using iterator =
@@ -70,7 +70,7 @@ public:
   ALWAYS_INLINE iterator find(Key key) {
     uint32_t index = Hash{}(key) & (capacity - 1);
     for (uint32_t i = index;; i = (i + 1) & (capacity - 1)) {
-      if (likely(Equal{}(entries[i], key)) {
+      if (likely(Equal{}(entries[i], key))) {
         return iterator(this, &entries[i]);
       }
       if (Empty{}.is_empty(entries[i])) {

@@ -59,7 +59,7 @@ handler(ModRegister, {
   if (accumulator.is_int() && bp[reg].is_int()) {
     int res;
     if (unlikely(!SafeModulus(bp[reg].as_int(), accumulator.as_int(), res)))
-      THROW("TypeError",
+      THROW("OverflowError",
             "Cannot mod " << bp[reg].as_int() << " and " << accumulator.as_int()
                           << " as the result does not fit in an Int");
     accumulator = Value(res);
@@ -164,7 +164,7 @@ handler(CallMethod, {
 
   auto class_ = get_class(object);
   auto method = class_->find_method(member);
-  if (method != nullptr) {
+  if (likely(method != nullptr)) {
     accumulator = Value(method);
     bp[callop_offset] = object;
     callop_actual_nargs = n + 1;
@@ -174,7 +174,7 @@ handler(CallMethod, {
   } else if (object.is_object() && object.as_object()->is<Module>()) {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(member);
-    if (iter == module->module_variables.end() || !iter->second.exported)
+    if (unlikely(iter == module->module_variables.end() || !iter->second.exported))
       THROW("NoModuleVariableError",
             "Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*member));
@@ -212,7 +212,7 @@ handler(SuperCall, {
 
   auto class_ = task->frames.back().f->super_class;
   auto method = class_->find_method(member);
-  if (method != nullptr) {
+  if (likely(method != nullptr)) {
     accumulator = Value(method);
     bp[callop_offset] = object;
     callop_actual_nargs = n + 1;
@@ -242,7 +242,7 @@ handler(Construct, {
     }
     temp_roots.pop_back();
     auto iter = class_->methods.find(construct_sym);
-    if (iter != class_->methods.end()) {
+    if (likely(iter != class_->methods.end())) {
       accumulator = Value(iter->second);
       bp[callop_offset] = obj;
       callop_actual_nargs = n + 1;
@@ -309,7 +309,7 @@ handler(LoadSubscript, {
       else
         THROW("KeyError", "Key " << accumulator << " does not exist in map");
     } else if (obj.as_object()->is<String>()) {
-      if (accumulator.is_object() && accumulator.as_object()->is<Range>()) {
+      if (likely(accumulator.is_object() && accumulator.as_object()->is<Range>())) {
         auto str = obj.as_object()->as<String>();
         auto &r = *accumulator.as_object()->as<Range>();
         if (r.start < 0 || static_cast<size_t>(r.start) >= str->len ||
@@ -503,16 +503,7 @@ handler(Close, CLOSE(READ(utype)););
 handler(LoadProperty, {
   auto object = bp[READ(utype)];
   auto property = constants[READ(utype)].as_object()->as<Symbol>();
-  if (object.is_object() && object.as_object()->is<Module>()) {
-    auto module = object.as_object()->as<Module>();
-    auto iter = module->module_variables.find(property);
-    if (iter == module->module_variables.end() || !iter->second.exported)
-      THROW("NoModuleVariableError",
-            "Module " << module->name << " does not export any variable named "
-                      << static_cast<StringSlice>(*property));
-    else
-      accumulator = module_variables[iter->second.position];
-  } else if (likely(object.is_object() && object.as_object()->is<Instance>())) {
+  if (likely(object.is_object() && object.as_object()->is<Instance>())) {
     auto instance = object.as_object()->as<Instance>();
     auto iter = instance->properties.find(property);
     if (unlikely(iter == instance->properties.end()))
@@ -520,6 +511,15 @@ handler(LoadProperty, {
                                  << static_cast<StringSlice>(*property));
     else
       accumulator = iter->second;
+  } else if (object.is_object() && object.as_object()->is<Module>()) {
+    auto module = object.as_object()->as<Module>();
+    auto iter = module->module_variables.find(property);
+    if (unlikely(iter == module->module_variables.end() || !iter->second.exported))
+      THROW("NoModuleVariableError",
+            "Module " << module->name << " does not export any variable named "
+                      << static_cast<StringSlice>(*property));
+    else
+      accumulator = module_variables[iter->second.position];
   } else {
     THROW("TypeError",
           "Cannot get property from type " << object.type_string());

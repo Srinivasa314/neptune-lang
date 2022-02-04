@@ -1,24 +1,24 @@
 ## String
 * ```construct()```
 
-Returns an empty string
+    Returns an empty string
 
-Example ```new String()//''```
+    Example ```new String() //''```
 
-* ```find(needle)```
+* ```find(str)```
 
-Returns the position of the first occurence of ```needle```. Returns -1 if ```needle``` is not present
+    Returns the position of the first occurence of ```str```. Returns -1 if ```str``` is not present
 
-Example: ```'abc'.find('bc')//1```
+    Example: ```'abc'.find('bc') //1```
 
 * ```replace(from,to)```
 
-Returns a new string with all occurences of ```from``` replaced by ```to```
+    Returns a new string with all occurences of ```from``` replaced by ```to```
 
-Example: ```'abc'.replace('bc','xyz')//'axyz'```
+    Example: ```'abc'.replace('bc','xyz') //'axyz'```
 
 * ```chars()```
 
-Returns an iterator to the characters of the string
+    Returns an iterator to the characters of the string
 
-Example: ```'abc'.chars().collect()//['a','b','c']```
+    Example: ```'abc'.chars().collect() //['a','b','c']```

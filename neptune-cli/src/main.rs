@@ -40,7 +40,6 @@ fn main() {
             },
             Err(e) => {
                 eprintln!("{}", e);
-                return;
             }
         },
         None => repl(&n),
@@ -183,7 +182,7 @@ pub fn are_brackets_balanced(s: &str) -> bool {
                         s,
                         *delims.last().unwrap(),
                         &mut depths,
-                        &mut &mut delims,
+                        &mut delims,
                     ) {
                         return false;
                     }
@@ -218,6 +217,8 @@ pub fn are_brackets_balanced(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use neptune_lang::Neptune;
+    use crate::FileSystemModuleLoader;
     use super::are_brackets_balanced;
 
     #[test]
@@ -228,5 +229,14 @@ mod tests {
         for s in ["''", "()", "({})", "'\\('(')'", "'\\({})'", "a", "[]"] {
             assert!(are_brackets_balanced(s), "{}", s)
         }
+    }
+
+    #[test]
+    fn test_import(){
+        let n=Neptune::new(FileSystemModuleLoader);
+        n.exec(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/test/test_import1.np"),
+            include_str!("../test/test_import1.np"),
+        ).unwrap();
     }
 }

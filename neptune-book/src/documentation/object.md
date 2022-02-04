@@ -1,17 +1,19 @@
 ## Object
+All classes inherit from Object
+
 * ```construct()```
 
-Returns an empty object
+    Returns an empty object
 
-Example: ```new Object//{}```
+    Example: ```new Object //{}```
 
 * ```toString()```
 
-Returns the string corresponding to the object
+    Returns the string corresponding to the object
 
-Example: ```2.toString()//'2'```
+    Example: ```2.toString() //'2'```
 * ```getClass()```
 
-Returns the class of the object
+    Returns the class of the object
 
-Example: ```2.getClass()//<Class Int>```
+    Example: ```2.getClass() //<Class Int>```
