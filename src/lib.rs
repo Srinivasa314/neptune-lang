@@ -388,15 +388,20 @@ mod tests {
         let n = Neptune::new(TestModuleLoader);
         assert_eq!(n.eval("<script>", "fun f(){}").unwrap(), None);
         assert_eq!(n.eval("<script>", "\"'\"").unwrap(), Some("'\\''".into()));
-        n.create_efunc("test_str", |cx|->Result<(),()>{
-            let s=cx.as_string().unwrap();
-            assert_eq!(s,"\n\r\t\0");
+        n.create_efunc("test_str", |cx| -> Result<(), ()> {
+            let s = cx.as_string().unwrap();
+            assert_eq!(s, "\n\r\t\0");
             Ok(())
-        }).unwrap();
-        n.exec("<script>", r#"
+        })
+        .unwrap();
+        n.exec(
+            "<script>",
+            r#"
         const {ecall} = import('vm')
         ecall(@test_str,'\n\r\t\0')
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -546,6 +551,14 @@ mod tests {
             let a = ctx.as_bool()?;
             ctx.pop().unwrap();
             Ok(Foo { a, b, d: d.clone() })
+        })
+        .unwrap();
+        n.create_efunc("test_null", move |ctx| -> Result<(), Error> {
+            if ctx.is_null().unwrap() {
+                Ok(())
+            } else {
+                Err(Error("Not null!!!".into()))
+            }
         })
         .unwrap();
         if let Err(e) = n.exec("test_efunc.np", &read("test_efunc.np").unwrap()) {

@@ -1832,7 +1832,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::This { line } => {
                 if self.bctype == BytecodeType::Method || self.bctype == BytecodeType::Constructor {
                     Ok(ExprResult::Register(
-                        self.resolve_local("this").unwrap().reg,
+                        0,
                     ))
                 } else {
                     Err(CompileError {

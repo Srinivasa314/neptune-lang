@@ -1,6 +1,11 @@
 # Summary
 
-- [Introduction](./introduction.md)
+- [Syntax](./syntax.md)
+- [Types](./types.md)
+- [Variables and Equality](./var_eq.md)
+- [Functions and Modules](./fun_module.md)
+- [Control flow](./control_flow.md)
+- [Classes and Objects](./class_object.md)
 
 - [Documentation](./documentation.md)
     - [Object](./documentation/object.md)
