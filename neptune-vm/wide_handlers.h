@@ -174,7 +174,8 @@ handler(CallMethod, {
   } else if (object.is_object() && object.as_object()->is<Module>()) {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(member);
-    if (unlikely(iter == module->module_variables.end() || !iter->second.exported))
+    if (unlikely(iter == module->module_variables.end() ||
+                 !iter->second.exported))
       THROW("NoModuleVariableError",
             "Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*member));
@@ -302,14 +303,14 @@ handler(LoadSubscript, {
       }
     } else if (obj.as_object()->is<Map>()) {
       auto &m = obj.as_object()->as<Map>()->inner;
-      auto to_find = accumulator; // hack so that makes accumulator a register
-      auto it = m.find(to_find);
+      auto it = m.find(accumulator);
       if (likely(it != m.end()))
         accumulator = it->second;
       else
         THROW("KeyError", "Key " << accumulator << " does not exist in map");
     } else if (obj.as_object()->is<String>()) {
-      if (likely(accumulator.is_object() && accumulator.as_object()->is<Range>())) {
+      if (likely(accumulator.is_object() &&
+                 accumulator.as_object()->is<Range>())) {
         auto str = obj.as_object()->as<String>();
         auto &r = *accumulator.as_object()->as<Range>();
         if (r.start < 0 || static_cast<size_t>(r.start) >= str->len ||
@@ -332,6 +333,19 @@ handler(LoadSubscript, {
       } else {
         THROW("TypeError",
               "String indices must be Range not " << accumulator.type_string());
+      }
+    } else if (obj.as_object()->is<Instance>()) {
+      if (accumulator.is_object() && accumulator.as_object()->is<Symbol>()) {
+        auto &props = obj.as_object()->as<Instance>()->properties;
+        auto it = props.find(accumulator.as_object()->as<Symbol>());
+        if (likely(it != props.end()))
+          accumulator = it->second;
+        else
+          THROW("PropertyError",
+                "Property " << accumulator << " does not exist in object");
+      } else {
+        THROW("TypeError", obj.type_string() << " indices must be Symbol not "
+                                             << accumulator.type_string());
       }
     } else {
       THROW("TypeError", "Cannot index type " << obj.type_string());
@@ -366,6 +380,14 @@ handler(StoreSubscript, {
     } else if (obj.as_object()->is<Map>()) {
       auto m = obj.as_object()->as<Map>();
       m->inner.insert({subscript, accumulator});
+    } else if (obj.as_object()->is<Instance>()) {
+      if (subscript.is_object() && subscript.as_object()->is<Symbol>()) {
+        obj.as_object()->as<Instance>()->properties.insert(
+            {subscript.as_object()->as<Symbol>(), accumulator});
+      } else {
+        THROW("TypeError", obj.type_string() << " indices must be Symbol not "
+                                             << subscript.type_string());
+      }
     } else {
       THROW("TypeError", "Cannot index type " << obj.type_string());
     }
@@ -514,7 +536,8 @@ handler(LoadProperty, {
   } else if (object.is_object() && object.as_object()->is<Module>()) {
     auto module = object.as_object()->as<Module>();
     auto iter = module->module_variables.find(property);
-    if (unlikely(iter == module->module_variables.end() || !iter->second.exported))
+    if (unlikely(iter == module->module_variables.end() ||
+                 !iter->second.exported))
       THROW("NoModuleVariableError",
             "Module " << module->name << " does not export any variable named "
                       << static_cast<StringSlice>(*property));
