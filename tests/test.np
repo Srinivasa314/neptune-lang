@@ -286,6 +286,14 @@ assert_failed(||1.x,TypeError,'Cannot get property from type Int')
 assert_failed(||{1.x=5},TypeError,'Cannot set property for type Int')
 let o={x:||3}
 assert_eq(o.x(),3)
+o={a:5}
+assert_eq(o[@a],5)
+assert_failed(||o[@b],PropertyError,'Property @b does not exist in object')
+assert_failed(||o[1],TypeError,'Object indices must be Symbol not Int')
+o[@b]=10
+assert_eq(o.b,10)
+assert_failed(||{o['b']=10},TypeError,'Object indices must be Symbol not String')
+
 {
     let {x,y}={x:1,y:2}
     assert_eq(x,1)
