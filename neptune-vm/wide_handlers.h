@@ -109,7 +109,15 @@ callop : {
                           << " were given");
       task->frames.back().ip = ip;
       bp += callop_offset;
-      CALL(callop_actual_nargs);
+      constants = f->function_info->constants.data();
+      if (size_t(bp - task->stack.get()) + f->function_info->max_registers >
+          task->stack_size)
+        bp = task->grow_stack(bp, f->function_info->max_registers);
+      task->stack_top = bp + f->function_info->max_registers;
+      ip = f->function_info->bytecode.data();
+      for (size_t i = callop_actual_nargs; i < f->function_info->max_registers; i++)
+        bp[i] = Value(nullptr);
+      task->frames.push_back(Frame{bp, f, ip});
     } else if (accumulator.as_object()->is<NativeFunction>()) {
       auto f = accumulator.as_object()->as<NativeFunction>();
       auto arity = f->arity;
@@ -121,21 +129,29 @@ callop : {
                           << " were given");
       last_native_function = f;
       auto old_stack_top = task->stack_top;
-      auto ok = f->inner(this, bp + callop_offset);
+      auto status = f->inner(this, bp + callop_offset);
       accumulator = return_value;
       return_value = Value::null();
       bp = bp + (task->stack_top - old_stack_top);
-      if (!ok) {
+      if(status==VMStatus::Success){
+        last_native_function = nullptr;    
+      } else if (status==VMStatus::Error) {
         task->frames.back().ip = ip;
         if ((ip = throw_(accumulator)) != nullptr) {
           bp = task->frames.back().bp;
           auto f = task->frames.back().f;
           constants = f->function_info->constants.data();
           DISPATCH();
-        } else
+        } else{
           goto throw_end;
+        }
+      }else if(status==VMStatus::Suspend){
+        task->frames.back().ip = ip;
+        last_native_function = nullptr;    
+        return VMStatus::Suspend;
+      }else{
+        unreachable();
       }
-      last_native_function = nullptr;
     } else {
       THROW("TypeError",
             "Type " << accumulator.type_string() << " is not callable");

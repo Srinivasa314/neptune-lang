@@ -15,12 +15,12 @@ namespace neptune_vm {
   True    0x0000 0000 0000 0002
   False   0x0000 0000 0000 0003
   Pointer 0x0000 XXXX XXXX XXXX [due to alignment we can use the last 2bits]
-  Integer 0x0001 0000 XXXX XXXX
-  Double  0x0002 0000 0000 0000
+  Int     0x0001 0000 XXXX XXXX
+  Float   0x0002 0000 0000 0000
                   to
           0xFFFA 0000 0000 0000
 
-  Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
+  Floats lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
   they lie in the range listed above.
 */
 
@@ -268,6 +268,14 @@ static uint32_t intHash(uint64_t key) {
   key += ~(key << 27);
   key ^= (key >> 31);
   return static_cast<uint32_t>(key);
+}
+
+template<typename T>
+uint32_t PointerHash<T>::operator()(T* ptr)const{
+  if(sizeof(ptr)==sizeof(uint64_t)){
+    return intHash(uint64_t(uintptr_t(ptr)));
+  }else
+    return intHash(uint32_t(uintptr_t(ptr)));
 }
 
 uint32_t ValueHasher::operator()(Value v) const {

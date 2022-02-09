@@ -6,6 +6,8 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <deque>
+#include <functional>
 
 constexpr size_t INITIAL_FRAMES = 4;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
@@ -22,19 +24,18 @@ struct Frame {
 
 class Task : public Object {
 public:
+  Value task_return_value;
   std::unique_ptr<Value[]> stack;
   UpValue *open_upvalues;
   size_t stack_size;
   Value *stack_top;
   std::vector<Frame> frames;
+  bool is_main_task;
 
   static constexpr Type type = Type::Task;
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
-  Task(size_t stack_size_)
-      : stack(std::unique_ptr<Value[]>(new Value[stack_size_ / sizeof(Value)])),
-        open_upvalues(nullptr), stack_size(stack_size_),
-        stack_top(stack.get()) {}
+  Task(Function* f,bool is_main_task);
 };
 
 class VM {
@@ -67,8 +68,11 @@ public:
   SymbolMap<EFunc> efuncs;
   Value return_value;
   std::mt19937_64 rng;
+  std::deque<std::pair<Task*,Value>> tasks_queue;
+  HashMap<Task*,std::vector<Task*>,PointerHash<Task>,std::equal_to<Task*>,NullptrEmpty<Task>,mi_stl_allocator<std::pair<Task*,std::vector<Task*>>>> tasks_waiting_to_join;
   Value to_string(Value val);
-  VMStatus run(Task *task, Function *f);
+  VMStatus run(Task *task, Value accumulator);
+  VMStatus run();
   bool add_module_variable(StringSlice module, StringSlice name, bool mutable_,
                            bool exported) const;
   ModuleVariable get_module_variable(StringSlice module_name,

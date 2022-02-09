@@ -4,7 +4,7 @@
 namespace neptune_vm {
 class VM;
 
-using NativeFunctionCallback = bool(VM *vm, Value *slots);
+using NativeFunctionCallback = VMStatus(VM *vm, Value *slots);
 
 class NativeFunction : public Object {
   uint8_t arity;
@@ -65,7 +65,7 @@ struct EFuncContext {
 };
 
 using Data = void; // Can be any type
-using EFuncCallback = bool(EFuncContext cx, Data *data);
+using EFuncCallback = VMStatus(EFuncContext cx, Data *data);
 using FreeDataCallback = void(Data *data);
 struct EFunc {
   EFuncCallback *callback;

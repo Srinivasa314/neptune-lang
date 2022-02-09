@@ -42,6 +42,6 @@ They are declared using curly brackets
     let sparklingHeart = "\u{1F496}" // 💖, Unicode scalar U+1F496
     ```
 * They also allow interpolation using \ followed by an expression in parentheses
-```
-let greeting = 'Hello \(name)!'
-```
+    ```
+    let greeting = 'Hello \(name)!'
+    ```

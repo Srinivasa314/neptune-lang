@@ -189,6 +189,7 @@ mod ffi {
     enum VMStatus {
         Success,
         Error,
+        Suspend
     }
 
     #[derive(Debug)]
@@ -346,14 +347,18 @@ impl VM {
 }
 
 // data must contain a valid pointer to a callback of type F
-unsafe extern "C" fn trampoline<'vm, F>(cx: EFuncContext, data: *mut c_void) -> bool
+unsafe extern "C" fn trampoline<'vm, F>(cx: EFuncContext, data: *mut c_void) -> VMStatus
 where
     F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
 {
     let callback = &mut *(data as *mut F);
     // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(&*cx.0.vm, cx)))
-        .unwrap_or_else(|_| std::process::abort())
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(&*cx.0.vm, cx)))
+        .unwrap_or_else(|_| std::process::abort()) {
+            VMStatus::Success
+        }else{
+            VMStatus::Error
+        }
 }
 
 // data must contain a valid pointer to a boxed callback of type F and must only be called once

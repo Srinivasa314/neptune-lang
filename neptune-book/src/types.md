@@ -1,6 +1,5 @@
 # Types
-All values have a type and the type is associated class. These are the primitive types.
-These classes have many useful methods that can be seen in the documentation section of the book.
+All values have a type and the type is associated with a class. The primitive types are listed below. These classes have many useful methods that can be seen in the documentation section of the book.
 
 ## Object
 All classes inherit Object.Objects can be directly created using object literals
@@ -42,7 +41,7 @@ Arrays can also be sliced (indexed by range) like strings.
 ```
 
 ## Map
-They are like arrays but can be indexed using any type. The keys of a map can be iterated using the `keys` method but the order of keys is not defined.
+They are hashmaps that indexed using any type. The keys of a map can be iterated using the `keys` method but the order of keys is not defined.
 ```
 let m = Map{@a:1,2:false}
 m[2] //false
@@ -50,9 +49,7 @@ m["abc"]=1.5
 ```
 
 ## Symbols
-* They are like strings but two symbols with the same contents are internally the same object
-* Comparing symbols are much faster than strings.
-* They are used to store the names of properties and methods for quick access
+They are like strings but two symbols with the same contents are internally the same object. Comparing symbols are much faster than strings. They are used to store the names of properties and methods for quick access
 ```
 let cardColor = @red
 ```

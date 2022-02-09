@@ -105,4 +105,9 @@ public:
 };
 std::ostream &operator<<(std::ostream &os, Value v);
 std::ostream &operator<<(std::ostream &os, Object &o);
+
+template<typename T>
+struct PointerHash{
+  uint32_t operator()(T* ptr)const;
+};
 } // namespace neptune_vm

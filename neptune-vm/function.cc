@@ -91,13 +91,11 @@ void FunctionInfoWriter::release() {
 VMStatus FunctionInfoWriter::run() {
   auto function = vm->make_function(nullptr, hf->object);
   function->num_upvalues = 0;
-  auto stack_size = hf->object->max_registers * sizeof(Value);
-  if (stack_size == 0)
-    stack_size = 1 * sizeof(Value);
   vm->temp_roots.push_back(Value(function));
-  auto task = vm->allocate<Task>(stack_size);
+  auto task = vm->allocate<Task>(function,true);
   vm->temp_roots.pop_back();
-  return vm->run(task, function);
+  vm->tasks_queue.push_back({task,Value::null()});
+  return vm->run();
 }
 
 void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {

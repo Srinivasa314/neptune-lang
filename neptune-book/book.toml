@@ -1,6 +1,5 @@
 [book]
-authors = ["Srikanth"]
 language = "en"
 multilingual = false
 src = "src"
-title = "Neptune Book"
+title = "The Neptune Programming Language Book"

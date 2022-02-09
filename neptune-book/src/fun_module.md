@@ -3,17 +3,17 @@
 ## Functions
 Functions are can be declared as 
 * named functions:
-```
-fun add(a,b){
-    return a+b
-}
-```
+    ```
+    fun add(a,b){
+        return a+b
+    }
+    ```
 * anonymous functions:
-```
-let add = |a,b|a+b
-//or
-add = |a,b|{return a+b}
-```
+    ```
+    let add = |a,b|a+b
+    //or
+    add = |a,b|{return a+b}
+    ```
 
 Functions can capture variables
 ```
@@ -27,7 +27,7 @@ counter() //2
 ```
 
 ## Modules
-Programs can be broken down into small pieces called module. A new module is created by creating a new file and can be imported by using the import function. An embedder can decide how to resolve paths while importing.
+Programs can be broken down into small pieces called modules. A new module is created by creating a new file and can be imported by using the import function. An embedder can decide how to resolve paths while importing.
 
 
 To share variables across modules they must be exported and then imported by the other module.

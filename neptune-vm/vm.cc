@@ -53,20 +53,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define READ(type) read<type>(ip)
 #define CLOSE(n) task->close(&bp[n])
 
-#define CALL(n)                                                                \
-  do {                                                                         \
-    constants = f->function_info->constants.data();                            \
-    if (size_t(bp - task->stack.get()) + f->function_info->max_registers >     \
-        task->stack_size / sizeof(Value))                                      \
-      bp = task->grow_stack(bp,                                                \
-                            f->function_info->max_registers * sizeof(Value));  \
-    task->stack_top = bp + f->function_info->max_registers;                    \
-    ip = f->function_info->bytecode.data();                                    \
-    for (size_t i = n; i < f->function_info->max_registers; i++)               \
-      bp[i] = Value(nullptr);                                                  \
-    task->frames.push_back(Frame{bp, f, ip});                                  \
-  } while (0)
-
 namespace neptune_vm {
 
 VM::VM()
@@ -94,7 +80,35 @@ VM::VM()
     }                                                                          \
   } while (0)
 
-VMStatus VM::run(Task *task, Function *f) {
+VMStatus VM::run(){
+  //return if main task finished/rust needs to resume/error
+    if (is_running)
+    throw std::runtime_error("Cannot call run() while VM is already running");
+
+  while(!tasks_queue.empty()){
+    auto pair=tasks_queue.front();
+    Task* task=pair.first;
+    Value v=pair.second;
+    tasks_queue.pop_front();
+    auto status=run(task,v);
+    if(status==VMStatus::Error){
+      is_running = false;
+      tasks_queue.clear();
+      tasks_waiting_to_join.clear();
+      return VMStatus::Error;
+    }else if(status==VMStatus::Success){
+      if(task->is_main_task){
+        is_running = false;
+        tasks_queue.clear();
+        tasks_waiting_to_join.clear();
+        return VMStatus::Success;
+      }
+    }
+  }
+  return VMStatus::Suspend;
+}
+
+VMStatus VM::run(Task *task, Value accumulator) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -109,15 +123,11 @@ VMStatus VM::run(Task *task, Function *f) {
   };
 #endif
 
-  if (is_running)
-    throw std::runtime_error("Cannot call run() while VM is already running");
   current_task = task;
-  is_running = true;
-  Value accumulator = Value::null();
-  Value *bp = &task->stack[0];
-  Value *constants;
-  const uint8_t *ip = nullptr;
-  CALL(0);
+  auto frame = task->frames.back();
+  const uint8_t *ip = frame.ip;
+  Value *bp = frame.bp;
+  Value *constants = frame.f->function_info->constants.data();
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -183,13 +193,22 @@ VMStatus VM::run(Task *task, Function *f) {
   default:
     unreachable();
 #endif
+  } 
+end:{
+  if(task->is_main_task)
+    return_value = accumulator;
+  auto it=tasks_waiting_to_join.find(task);
+  if(it!=tasks_waiting_to_join.end()){
+    for(auto task_to_resume:it->second)
+      tasks_queue.push_back({task_to_resume,accumulator});
+    tasks_waiting_to_join.erase(it);
   }
-end:
-  is_running = false;
-  return_value = accumulator;
+  task->task_return_value=accumulator;
+  current_task=nullptr;
   return VMStatus::Success;
+}
 throw_end:
-  is_running = false;
+current_task=nullptr;
   return VMStatus::Error;
 }
 #undef READ
@@ -501,6 +520,16 @@ void VM::collect() {
   mark(current_task);
   for (auto efunc : efuncs)
     mark(efunc.first);
+  for (auto pair : tasks_queue){
+    mark(pair.first);
+    if(pair.second.is_object())
+      mark(pair.second.as_object());
+  }
+  for(auto &pair:tasks_waiting_to_join){
+    mark(pair.first);
+    for(auto task:pair.second)
+      mark(task);
+  }
 
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -858,8 +887,8 @@ Value *Task::grow_stack(Value *bp, size_t extra_needed) {
   size_t needed = stack_size + extra_needed;
   size_t new_capacity = power_of_two_ceil(needed);
   auto old_stack = std::move(stack);
-  stack = std::unique_ptr<Value[]>(new Value[new_capacity / sizeof(Value)]);
-  memcpy(stack.get(), old_stack.get(), stack_size);
+  stack = std::unique_ptr<Value[]>(new Value[new_capacity]);
+  memcpy(stack.get(), old_stack.get(), stack_size * sizeof(Value));
   stack_size = new_capacity;
   stack_top = stack.get() + (stack_top - old_stack.get());
   for (auto &frame : frames) {
@@ -962,4 +991,17 @@ std::string VM::report_error(Value error) {
     throw std::runtime_error("Expect Error to be a class");
   }
 }
+
+Task::Task(Function *f, bool is_main_task)
+    : task_return_value(Value(nullptr)),open_upvalues(nullptr), is_main_task(is_main_task) {
+  stack_size = f->function_info->max_registers;
+  if (stack_size == 0)
+    stack_size = 1;
+  stack = std::unique_ptr<Value[]>(new Value[stack_size]);
+  stack_top = stack.get();
+  for (size_t i = 0; i < stack_size; i++)
+    stack[i] = Value(nullptr);
+  frames.push_back(Frame{&stack[0], f, f->function_info->bytecode.data()});
+}
+
 } // namespace neptune_vm

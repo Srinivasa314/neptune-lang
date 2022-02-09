@@ -8,7 +8,7 @@
 namespace neptune_vm {
 template <typename O> class Handle;
 class VM;
-enum class VMStatus : uint8_t { Success, Error };
+enum class VMStatus : uint8_t { Success, Error,Suspend };
 
 struct LineInfo {
   uint32_t offset;

@@ -22,3 +22,5 @@
     - [Module 'random'](./documentation/random.md)
     - [Module 'time'](./documentation/time.md)
     - [Module 'vm'](./documentation/vm.md)
+
+- [Neptune Language Internals](./internals.md)

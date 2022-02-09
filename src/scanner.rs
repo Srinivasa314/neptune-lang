@@ -272,11 +272,13 @@ impl<'src> Scanner<'src> {
                 self.line += 1;
                 /*
                 Automatic Statement Seperator Insertion
-                When newline is encountered if its previous token is RightParen|RightBrace|Identifier
-                |IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
-                and it is not followed by whitespaces and a dot (to allow method chaining) and it is not inside brackets(except block) then insert semicolon.
-
-                Statements like if and for can have a newline after the condition
+                When a newline is encountered if its previous token is RightParen|RightBrace|Identifier|IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
+                and it is not followed by whitespaces and a dot (to allow method chaining) 
+                and it is not inside brackets(except curly brackets to allow blocks) 
+                then insert a statement separator.
+                
+                Statements like if,for,while,class,etc. can have a newline after curly bracket because the parser handles it.
+                Similarily the parser handles newlines in object literals and map literals.
                 */
                 if self.brackets.is_empty()
                     || matches!(self.brackets.last(), Some(TokenType::LeftBrace))
