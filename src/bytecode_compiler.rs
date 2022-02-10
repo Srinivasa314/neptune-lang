@@ -35,7 +35,7 @@ impl<'vm> Compiler<'vm> {
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         self.register_module_variables(&ast);
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
-        b.evaluate_statments(&ast);
+        b.compile_statments(&ast);
         b.bytecode.write_u8(Op::Return.repr);
         let bytecode = b.bytecode;
         if self.errors.is_empty() {
@@ -657,9 +657,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn evaluate_statments(&mut self, statements: &[Statement]) {
+    fn compile_statments(&mut self, statements: &[Statement]) {
         for statement in statements {
-            self.evaluate_statement(statement)
+            self.compile_statement(statement)
         }
         self.bytecode.shrink();
         self.bytecode.set_max_registers(self.max_registers);
@@ -715,7 +715,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         Ok(())
     }
 
-    fn evaluate_statement(&mut self, statement: &Statement) {
+    fn compile_statement(&mut self, statement: &Statement) {
         if let Err(e) = (|| -> CompileResult<()> {
             match statement {
                 Statement::Expr(expr) => match expr {
@@ -899,7 +899,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         let jump_end = self.bytecode.size();
                         self.bytecode
                             .patch_jump(cond_check, (jump_end - cond_check) as u32);
-                        self.evaluate_statement(else_stmt);
+                        self.compile_statement(else_stmt);
                         let else_end = self.bytecode.size();
                         self.bytecode
                             .patch_jump(if_end_pos, (else_end - if_end_pos) as u32);
@@ -999,7 +999,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             continues: vec![],
                         });
                         for stmt in block {
-                            self.evaluate_statement(stmt);
+                            self.compile_statement(stmt);
                         }
                         let last_block = self.locals.last().unwrap();
                         if last_block.values().any(|l| l.is_captured) {
@@ -1096,7 +1096,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             breaks: vec![],
                         });
                         for stmt in block {
-                            self.evaluate_statement(stmt);
+                            self.compile_statement(stmt);
                         }
                         let last_block = self.locals.last().unwrap();
                         if last_block.values().any(|l| l.is_captured) {
@@ -1217,7 +1217,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     );
                     let catch_start_pos = self.bytecode.size();
                     for stmt in catch_block {
-                        self.evaluate_statement(stmt);
+                        self.compile_statement(stmt);
                     }
                     let last_block = self.locals.pop().unwrap();
                     self.regcount -= last_block.len() as u16;
@@ -1313,7 +1313,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn block(&mut self, stmts: &[Statement], end_line: u32) {
         self.locals.push(HashMap::default());
         for stmt in stmts {
-            self.evaluate_statement(stmt);
+            self.compile_statement(stmt);
         }
         let last_block = self.locals.pop().unwrap();
         self.regcount -= last_block.len() as u16;
@@ -1955,7 +1955,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
         match body {
             ClosureBody::Block(body) => {
-                self.evaluate_statments(body);
+                self.compile_statments(body);
                 if !matches!(body.last(), Some(Statement::Return { .. })) {
                     if bctype == BytecodeType::Constructor {
                         self.write0(Op::LoadR0, last_line);

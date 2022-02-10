@@ -257,25 +257,6 @@ impl Neptune {
         }
     }
 
-    pub fn eval<S: Into<String>>(
-        &self,
-        module: S,
-        source: &str,
-    ) -> Result<Option<String>, InterpretError> {
-        match compile(&self.vm, module.into(), source, true) {
-            Ok((mut f, is_expr)) => match unsafe { f.run() } {
-                VMStatus::Success => Ok(if is_expr {
-                    Some(self.vm.get_result())
-                } else {
-                    None
-                }),
-                VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
-                _ => unreachable!(),
-            },
-            Err(e) => Err(InterpretError::CompileError(e)),
-        }
-    }
-
     pub fn create_module(&self, name: &str) -> Result<(), NeptuneError> {
         if self.vm.module_exists(name.into()) {
             Err(NeptuneError::ModuleAlreadyExists)
@@ -386,11 +367,9 @@ mod tests {
     #[test]
     fn test_basic() {
         let n = Neptune::new(TestModuleLoader);
-        assert_eq!(n.eval("<script>", "fun f(){}").unwrap(), None);
-        assert_eq!(n.eval("<script>", "\"'\"").unwrap(), Some("'\\''".into()));
         n.create_efunc("test_str", |cx| -> Result<(), ()> {
             let s = cx.as_string().unwrap();
-            assert_eq!(s, "\n\r\t\0");
+            assert_eq!(s, "\n\r\t\0\'\"");
             Ok(())
         })
         .unwrap();
@@ -398,7 +377,7 @@ mod tests {
             "<script>",
             r#"
         const {ecall} = import('vm')
-        ecall(@test_str,'\n\r\t\0')
+        ecall(@test_str,'\n\r\t\0\'\"')
         "#,
         )
         .unwrap();

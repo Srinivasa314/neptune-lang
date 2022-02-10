@@ -105,11 +105,8 @@ fn repl(n: &Neptune) {
     loop {
         match rl.readline(">> ") {
             Ok(lines) => {
-                match n.eval("<repl>", &lines) {
-                    Ok(Some(val)) => {
-                        println!("{}", val);
-                    }
-                    Ok(None) => {}
+                match n.exec("<repl>", &lines) {
+                    Ok(()) => {}
                     Err(e) => eprintln!("{}", e),
                 };
                 rl.add_history_entry(lines);

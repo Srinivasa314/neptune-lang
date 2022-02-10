@@ -24,6 +24,8 @@ struct Frame {
 
 class Task : public Object {
 public:
+  VMStatus status;
+  bool poisoned;
   Value task_return_value;
   std::unique_ptr<Value[]> stack;
   UpValue *open_upvalues;
@@ -36,6 +38,12 @@ public:
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
   Task(Function* f,bool is_main_task);
+};
+
+struct TaskQueueEntry{
+  Task* task;
+  Value accumulator;
+  bool uncaught_exception;
 };
 
 class VM {
@@ -68,10 +76,10 @@ public:
   SymbolMap<EFunc> efuncs;
   Value return_value;
   std::mt19937_64 rng;
-  std::deque<std::pair<Task*,Value>> tasks_queue;
+  std::deque<TaskQueueEntry> tasks_queue;
   HashMap<Task*,std::vector<Task*>,PointerHash<Task>,std::equal_to<Task*>,NullptrEmpty<Task>,mi_stl_allocator<std::pair<Task*,std::vector<Task*>>>> tasks_waiting_to_join;
   Value to_string(Value val);
-  VMStatus run(Task *task, Value accumulator);
+  VMStatus run(TaskQueueEntry entry);
   VMStatus run();
   bool add_module_variable(StringSlice module, StringSlice name, bool mutable_,
                            bool exported) const;

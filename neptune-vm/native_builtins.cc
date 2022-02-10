@@ -25,7 +25,7 @@ namespace native_builtins {
     std::ostringstream os;                                                     \
     os << message;                                                             \
     vm->return_value = vm->create_error(class, os.str());                      \
-    return VMStatus::Error;                                                              \
+    return VMStatus::Error;                                                    \
   } while (0)
 
 static VMStatus object_tostring(VM *vm, Value *slots) {
@@ -309,14 +309,14 @@ static VMStatus stringiterator_next(VM *vm, Value *slots) {
 }
 
 #define FN(x)                                                                  \
-  VMStatus x(VM *vm, Value *slots) {                                               \
+  VMStatus x(VM *vm, Value *slots) {                                           \
     auto num = slots[0];                                                       \
     if (num.is_int()) {                                                        \
       vm->return_value = Value(std::x(num.as_int()));                          \
-      return VMStatus::Success;                                                             \
+      return VMStatus::Success;                                                \
     } else if (num.is_float()) {                                               \
       vm->return_value = Value(std::x(num.as_float()));                        \
-      return VMStatus::Success;                                                             \
+      return VMStatus::Success;                                                \
     } else {                                                                   \
       THROW("TypeError", "The first argument must be a Int or Float, not "     \
                              << slots[0].type_string());                       \
@@ -579,32 +579,42 @@ static VMStatus task_construct(VM *vm, Value *slots) {
   if (slots[1].is_object() && slots[1].as_object()->is<Function>()) {
     Task *t = vm->allocate<Task>(slots[1].as_object()->as<Function>(), false);
     vm->return_value = Value(t);
-    vm->tasks_queue.push_back({t,Value::null()});
+    vm->tasks_queue.push_back({t, Value::null(),false});
     return VMStatus::Success;
   } else
     THROW("TypeError", "The first argument must be a Function, not "
                            << slots[1].type_string());
 }
 
-static VMStatus task_join(VM* vm,Value* slots){
-  auto task_to_wait_for=slots[0].as_object()->as<Task>();
-  if(task_to_wait_for==vm->current_task)
-    THROW("Error","Cannot join on the currently running task");
-  if(!task_to_wait_for->task_return_value.is_empty()){
-    vm->return_value=task_to_wait_for->task_return_value;
+static VMStatus task_join(VM *vm, Value *slots) {
+  auto task_to_wait_for = slots[0].as_object()->as<Task>();
+  if(task_to_wait_for->poisoned)
+    THROW("Error","Cannot join on poisoned task");
+  if (task_to_wait_for == vm->current_task)
+    THROW("Error", "Cannot join on the currently running task");
+  switch (task_to_wait_for->status) {
+  case VMStatus::Success:
+    vm->return_value = task_to_wait_for->task_return_value;
     return VMStatus::Success;
+  case VMStatus::Error:
+    vm->return_value = task_to_wait_for->task_return_value;
+    return VMStatus::Error;
+  case VMStatus::Suspend: {
+    auto it = vm->tasks_waiting_to_join.find(task_to_wait_for);
+    if (it == vm->tasks_waiting_to_join.end()) {
+      vm->tasks_waiting_to_join.insert({task_to_wait_for, {vm->current_task}});
+    } else {
+      it->second.push_back(vm->current_task);
+    }
+    return VMStatus::Suspend;
   }
-  auto it=vm->tasks_waiting_to_join.find(task_to_wait_for);
-  if(it==vm->tasks_waiting_to_join.end()){
-    vm->tasks_waiting_to_join.insert({task_to_wait_for,{vm->current_task}});
-  }else{
-    it->second.push_back(vm->current_task);
-  }
-  return VMStatus::Suspend;
+  default:
+    unreachable();
+  };
 }
 
-static VMStatus suspendCurrentTask(VM* vm,Value*){
-  vm->tasks_queue.push_back({vm->current_task,Value::null()});
+static VMStatus suspendCurrentTask(VM *vm, Value *) {
+  vm->tasks_queue.push_back({vm->current_task, Value::null(),false});
   return VMStatus::Suspend;
 }
 #undef THROW
@@ -701,7 +711,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Float, isNaN, 0, float_isnan);
   DECL_NATIVE_METHOD(String, len, 0, string_len);
   DECL_NATIVE_METHOD(Task, construct, 1, task_construct);
-  DECL_NATIVE_METHOD(Task,join,0,task_join);
+  DECL_NATIVE_METHOD(Task, join, 0, task_join);
 
   create_module("vm");
   create_module("math");
@@ -712,7 +722,8 @@ void VM::declare_native_builtins() {
   declare_native_function("vm", "ecall", true, 2, native_builtins::ecall);
   declare_native_function("vm", "generateStackTrace", true, 1,
                           native_builtins::generateStackTrace);
-  declare_native_function("vm","suspendCurrentTask",true,0,native_builtins::suspendCurrentTask);
+  declare_native_function("vm", "suspendCurrentTask", true, 0,
+                          native_builtins::suspendCurrentTask);
 
 #define FN(x) declare_native_function("math", #x, true, 1, native_builtins::x);
 

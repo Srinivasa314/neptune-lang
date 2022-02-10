@@ -86,18 +86,23 @@ VMStatus VM::run(){
     throw std::runtime_error("Cannot call run() while VM is already running");
 
   while(!tasks_queue.empty()){
-    auto pair=tasks_queue.front();
-    Task* task=pair.first;
-    Value v=pair.second;
+    TaskQueueEntry entry=tasks_queue.front();
     tasks_queue.pop_front();
-    auto status=run(task,v);
+    auto status=run(entry);
     if(status==VMStatus::Error){
       is_running = false;
-      tasks_queue.clear();
+      while(!tasks_queue.empty()){
+        tasks_queue.front().task->poisoned=true;
+        tasks_queue.pop_front();
+      };
+      for(auto pair:tasks_waiting_to_join){
+        for(auto task:pair.second)
+          task->poisoned=true;
+      }
       tasks_waiting_to_join.clear();
       return VMStatus::Error;
     }else if(status==VMStatus::Success){
-      if(task->is_main_task){
+      if(entry.task->is_main_task){
         is_running = false;
         tasks_queue.clear();
         tasks_waiting_to_join.clear();
@@ -108,7 +113,7 @@ VMStatus VM::run(){
   return VMStatus::Suspend;
 }
 
-VMStatus VM::run(Task *task, Value accumulator) {
+VMStatus VM::run(TaskQueueEntry entry) {
 #ifdef COMPUTED_GOTO
   static void *dispatch_table[] = {
 #define OP(x) &&HANDLER(x),
@@ -123,11 +128,24 @@ VMStatus VM::run(Task *task, Value accumulator) {
   };
 #endif
 
+  Value accumulator=entry.accumulator;
+  Task* task=entry.task;
   current_task = task;
   auto frame = task->frames.back();
   const uint8_t *ip = frame.ip;
   Value *bp = frame.bp;
   Value *constants = frame.f->function_info->constants.data();
+  if(entry.uncaught_exception){
+      if ((ip = throw_(accumulator)) != nullptr) {
+    bp = task->frames.back().bp;
+    auto f = task->frames.back().f;
+    constants = f->function_info->constants.data();
+    DISPATCH();
+  } else {
+    goto throw_end;
+  }
+  }
+
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -194,22 +212,24 @@ VMStatus VM::run(Task *task, Value accumulator) {
     unreachable();
 #endif
   } 
+  throw_end:
+  task->status=VMStatus::Error;
 end:{
-  if(task->is_main_task)
-    return_value = accumulator;
+  //???
+  current_task=nullptr;
+  task->task_return_value=accumulator;
   auto it=tasks_waiting_to_join.find(task);
   if(it!=tasks_waiting_to_join.end()){
+    if(task->status==VMStatus::Error)
+      return_value=Value::null();
     for(auto task_to_resume:it->second)
-      tasks_queue.push_back({task_to_resume,accumulator});
+      tasks_queue.push_back({task_to_resume,accumulator,(task->status==VMStatus::Error)});
     tasks_waiting_to_join.erase(it);
+    return VMStatus::Success;
+  }else{
+    return task->status;
   }
-  task->task_return_value=accumulator;
-  current_task=nullptr;
-  return VMStatus::Success;
 }
-throw_end:
-current_task=nullptr;
-  return VMStatus::Error;
 }
 #undef READ
 #undef THROW
@@ -520,10 +540,10 @@ void VM::collect() {
   mark(current_task);
   for (auto efunc : efuncs)
     mark(efunc.first);
-  for (auto pair : tasks_queue){
-    mark(pair.first);
-    if(pair.second.is_object())
-      mark(pair.second.as_object());
+  for (auto entry : tasks_queue){
+    mark(entry.task);
+    if(entry.accumulator.is_object())
+      mark(entry.accumulator.as_object());
   }
   for(auto &pair:tasks_waiting_to_join){
     mark(pair.first);
@@ -993,7 +1013,7 @@ std::string VM::report_error(Value error) {
 }
 
 Task::Task(Function *f, bool is_main_task)
-    : task_return_value(Value(nullptr)),open_upvalues(nullptr), is_main_task(is_main_task) {
+    : task_return_value(Value(nullptr)),open_upvalues(nullptr), is_main_task(is_main_task),status(VMStatus::Suspend),poisoned(false) {
   stack_size = f->function_info->max_registers;
   if (stack_size == 0)
     stack_size = 1;
