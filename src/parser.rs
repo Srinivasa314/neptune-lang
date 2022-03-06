@@ -64,6 +64,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::And => Precedence::And,
         TokenType::Break => Precedence::None,
         TokenType::Class => Precedence::None,
+        TokenType::Default => Precedence::None,
         TokenType::Continue => Precedence::None,
         TokenType::Const => Precedence::None,
         TokenType::Else => Precedence::None,
@@ -78,6 +79,7 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::Or => Precedence::Or,
         TokenType::Return => Precedence::None,
         TokenType::Super => Precedence::None,
+        TokenType::Switch => Precedence::None,
         TokenType::This => Precedence::None,
         TokenType::True => Precedence::None,
         TokenType::Let => Precedence::None,
@@ -222,6 +224,16 @@ pub struct Function {
     pub arguments: Vec<String>,
     pub body: Vec<Statement>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Literal {
+    Int(i32),
+    Float(f64),
+    String(String),
+    Symbol(String),
+    Default,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     Expr(Expr),
@@ -281,6 +293,11 @@ pub enum Statement {
         error_var: String,
         catch_block: Vec<Statement>,
         catch_end: u32,
+    },
+    Switch {
+        line: u32,
+        expression: Expr,
+        cases: Vec<(Vec<Literal>, Statement)>,
     },
     Class {
         line: u32,
@@ -452,6 +469,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::And => None,
             TokenType::Break => None,
             TokenType::Class => None,
+            TokenType::Default => None,
             TokenType::Continue => None,
             TokenType::Const => None,
             TokenType::Else => None,
@@ -466,6 +484,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Or => None,
             TokenType::Return => None,
             TokenType::Super => Some(self.super_call()),
+            TokenType::Switch => None,
             TokenType::This => Some(Ok(Expr::This {
                 line: self.previous.line,
             })),
@@ -527,6 +546,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::And => self.binary(left),
             TokenType::Break => unreachable!(),
             TokenType::Class => unreachable!(),
+            TokenType::Default => unreachable!(),
             TokenType::Continue => unreachable!(),
             TokenType::Const => unreachable!(),
             TokenType::Else => unreachable!(),
@@ -541,6 +561,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             TokenType::Or => self.binary(left),
             TokenType::Return => unreachable!(),
             TokenType::Super => unreachable!(),
+            TokenType::Switch => unreachable!(),
             TokenType::This => unreachable!(),
             TokenType::True => unreachable!(),
             TokenType::Let => unreachable!(),
@@ -885,6 +906,8 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 Ok(Statement::Throw(self.expression()?))
             } else if self.match_token(TokenType::Try) {
                 self.try_catch()
+            } else if self.match_token(TokenType::Switch) {
+                self.switch()
             } else if self.match_token(TokenType::Export) {
                 if self.match_token(TokenType::Fun) {
                     Ok(Statement::Function {
@@ -1200,6 +1223,57 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             error_var,
             catch_block,
             catch_end,
+        })
+    }
+    fn switch(&mut self) -> CompileResult<Statement> {
+        let expression = self.expression()?;
+        let line = self.current.line;
+        let mut cases = vec![];
+        self.ignore_newline();
+        self.consume(
+            TokenType::LeftBrace,
+            "Expect { after expression in switch statement".into(),
+        )?;
+        self.ignore_newline();
+        loop {
+            let mut literals = vec![];
+            if self.current.token_type == TokenType::RightBrace {
+                self.advance();
+                break;
+            }
+            loop {
+                match &self.current.token_type {
+                    TokenType::IntLiteral(i) => literals.push(Literal::Int(*i)),
+                    TokenType::FloatLiteral(f) => literals.push(Literal::Float(*f)),
+                    TokenType::String(s) => literals.push(Literal::String(s.clone())),
+                    TokenType::Symbol(s) => literals.push(Literal::Symbol(s.clone())),
+                    TokenType::Default => literals.push(Literal::Default),
+                    _ => return Err(self.error_at_current("Expect literal or default".to_string())),
+                }
+                self.advance();
+                match self.current.token_type {
+                    TokenType::Or => {
+                        self.advance();
+                        continue;
+                    }
+                    TokenType::Colon => {
+                        self.advance();
+                        break;
+                    }
+                    _ => return Err(self.error_at_current("Expect : or or".to_string())),
+                }
+            }
+            self.ignore_newline();
+            let statement = self
+                .statement(false, false)
+                .ok_or(self.error_at_current("Expect statement".to_string()))?;
+            cases.push((literals, statement));
+            self.ignore_newline();
+        }
+        Ok(Statement::Switch {
+            line,
+            expression,
+            cases,
         })
     }
 

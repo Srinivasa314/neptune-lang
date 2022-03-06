@@ -61,6 +61,7 @@ pub enum TokenType {
     Class,
     Const,
     Continue,
+    Default,
     Else,
     Export,
     Extends,
@@ -74,6 +75,7 @@ pub enum TokenType {
     Or,
     Return,
     Super,
+    Switch,
     This,
     True,
     Let,
@@ -94,6 +96,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "class" => TokenType::Class,
     "continue" => TokenType::Continue,
     "const" => TokenType::Const,
+    "default"=>TokenType::Default,
     "else" => TokenType::Else,
     "export" => TokenType::Export,
     "extends" => TokenType::Extends,
@@ -106,6 +109,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "or" => TokenType::Or,
     "return" => TokenType::Return,
     "super" => TokenType::Super,
+    "switch" => TokenType::Switch,
     "this" => TokenType::This,
     "true" => TokenType::True,
     "let" => TokenType::Let,
@@ -273,10 +277,10 @@ impl<'src> Scanner<'src> {
                 /*
                 Automatic Statement Seperator Insertion
                 When a newline is encountered if its previous token is RightParen|RightBrace|Identifier|IntLiteral|FloatLiteral|False|Null|Return|Super|This|True|EndString|Symbol
-                and it is not followed by whitespaces and a dot (to allow method chaining) 
-                and it is not inside brackets(except curly brackets to allow blocks) 
+                and it is not followed by whitespaces and a dot (to allow method chaining)
+                and it is not inside brackets(except curly brackets to allow blocks)
                 then insert a statement separator.
-                
+
                 Statements like if,for,while,class,etc. can have a newline after curly bracket because the parser handles it.
                 Similarily the parser handles newlines in object literals and map literals.
                 */
@@ -561,7 +565,7 @@ impl<'src> Scanner<'src> {
             let token = if errors.is_empty() {
                 match parse_int::parse::<u32>(string) {
                     // -1 is a sentinel value used to denote 2147483648
-                    // This number needs special treatment as -2147483648 
+                    // This number needs special treatment as -2147483648
                     // is a valid literal but 2147483648 isnt
                     Ok(f) => match f {
                         0..=2147483647 => f as i32,

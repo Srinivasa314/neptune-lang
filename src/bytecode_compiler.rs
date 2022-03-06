@@ -1303,6 +1303,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
+                Statement::Switch { .. } => todo!(),
             };
             Ok(())
         })() {
@@ -1831,9 +1832,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             Expr::This { line } => {
                 if self.bctype == BytecodeType::Method || self.bctype == BytecodeType::Constructor {
-                    Ok(ExprResult::Register(
-                        0,
-                    ))
+                    Ok(ExprResult::Register(0))
                 } else {
                     Err(CompileError {
                         message: "Cannot use this outside method".to_string(),
