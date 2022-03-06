@@ -22,22 +22,31 @@ struct Frame {
   const uint8_t *ip;
 };
 
+class Channel:public Object{
+public:
+  std::deque<Value> queue;
+  std::deque<Task*> wait_list;
+  void send(Value v,VM* vm);
+  static constexpr Type type=Type::Channel;
+};
+
 class Task : public Object {
 public:
   VMStatus status;
-  bool poisoned;
-  Value task_return_value;
+  Value uncaught_exception;
   std::unique_ptr<Value[]> stack;
   UpValue *open_upvalues;
   size_t stack_size;
   Value *stack_top;
   std::vector<Frame> frames;
-  bool is_main_task;
+  std::vector<Channel*> monitors;
+  String* name;
+  HashSet<Task*,PointerHash<Task>,std::equal_to<Task*>,NullptrEmpty<Task>,mi_stl_allocator<Task*>> links;
 
   static constexpr Type type = Type::Task;
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
-  Task(Function* f,bool is_main_task);
+  Task(Function* f);
 };
 
 struct TaskQueueEntry{
@@ -49,6 +58,7 @@ struct TaskQueueEntry{
 class VM {
 public:
   Task *current_task;
+  Task* main_task;
 
 private:
   HashMap<String *, Module *, StringHasher, StringEquality,
@@ -67,19 +77,18 @@ private:
   bool is_running;
   std::ostringstream throw_message;
   NativeFunction *last_native_function;
-  BuiltinSymbols builtin_symbols;
   template <typename O> O *manage(O *object);
 
 public:
   BuiltinClasses builtin_classes;
+  BuiltinSymbols builtin_symbols;
   std::vector<Value> temp_roots;
   SymbolMap<EFunc> efuncs;
   Value return_value;
   std::mt19937_64 rng;
   std::deque<TaskQueueEntry> tasks_queue;
-  HashMap<Task*,std::vector<Task*>,PointerHash<Task>,std::equal_to<Task*>,NullptrEmpty<Task>,mi_stl_allocator<std::pair<Task*,std::vector<Task*>>>> tasks_waiting_to_join;
   Value to_string(Value val);
-  VMStatus run(TaskQueueEntry entry);
+  void run(TaskQueueEntry entry);
   VMStatus run();
   bool add_module_variable(StringSlice module, StringSlice name, bool mutable_,
                            bool exported) const;
@@ -121,6 +130,7 @@ public:
   Value create_error(StringSlice type, StringSlice message);
   Value create_error(StringSlice module, StringSlice type, StringSlice message);
   std::string report_error(Value error);
+  void kill(Task* task,Value uncaught_exception);
   VM();
   ~VM();
 };

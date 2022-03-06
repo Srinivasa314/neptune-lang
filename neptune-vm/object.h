@@ -41,7 +41,8 @@ enum class Type : uint8_t {
   Range,
   ArrayIterator,
   MapIterator,
-  StringIterator
+  StringIterator,
+  Channel
 };
 class Class;
 class Object {
@@ -236,15 +237,15 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator,
-      *StringIterator;
+      *StringIterator,*Channel;
   BuiltinClasses() {
     Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
         Map = Function = Module = Task = Range = ArrayIterator = MapIterator =
-            StringIterator = nullptr;
+            StringIterator = Channel=nullptr;
   }
 };
 struct BuiltinSymbols {
-  Symbol *construct, *message, *stack;
-  BuiltinSymbols() { construct = message = stack = nullptr; }
+  Symbol *construct, *message, *stack,*task,*finished,*running,*killed;
+  BuiltinSymbols() { construct = message = stack = task =finished=running=killed= nullptr; }
 };
 } // namespace neptune_vm

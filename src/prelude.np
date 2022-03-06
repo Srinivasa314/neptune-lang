@@ -1,12 +1,13 @@
-const {ecall, generateStackTrace} = _getModule('vm')
+const {ecall, generateStackTrace, currentTask} = _getModule('vm')
 
 export class Error {
     construct(message) {
         this.message = message
         this.stack = generateStackTrace(1)
+        this.task = currentTask()
     }
     toString() {
-        return '\(this.getClass().name()): \(this.message)\n\(this.stack)'
+        return 'In \(this.task): \(this.getClass().name()): \(this.message)\n\(this.stack)'
     }
 }
 

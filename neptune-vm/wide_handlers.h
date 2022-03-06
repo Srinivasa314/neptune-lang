@@ -148,7 +148,6 @@ callop : {
       }else if(status==VMStatus::Suspend){
         task->frames.back().ip = ip;
         last_native_function = nullptr;    
-        return VMStatus::Suspend;
       }else{
         unreachable();
       }

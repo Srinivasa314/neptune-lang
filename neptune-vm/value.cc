@@ -183,6 +183,8 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
     else
       return false;
   } else if (is_object() && rhs.is_object()) {
+    if(as_object()->is<Symbol>()&&rhs.as_object()->is<Symbol>())
+      return as_object()==rhs.as_object();
     if (as_object()->is<String>() && rhs.as_object()->is<String>()) {
       return StringEquality{}(as_object()->as<String>(),
                               rhs.as_object()->as<String>());

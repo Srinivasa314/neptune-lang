@@ -84,6 +84,8 @@ const char *Object::type_string() const {
     return "MapIterator";
   case Type::StringIterator:
     return "StringIterator";
+  case Type::Channel:
+    return "Channel";
   default:
     unreachable();
   }
@@ -200,7 +202,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
     vf.os << "<Class " << obj->as<Class>()->name << '>';
     break;
   case Type::Task:
-    vf.os << "<Task>";
+    vf.os << "<Task "<<obj->as<Task>()->name<<'>';
     break;
   case Type::Instance: {
     if (obj->as<Instance>()->class_->name != "Object")
@@ -241,6 +243,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::StringIterator:
     vf.os << "<StringIterator>";
+    break;
+  case Type::Channel:
+    vf.os << "<Channel>";
     break;
   default:
     unreachable();
