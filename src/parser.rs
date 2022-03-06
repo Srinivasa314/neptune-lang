@@ -1248,6 +1248,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                     TokenType::String(s) => literals.push(Literal::String(s.clone())),
                     TokenType::Symbol(s) => literals.push(Literal::Symbol(s.clone())),
                     TokenType::Default => literals.push(Literal::Default),
+                    TokenType::Interpolation => {
+                        return Err(
+                            self.error_at_current("Only string literals can be used".to_string())
+                        )
+                    }
                     _ => return Err(self.error_at_current("Expect literal or default".to_string())),
                 }
                 self.advance();

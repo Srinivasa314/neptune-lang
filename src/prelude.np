@@ -77,6 +77,12 @@ export class ModuleNotFoundError extends Error{
     }
 }
 
+export class DeadlockError extends Error{
+    construct(message) {
+        super.construct(message)
+    }
+}
+
 export fun import(moduleName) {
     if moduleName.getClass() !== String {
         throw new TypeError('The first argument must be a String, not \(moduleName.getClass().name())')

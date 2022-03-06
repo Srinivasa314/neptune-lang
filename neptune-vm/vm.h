@@ -2,12 +2,12 @@
 #include "hash_table.h"
 #include "native_function.h"
 #include "rust/cxx.h"
+#include <deque>
+#include <functional>
 #include <memory>
 #include <random>
 #include <sstream>
 #include <string>
-#include <deque>
-#include <functional>
 
 constexpr size_t INITIAL_FRAMES = 4;
 constexpr unsigned int HEAP_GROWTH_FACTOR = 2;
@@ -22,12 +22,12 @@ struct Frame {
   const uint8_t *ip;
 };
 
-class Channel:public Object{
+class Channel : public Object {
 public:
   std::deque<Value> queue;
-  std::deque<Task*> wait_list;
-  void send(Value v,VM* vm);
-  static constexpr Type type=Type::Channel;
+  std::deque<Task *> wait_list;
+  void send(Value v, VM *vm);
+  static constexpr Type type = Type::Channel;
 };
 
 class Task : public Object {
@@ -39,18 +39,20 @@ public:
   size_t stack_size;
   Value *stack_top;
   std::vector<Frame> frames;
-  std::vector<Channel*> monitors;
-  String* name;
-  HashSet<Task*,PointerHash<Task>,std::equal_to<Task*>,NullptrEmpty<Task>,mi_stl_allocator<Task*>> links;
+  std::vector<Channel *> monitors;
+  String *name;
+  HashSet<Task *, PointerHash<Task>, std::equal_to<Task *>, NullptrEmpty<Task>,
+          mi_stl_allocator<Task *>>
+      links;
 
   static constexpr Type type = Type::Task;
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
-  Task(Function* f);
+  Task(Function *f);
 };
 
-struct TaskQueueEntry{
-  Task* task;
+struct TaskQueueEntry {
+  Task *task;
   Value accumulator;
   bool uncaught_exception;
 };
@@ -58,7 +60,7 @@ struct TaskQueueEntry{
 class VM {
 public:
   Task *current_task;
-  Task* main_task;
+  Task *main_task;
 
 private:
   HashMap<String *, Module *, StringHasher, StringEquality,
@@ -130,7 +132,8 @@ public:
   Value create_error(StringSlice type, StringSlice message);
   Value create_error(StringSlice module, StringSlice type, StringSlice message);
   std::string report_error(Value error);
-  void kill(Task* task,Value uncaught_exception);
+  void kill(Task *task, Value uncaught_exception);
+  rust::String kill_main_task(StringSlice error, StringSlice message) const;
   VM();
   ~VM();
 };

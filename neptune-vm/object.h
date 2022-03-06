@@ -237,15 +237,17 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator,
-      *StringIterator,*Channel;
+      *StringIterator, *Channel;
   BuiltinClasses() {
     Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
         Map = Function = Module = Task = Range = ArrayIterator = MapIterator =
-            StringIterator = Channel=nullptr;
+            StringIterator = Channel = nullptr;
   }
 };
 struct BuiltinSymbols {
-  Symbol *construct, *message, *stack,*task,*finished,*running,*killed;
-  BuiltinSymbols() { construct = message = stack = task =finished=running=killed= nullptr; }
+  Symbol *construct, *message, *stack, *task, *finished, *running, *killed;
+  BuiltinSymbols() {
+    construct = message = stack = task = finished = running = killed = nullptr;
+  }
 };
 } // namespace neptune_vm

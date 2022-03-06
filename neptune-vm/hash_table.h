@@ -66,8 +66,7 @@ public:
     return const_cast<HashTable *>(this)->find(key);
   }
 
-  template <typename Key>
-  ALWAYS_INLINE iterator find(Key key) {
+  template <typename Key> ALWAYS_INLINE iterator find(Key key) {
     uint32_t index = Hash{}(key) & (capacity - 1);
     for (uint32_t i = index;; i = (i + 1) & (capacity - 1)) {
       if (likely(Equal{}(entries[i], key))) {

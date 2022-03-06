@@ -183,8 +183,8 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
     else
       return false;
   } else if (is_object() && rhs.is_object()) {
-    if(as_object()->is<Symbol>()&&rhs.as_object()->is<Symbol>())
-      return as_object()==rhs.as_object();
+    if (as_object()->is<Symbol>() && rhs.as_object()->is<Symbol>())
+      return as_object() == rhs.as_object();
     if (as_object()->is<String>() && rhs.as_object()->is<String>()) {
       return StringEquality{}(as_object()->as<String>(),
                               rhs.as_object()->as<String>());
@@ -272,11 +272,10 @@ static uint32_t intHash(uint64_t key) {
   return static_cast<uint32_t>(key);
 }
 
-template<typename T>
-uint32_t PointerHash<T>::operator()(T* ptr)const{
-  if(sizeof(ptr)==sizeof(uint64_t)){
+template <typename T> uint32_t PointerHash<T>::operator()(T *ptr) const {
+  if (sizeof(ptr) == sizeof(uint64_t)) {
     return intHash(uint64_t(uintptr_t(ptr)));
-  }else
+  } else
     return intHash(uint32_t(uintptr_t(ptr)));
 }
 

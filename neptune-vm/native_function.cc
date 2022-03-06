@@ -7,7 +7,7 @@
 namespace neptune_vm {
 void EFuncContext::push(Value v) {
   if (task->stack_top == task->stack.get() + task->stack_size)
-    arg = task->grow_stack(arg,1);
+    arg = task->grow_stack(arg, 1);
   *task->stack_top = v;
   task->stack_top++;
 }

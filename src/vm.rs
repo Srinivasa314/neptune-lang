@@ -189,7 +189,7 @@ mod ffi {
     enum VMStatus {
         Success,
         Error,
-        Suspend
+        Suspend,
     }
 
     #[derive(Debug)]
@@ -291,6 +291,7 @@ mod ffi {
             data: *mut Data,
             free_data: *mut FreeDataCallback,
         ) -> bool;
+        fn kill_main_task(self: &VM, error: StringSlice, message: StringSlice) -> String;
 
         fn push_int(self: &mut EFuncContext, i: i32);
         fn push_float(self: &mut EFuncContext, f: f64);
@@ -354,11 +355,12 @@ where
     let callback = &mut *(data as *mut F);
     // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
     if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(&*cx.0.vm, cx)))
-        .unwrap_or_else(|_| std::process::abort()) {
-            VMStatus::Success
-        }else{
-            VMStatus::Error
-        }
+        .unwrap_or_else(|_| std::process::abort())
+    {
+        VMStatus::Success
+    } else {
+        VMStatus::Error
+    }
 }
 
 // data must contain a valid pointer to a boxed callback of type F and must only be called once

@@ -485,3 +485,40 @@ assert_eq(s,16)
 
 assert_failed(||import(1),TypeError,"The first argument must be a String, not Int")
 assert_eq(import("assert.np").assert_eq,assert_eq)
+
+let ch=new Channel()
+ch.send(@a)
+ch.send(@b)
+assert_eq(ch.recv(),@a)
+assert_eq(ch.recv(),@b)
+
+let {currentTask, suspendCurrentTask} = import("vm")
+
+let t=spawn(||{})
+t.setName('abc')
+assert_eq(t.name(),'abc')
+t.monitor(ch)
+assert_eq(ch.recv(),t)
+assert_eq(t.status(),@finished)
+
+t=spawn(||{})
+assert_eq(t.status(),@running)
+t.kill(new Error('abc'))
+assert_eq(t.status(),@killed)
+assert_eq(t.getUncaughtException().message,'abc')
+let t3=null
+t=spawn(||
+{   
+    assert_eq(currentTask(),t)
+    t3=spawn_link(||{})
+    throw new Error('def')
+})
+let t2=spawn(||{})
+t.link(t2)
+suspendCurrentTask()
+assert_eq(t.status(),@killed)
+assert_eq(t.getUncaughtException().message,'def')
+assert_eq(t2.status(),@killed)
+assert_eq(t2.getUncaughtException(),t.getUncaughtException())
+assert_eq(t3.status(),@killed)
+assert_eq(t3.getUncaughtException(),t.getUncaughtException())

@@ -251,6 +251,10 @@ impl Neptune {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
+                VMStatus::Suspend => Err(InterpretError::UncaughtException(
+                    self.vm
+                        .kill_main_task("DeadlockError".into(), "All tasks were asleep".into()),
+                )),
                 _ => unreachable!(),
             },
             Err(e) => Err(InterpretError::CompileError(e)),
@@ -395,7 +399,7 @@ mod tests {
         if let InterpretError::UncaughtException(e) =
             n.exec("<script>", "throw new Error('abc')").unwrap_err()
         {
-            assert_eq!(e, "Error: abc\nat <script> (<script>:1)\n");
+            assert_eq!(e, "In <Task> Error: abc\nat <script> (<script>:1)\n");
         } else {
             panic!("Expected error");
         }

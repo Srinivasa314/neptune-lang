@@ -62,7 +62,7 @@ handler(Return, {
   task->frames.pop_back();
   if (unlikely(task->frames.empty())) {
     task->stack_top = task->stack.get();
-    task->status=VMStatus::Success;
+    task->status = VMStatus::Success;
     goto end;
   } else {
     auto frame = task->frames.back();

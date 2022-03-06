@@ -64,9 +64,9 @@ VM::VM()
   builtin_symbols.message = intern("message");
   builtin_symbols.stack = intern("stack");
   builtin_symbols.task = intern("task");
-  builtin_symbols.finished=intern("finished");
-  builtin_symbols.running=intern("running");
-  builtin_symbols.killed=intern("killed");
+  builtin_symbols.finished = intern("finished");
+  builtin_symbols.running = intern("running");
+  builtin_symbols.killed = intern("killed");
   create_module("<prelude>");
   declare_native_builtins();
 }
@@ -84,23 +84,27 @@ VM::VM()
     }                                                                          \
   } while (0)
 
-VMStatus VM::run(){
-  //return if main task finished/rust needs to resume/error
-    if (is_running)
+VMStatus VM::run() {
+  // return if main task finished/rust needs to resume/error
+  if (is_running)
     throw std::runtime_error("Cannot call run() while VM is already running");
 
-  while(!tasks_queue.empty()){
-    TaskQueueEntry entry=tasks_queue.front();
+  while (!tasks_queue.empty()) {
+    TaskQueueEntry entry = tasks_queue.front();
     tasks_queue.pop_front();
-    if(entry.task->status==VMStatus::Error)
+    if (entry.task->status == VMStatus::Error)
       continue;
     run(entry);
-    if(main_task->status==VMStatus::Error){
-      main_task=nullptr;
+    if (main_task->status == VMStatus::Error) {
+      main_task = nullptr;
       is_running = false;
       return VMStatus::Error;
-    }else if(main_task->status==VMStatus::Success){
-      main_task=nullptr;
+    } else if (main_task->status == VMStatus::Success) {
+      for (auto link : main_task->links) {
+        if (link->status == VMStatus::Suspend)
+          kill(link, Value::null());
+      }
+      main_task = nullptr;
       is_running = false;
       return VMStatus::Success;
     }
@@ -123,24 +127,23 @@ void VM::run(TaskQueueEntry entry) {
   };
 #endif
 
-  Value accumulator=entry.accumulator;
-  Task* task=entry.task;
+  Value accumulator = entry.accumulator;
+  Task *task = entry.task;
   current_task = task;
   auto frame = task->frames.back();
   const uint8_t *ip = frame.ip;
   Value *bp = frame.bp;
   Value *constants = frame.f->function_info->constants.data();
-  if(entry.uncaught_exception){
-      if ((ip = throw_(accumulator)) != nullptr) {
-    bp = task->frames.back().bp;
-    auto f = task->frames.back().f;
-    constants = f->function_info->constants.data();
-    DISPATCH();
-  } else {
-    goto throw_end;
+  if (entry.uncaught_exception) {
+    if ((ip = throw_(accumulator)) != nullptr) {
+      bp = task->frames.back().bp;
+      auto f = task->frames.back().f;
+      constants = f->function_info->constants.data();
+      DISPATCH();
+    } else {
+      goto throw_end;
+    }
   }
-  }
-
 
   INTERPRET_LOOP {
     HANDLER(Wide) : DISPATCH_WIDE();
@@ -206,16 +209,17 @@ void VM::run(TaskQueueEntry entry) {
   default:
     unreachable();
 #endif
-  } 
-  throw_end:
-  kill(current_task,accumulator);
-  if(current_task!=main_task)
-    return_value=Value::null();
-    current_task=nullptr;
+  }
+throw_end:
+  kill(current_task, accumulator);
+  if (current_task != main_task)
+    return_value = Value::null();
+  current_task = nullptr;
+  return;
 end:
-  for(auto chan:current_task->monitors)
-    chan->send(Value(task),this);
-  current_task=nullptr;
+  for (auto chan : current_task->monitors)
+    chan->send(Value(task), this);
+  current_task = nullptr;
 }
 #undef READ
 #undef THROW
@@ -532,9 +536,9 @@ void VM::collect() {
   mark(main_task);
   for (auto efunc : efuncs)
     mark(efunc.first);
-  for (auto entry : tasks_queue){
+  for (auto entry : tasks_queue) {
     mark(entry.task);
-    if(entry.accumulator.is_object())
+    if (entry.accumulator.is_object())
       mark(entry.accumulator.as_object());
   }
   while (!greyobjects.empty()) {
@@ -631,7 +635,7 @@ void VM::trace(Object *o) {
   case Type::Task: {
     bytes_allocated += sizeof(Task);
     auto task = o->as<Task>();
-    if(task->uncaught_exception.is_object())
+    if (task->uncaught_exception.is_object())
       mark(task->uncaught_exception.as_object());
     for (auto v = task->stack.get(); v < task->stack_top; v++)
       if (v->is_object())
@@ -643,9 +647,9 @@ void VM::trace(Object *o) {
       mark(upvalue);
       upvalue = upvalue->next;
     }
-    for(auto chan:task->monitors)
+    for (auto chan : task->monitors)
       mark(chan);
-    for(auto link:task->links)
+    for (auto link : task->links)
       mark(link);
     mark(task->name);
     break;
@@ -678,14 +682,14 @@ void VM::trace(Object *o) {
     bytes_allocated += sizeof(StringIterator);
     mark(o->as<StringIterator>()->string);
     break;
-    case Type::Channel:
-    bytes_allocated+=sizeof(Channel);
-    for(auto val:o->as<Channel>()->queue)
-      if(val.is_object())
+  case Type::Channel:
+    bytes_allocated += sizeof(Channel);
+    for (auto val : o->as<Channel>()->queue)
+      if (val.is_object())
         mark(val.as_object());
-    for(auto waiter:o->as<Channel>()->wait_list)
+    for (auto waiter : o->as<Channel>()->wait_list)
       mark(waiter);
-      break;
+    break;
   default:
     unreachable();
   }
@@ -956,9 +960,7 @@ Value VM::create_error(StringSlice module, StringSlice type,
       error->properties.insert(
           {builtin_symbols.stack,
            Value(allocate<String>(std::move(stack_trace)))});
-      error->properties.insert({
-        builtin_symbols.task,Value(current_task)
-      });
+      error->properties.insert({builtin_symbols.task, Value(current_task)});
       temp_roots.pop_back();
       return Value(error);
     } else
@@ -988,9 +990,9 @@ std::string VM::report_error(Value error) {
     if (is_descendant(error_class, class_)) {
       std::ostringstream os;
       auto error_object = error.as_object()->as<Instance>();
-      auto task_iter=error_object->properties.find(builtin_symbols.task);
-      if(task_iter != error_object->properties.end()){
-        os<<"In "<<task_iter->second<<" ";
+      auto task_iter = error_object->properties.find(builtin_symbols.task);
+      if (task_iter != error_object->properties.end()) {
+        os << "In " << task_iter->second << " ";
       }
       os << class_->name << ": ";
       auto message_iter =
@@ -1023,7 +1025,8 @@ std::string VM::report_error(Value error) {
 }
 
 Task::Task(Function *f)
-    : uncaught_exception(Value(nullptr)),open_upvalues(nullptr),status(VMStatus::Suspend),name(nullptr) {
+    : status(VMStatus::Suspend), uncaught_exception(Value(nullptr)),
+      open_upvalues(nullptr), name(nullptr) {
   stack_size = f->function_info->max_registers;
   if (stack_size == 0)
     stack_size = 1;
@@ -1034,25 +1037,38 @@ Task::Task(Function *f)
   frames.push_back(Frame{&stack[0], f, f->function_info->bytecode.data()});
 }
 
-void Channel::send(Value v,VM* vm){
-  while(wait_list.back()->status==VMStatus::Error)
-      wait_list.pop_back();
-  if(wait_list.empty())
+void Channel::send(Value v, VM *vm) {
+  if (wait_list.empty())
     queue.push_back(v);
-  else{
-    vm->tasks_queue.push_back({wait_list.back(),v,false});
+  else {
+    while (wait_list.back()->status == VMStatus::Error)
+      wait_list.pop_back();
+    vm->tasks_queue.push_back({wait_list.back(), v, false});
     wait_list.pop_back();
   }
 }
 
-void VM::kill(Task* task,Value uncaught_exception){
-  if(task->status!=VMStatus::Suspend)
+void VM::kill(Task *task, Value uncaught_exception) {
+  if (task->status != VMStatus::Suspend)
     return;
-  task->status=VMStatus::Error;
-  task->uncaught_exception=uncaught_exception;
-  for(auto link:task->links)
-    kill(link,uncaught_exception);
-  for(auto chan:task->monitors)
-    chan->send(Value(task),this);
+  task->status = VMStatus::Error;
+  task->uncaught_exception = uncaught_exception;
+  for (auto link : task->links)
+    kill(link, uncaught_exception);
+  for (auto chan : task->monitors)
+    chan->send(Value(task), this);
+}
+
+rust::String VM::kill_main_task(StringSlice error, StringSlice message) const {
+  auto this_ = const_cast<VM *>(this);
+  if (main_task == nullptr) {
+    throw std::runtime_error("No main task is there");
+  }
+  this_->current_task = main_task;
+  auto err_val = this_->create_error(error, message);
+  this_->current_task = nullptr;
+  this_->kill(main_task, err_val);
+  auto s = this_->report_error(err_val);
+  return rust::String(std::move(s));
 }
 } // namespace neptune_vm

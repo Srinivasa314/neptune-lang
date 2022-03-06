@@ -576,7 +576,7 @@ static VMStatus string_len(VM *vm, Value *slots) {
 }
 
 static VMStatus suspendCurrentTask(VM *vm, Value *) {
-  vm->tasks_queue.push_back({vm->current_task, Value::null(),false});
+  vm->tasks_queue.push_back({vm->current_task, Value::null(), false});
   return VMStatus::Suspend;
 }
 
@@ -584,7 +584,7 @@ static VMStatus spawn(VM *vm, Value *slots) {
   if (slots[0].is_object() && slots[0].as_object()->is<Function>()) {
     Task *t = vm->allocate<Task>(slots[0].as_object()->as<Function>());
     vm->return_value = Value(t);
-    vm->tasks_queue.push_back({t, Value::null(),false});
+    vm->tasks_queue.push_back({t, Value::null(), false});
     vm->main_task->links.insert(t);
     return VMStatus::Success;
   } else
@@ -592,105 +592,113 @@ static VMStatus spawn(VM *vm, Value *slots) {
                            << slots[0].type_string());
 }
 
-static VMStatus spawn_link(VM* vm,Value* slots){
-  auto status=spawn(vm,slots);
-  if(status==VMStatus::Success){
-    auto task=vm->return_value.as_object()->as<Task>();
+static VMStatus spawn_link(VM *vm, Value *slots) {
+  auto status = spawn(vm, slots);
+  if (status == VMStatus::Success) {
+    auto task = vm->return_value.as_object()->as<Task>();
     task->links.insert(vm->current_task);
     vm->current_task->links.insert(task);
   }
   return status;
 }
 
-static VMStatus task_kill(VM* vm,Value* slots){
-  vm->kill(slots[0].as_object()->as<Task>(),slots[1]);
+static VMStatus task_kill(VM *vm, Value *slots) {
+  vm->kill(slots[0].as_object()->as<Task>(), slots[1]);
   return VMStatus::Success;
 }
 
-static VMStatus channel_construct(VM* vm,Value* slots){
+static VMStatus channel_construct(VM *vm, Value *) {
   vm->return_value = Value(vm->allocate<Channel>());
   return VMStatus::Success;
 }
 
-static VMStatus channel_send(VM* vm,Value* slots){
-  slots[0].as_object()->as<Channel>()->send(slots[1],vm);
-  vm->return_value=Value::null();
+static VMStatus channel_send(VM *vm, Value *slots) {
+  slots[0].as_object()->as<Channel>()->send(slots[1], vm);
+  vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
-static VMStatus channel_recv(VM* vm,Value* slots){
-  auto chan=slots[0].as_object()->as<Channel>();
-  if(chan->queue.empty()){
+static VMStatus channel_recv(VM *vm, Value *slots) {
+  auto chan = slots[0].as_object()->as<Channel>();
+  if (chan->queue.empty()) {
     chan->wait_list.push_back(vm->current_task);
     return VMStatus::Suspend;
-  }else{
-    vm->return_value=chan->queue.back();
-    chan->queue.pop_back();
+  } else {
+    vm->return_value = chan->queue.front();
+    chan->queue.pop_front();
     return VMStatus::Success;
   }
 }
 
-static VMStatus task_name(VM* vm,Value* slots){
-  auto name=slots[0].as_object()->as<Task>()->name;
-  if(name==nullptr)
-    vm->return_value=Value::null();
+static VMStatus task_name(VM *vm, Value *slots) {
+  auto name = slots[0].as_object()->as<Task>()->name;
+  if (name == nullptr)
+    vm->return_value = Value::null();
   else
-    vm->return_value=Value(name);
+    vm->return_value = Value(name);
   return VMStatus::Success;
 }
 
-static VMStatus task_setname(VM* vm,Value* slots){
-  if(slots[1].is_object()&&slots[1].as_object()->is<String>()){
-    slots[0].as_object()->as<Task>()->name=slots[1].as_object()->as<String>();
-  }else
+static VMStatus task_setname(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
+    slots[0].as_object()->as<Task>()->name = slots[1].as_object()->as<String>();
+    return VMStatus::Success;
+  } else
     THROW("TypeError", "The first argument must be a String, not "
                            << slots[1].type_string());
 }
 
-static VMStatus task_monitor(VM* vm,Value* slots){
-  if(slots[1].is_object()&&slots[1].as_object()->is<Channel>()){
-    auto task=slots[0].as_object()->as<Task>();
-    auto chan=slots[1].as_object()->as<Channel>();
-    if(task->status==VMStatus::Suspend)
+static VMStatus task_monitor(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<Channel>()) {
+    auto task = slots[0].as_object()->as<Task>();
+    auto chan = slots[1].as_object()->as<Channel>();
+    if (task->status == VMStatus::Suspend)
       slots[0].as_object()->as<Task>()->monitors.push_back(chan);
     else
-      chan->send(Value(task),vm);
-  }else
+      chan->send(Value(task), vm);
+    return VMStatus::Success;
+  } else
     THROW("TypeError", "The first argument must be a Channel, not "
                            << slots[1].type_string());
 }
 
-static VMStatus task_link(VM* vm,Value* slots){
-  if(slots[1].is_object()&&slots[1].as_object()->is<Task>()){
-    auto task0=slots[0].as_object()->as<Task>();
-    auto task1=slots[1].as_object()->as<Task>();
+static VMStatus task_link(VM *vm, Value *slots) {
+  if (slots[1].is_object() && slots[1].as_object()->is<Task>()) {
+    auto task0 = slots[0].as_object()->as<Task>();
+    auto task1 = slots[1].as_object()->as<Task>();
     task0->links.insert(task1);
     task1->links.insert(task0);
-  }else
-    THROW("TypeError", "The first argument must be a Task, not "
-                           << slots[1].type_string());
+    return VMStatus::Success;
+  } else
+    THROW("TypeError",
+          "The first argument must be a Task, not " << slots[1].type_string());
 }
 
-static VMStatus currentTask(VM* vm,Value*){
-  vm->return_value=Value(vm->current_task);
+static VMStatus currentTask(VM *vm, Value *) {
+  vm->return_value = Value(vm->current_task);
   return VMStatus::Success;
 }
 
-static VMStatus task_status(VM* vm,Value* slots){
-  switch(slots[0].as_object()->as<Task>()->status){
-    case VMStatus::Suspend:vm->return_value=Value(vm->builtin_symbols.running);
-    case VMStatus::Success:vm->return_value=Value(vm->builtin_symbols.finished);
-    case VMStatus::Error:vm->return_value=Value(vm->builtin_symbols.killed);
+static VMStatus task_status(VM *vm, Value *slots) {
+  switch (slots[0].as_object()->as<Task>()->status) {
+  case VMStatus::Suspend:
+    vm->return_value = Value(vm->builtin_symbols.running);
+    break;
+  case VMStatus::Success:
+    vm->return_value = Value(vm->builtin_symbols.finished);
+    break;
+  case VMStatus::Error:
+    vm->return_value = Value(vm->builtin_symbols.killed);
   }
   return VMStatus::Success;
 }
 
-static VMStatus task_get_uncaught_exception(VM* vm,Value* slots){
-  auto task=slots[0].as_object()->as<Task>();
-  if(task->status==VMStatus::Error)
-    vm->return_value=task->uncaught_exception;
+static VMStatus task_get_uncaught_exception(VM *vm, Value *slots) {
+  auto task = slots[0].as_object()->as<Task>();
+  if (task->status == VMStatus::Error)
+    vm->return_value = task->uncaught_exception;
   else
-    vm->return_value=Value::null();
+    vm->return_value = Value::null();
   return VMStatus::Success;
 }
 #undef THROW
@@ -787,16 +795,17 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Int, toFloat, 0, int_tofloat);
   DECL_NATIVE_METHOD(Float, isNaN, 0, float_isnan);
   DECL_NATIVE_METHOD(String, len, 0, string_len);
-  DECL_NATIVE_METHOD(Task,kill,0,task_kill);
-  DECL_NATIVE_METHOD(Channel,construct,0,channel_construct);
-  DECL_NATIVE_METHOD(Channel,send,1,channel_send);
-  DECL_NATIVE_METHOD(Channel,recv,1,channel_recv);
-  DECL_NATIVE_METHOD(Task,setName,1,task_setname);
-  DECL_NATIVE_METHOD(Task,name,0,task_name);
-  DECL_NATIVE_METHOD(Task,monitor,1,task_monitor);
-  DECL_NATIVE_METHOD(Task,link,1,task_link);
-  DECL_NATIVE_METHOD(Task,status,0,task_status);
-  DECL_NATIVE_METHOD(Task,getUncaughtException,0,task_get_uncaught_exception);
+  DECL_NATIVE_METHOD(Task, kill, 1, task_kill);
+  DECL_NATIVE_METHOD(Channel, construct, 0, channel_construct);
+  DECL_NATIVE_METHOD(Channel, send, 1, channel_send);
+  DECL_NATIVE_METHOD(Channel, recv, 0, channel_recv);
+  DECL_NATIVE_METHOD(Task, setName, 1, task_setname);
+  DECL_NATIVE_METHOD(Task, name, 0, task_name);
+  DECL_NATIVE_METHOD(Task, monitor, 1, task_monitor);
+  DECL_NATIVE_METHOD(Task, link, 1, task_link);
+  DECL_NATIVE_METHOD(Task, status, 0, task_status);
+  DECL_NATIVE_METHOD(Task, getUncaughtException, 0,
+                     task_get_uncaught_exception);
 
   create_module("vm");
   create_module("math");
@@ -809,9 +818,12 @@ void VM::declare_native_builtins() {
                           native_builtins::generateStackTrace);
   declare_native_function("vm", "suspendCurrentTask", true, 0,
                           native_builtins::suspendCurrentTask);
-  declare_native_function("vm","currentTask",true,0,native_builtins::currentTask);
-  declare_native_function("<prelude>","spawn",true,1,native_builtins::spawn);
-  declare_native_function("<prelude>","spawn_link",true,1,native_builtins::spawn);
+  declare_native_function("vm", "currentTask", true, 0,
+                          native_builtins::currentTask);
+  declare_native_function("<prelude>", "spawn", true, 1,
+                          native_builtins::spawn);
+  declare_native_function("<prelude>", "spawn_link", true, 1,
+                          native_builtins::spawn_link);
 
 #define FN(x) declare_native_function("math", #x, true, 1, native_builtins::x);
 

@@ -94,8 +94,8 @@ VMStatus FunctionInfoWriter::run() {
   vm->temp_roots.push_back(Value(function));
   auto task = vm->allocate<Task>(function);
   vm->temp_roots.pop_back();
-  vm->tasks_queue.push_back({task,Value::null(),false});
-  vm->main_task=task;
+  vm->tasks_queue.push_back({task, Value::null(), false});
+  vm->main_task = task;
   return vm->run();
 }
 

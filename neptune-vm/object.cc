@@ -202,7 +202,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
     vf.os << "<Class " << obj->as<Class>()->name << '>';
     break;
   case Type::Task:
-    vf.os << "<Task "<<obj->as<Task>()->name<<'>';
+    if (obj->as<Task>()->name != nullptr)
+      vf.os << "<Task " << escaped_string(*obj->as<Task>()->name) << '>';
+    else
+      vf.os << "<Task>";
     break;
   case Type::Instance: {
     if (obj->as<Instance>()->class_->name != "Object")

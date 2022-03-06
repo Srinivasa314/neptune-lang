@@ -115,7 +115,8 @@ callop : {
         bp = task->grow_stack(bp, f->function_info->max_registers);
       task->stack_top = bp + f->function_info->max_registers;
       ip = f->function_info->bytecode.data();
-      for (size_t i = callop_actual_nargs; i < f->function_info->max_registers; i++)
+      for (size_t i = callop_actual_nargs; i < f->function_info->max_registers;
+           i++)
         bp[i] = Value(nullptr);
       task->frames.push_back(Frame{bp, f, ip});
     } else if (accumulator.as_object()->is<NativeFunction>()) {
@@ -133,22 +134,25 @@ callop : {
       accumulator = return_value;
       return_value = Value::null();
       bp = bp + (task->stack_top - old_stack_top);
-      if(status==VMStatus::Success){
-        last_native_function = nullptr;    
-      } else if (status==VMStatus::Error) {
+      if (status == VMStatus::Success) {
+        last_native_function = nullptr;
+      } else if (status == VMStatus::Error) {
         task->frames.back().ip = ip;
         if ((ip = throw_(accumulator)) != nullptr) {
           bp = task->frames.back().bp;
           auto f = task->frames.back().f;
           constants = f->function_info->constants.data();
           DISPATCH();
-        } else{
+        } else {
           goto throw_end;
         }
-      }else if(status==VMStatus::Suspend){
+      } else if (status == VMStatus::Suspend) {
         task->frames.back().ip = ip;
-        last_native_function = nullptr;    
-      }else{
+        last_native_function = nullptr;
+        task->status = VMStatus::Suspend;
+        current_task = nullptr;
+        return;
+      } else {
         unreachable();
       }
     } else {
