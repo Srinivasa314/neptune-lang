@@ -134,7 +134,7 @@ public:
   Array() = default;
   explicit Array(size_t size);
   Array(size_t size, Value v);
-  std::vector<Value, mi_stl_allocator<Value>> inner;
+  vector<Value> inner;
   static constexpr Type type = Type::Array;
 };
 
@@ -145,12 +145,12 @@ struct ValueEmpty {
 
 template <typename T>
 using ValueMap = HashMap<Value, T, ValueHasher, ValueStrictEquality, ValueEmpty,
-                         mi_stl_allocator<std::pair<Value, T>>>;
+                         >;
 
 template <typename T>
 using SymbolMap =
     HashMap<Symbol *, T, StringHasher, StringEquality, NullptrEmpty<Symbol>,
-            mi_stl_allocator<std::pair<Symbol *, T>>>;
+            >;
 
 class Map : public Object {
 public:

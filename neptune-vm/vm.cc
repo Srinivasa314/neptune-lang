@@ -1068,6 +1068,7 @@ rust::String VM::kill_main_task(StringSlice error, StringSlice message) const {
   auto err_val = this_->create_error(error, message);
   this_->current_task = nullptr;
   this_->kill(main_task, err_val);
+  this_->main_task = nullptr;
   auto s = this_->report_error(err_val);
   return rust::String(std::move(s));
 }

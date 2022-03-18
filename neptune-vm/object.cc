@@ -255,10 +255,10 @@ void operator<<(ValueFormatter vf, Object *obj) {
   }
 }
 Array::Array(size_t size)
-    : inner(std::vector<Value, mi_stl_allocator<Value>>(size, Value::null())) {}
+    : inner(vector<Value>(size, Value::null())) {}
 
 Array::Array(size_t size, Value v)
-    : inner(std::vector<Value, mi_stl_allocator<Value>>(size, v)) {}
+    : inner(vector<Value>(size, v)) {}
 
 Map::Map(uint32_t size) : inner(size) {}
 Object *Class::find_method(Symbol *method) {

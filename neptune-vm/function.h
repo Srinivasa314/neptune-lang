@@ -33,13 +33,13 @@ public:
   static constexpr Type type = Type::FunctionInfo;
   std::string module;
   std::string name;
-  std::vector<uint8_t> bytecode;
-  std::vector<Value> constants;
-  std::vector<LineInfo> lines;
+  vector<uint8_t> bytecode;
+  vector<Value> constants;
+  vector<LineInfo> lines;
   uint16_t max_registers;
   uint8_t arity;
-  std::vector<UpvalueInfo> upvalues;
-  std::vector<ExceptionHandler> exception_handlers;
+  vector<UpvalueInfo> upvalues;
+  vector<ExceptionHandler> exception_handlers;
   FunctionInfo(StringSlice module, StringSlice name, uint8_t arity)
       : module(module.data, module.len), name(name.data, name.len),
         arity(arity) {}
