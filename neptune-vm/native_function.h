@@ -4,7 +4,7 @@
 namespace neptune_vm {
 class VM;
 
-using NativeFunctionCallback = VMStatus(VM *vm, Value *slots);
+using NativeFunctionCallback = VMStatus(VM *vm, Value *args);
 
 class NativeFunction : public Object {
   uint8_t arity;

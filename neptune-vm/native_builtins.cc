@@ -28,24 +28,24 @@ namespace native_builtins {
     return VMStatus::Error;                                                    \
   } while (0)
 
-static VMStatus object_tostring(VM *vm, Value *slots) {
-  vm->return_value = vm->to_string(slots[0]);
+static VMStatus object_tostring(VM *vm, Value *args) {
+  vm->return_value = vm->to_string(args[0]);
   return VMStatus::Success;
 }
 
-static VMStatus object_getclass(VM *vm, Value *slots) {
-  vm->return_value = Value(vm->get_class(slots[0]));
+static VMStatus object_getclass(VM *vm, Value *args) {
+  vm->return_value = Value(vm->get_class(args[0]));
   return VMStatus::Success;
 }
 
-static VMStatus class_name(VM *vm, Value *slots) {
+static VMStatus class_name(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<String>(slots[0].as_object()->as<Class>()->name));
+      Value(vm->allocate<String>(args[0].as_object()->as<Class>()->name));
   return VMStatus::Success;
 }
 
-static VMStatus class_getsuper(VM *vm, Value *slots) {
-  auto super = slots[0].as_object()->as<Class>()->super;
+static VMStatus class_getsuper(VM *vm, Value *args) {
+  auto super = args[0].as_object()->as<Class>()->super;
   if (super == nullptr)
     vm->return_value = Value::null();
   else
@@ -53,8 +53,8 @@ static VMStatus class_getsuper(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus array_pop(VM *vm, Value *slots) {
-  auto &arr = slots[0].as_object()->as<Array>()->inner;
+static VMStatus array_pop(VM *vm, Value *args) {
+  auto &arr = args[0].as_object()->as<Array>()->inner;
   if (arr.empty()) {
     THROW("IndexError", "Cannot pop from empty array");
   }
@@ -63,36 +63,36 @@ static VMStatus array_pop(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus array_push(VM *vm, Value *slots) {
-  slots[0].as_object()->as<Array>()->inner.push_back(slots[1]);
+static VMStatus array_push(VM *vm, Value *args) {
+  args[0].as_object()->as<Array>()->inner.push_back(args[1]);
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
-static VMStatus array_len(VM *vm, Value *slots) {
+static VMStatus array_len(VM *vm, Value *args) {
   vm->return_value = Value(
-      static_cast<int32_t>(slots[0].as_object()->as<Array>()->inner.size()));
+      static_cast<int32_t>(args[0].as_object()->as<Array>()->inner.size()));
   return VMStatus::Success;
 }
 
-static VMStatus array_insert(VM *vm, Value *slots) {
-  auto &arr = slots[0].as_object()->as<Array>()->inner;
-  if (slots[1].is_int()) {
-    auto index = slots[1].as_int();
+static VMStatus array_insert(VM *vm, Value *args) {
+  auto &arr = args[0].as_object()->as<Array>()->inner;
+  if (args[1].is_int()) {
+    auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) > arr.size())
       THROW("IndexError", "Array index out of range");
-    arr.insert(arr.begin() + index, slots[2]);
+    arr.insert(arr.begin() + index, args[2]);
     vm->return_value = Value::null();
     return VMStatus::Success;
   } else
     THROW("TypeError",
-          "Expected Int for array index got " << slots[1].type_string());
+          "Expected Int for array index got " << args[1].type_string());
 }
 
-static VMStatus array_remove(VM *vm, Value *slots) {
-  auto &arr = slots[0].as_object()->as<Array>()->inner;
-  if (slots[1].is_int()) {
-    auto index = slots[1].as_int();
+static VMStatus array_remove(VM *vm, Value *args) {
+  auto &arr = args[0].as_object()->as<Array>()->inner;
+  if (args[1].is_int()) {
+    auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) >= arr.size())
       THROW("IndexError", "Array index out of range");
     arr.erase(arr.begin() + index);
@@ -100,11 +100,11 @@ static VMStatus array_remove(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else
     THROW("TypeError",
-          "Expected Int for array index got " << slots[1].type_string());
+          "Expected Int for array index got " << args[1].type_string());
 }
 
-static VMStatus array_clear(VM *vm, Value *slots) {
-  slots[0].as_object()->as<Array>()->inner.clear();
+static VMStatus array_clear(VM *vm, Value *args) {
+  args[0].as_object()->as<Array>()->inner.clear();
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
@@ -134,10 +134,10 @@ static VMStatus string_construct(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus string_find(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
-    auto haystack = slots[0].as_object()->as<String>();
-    auto needle = slots[1].as_object()->as<String>();
+static VMStatus string_find(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<String>()) {
+    auto haystack = args[0].as_object()->as<String>();
+    auto needle = args[1].as_object()->as<String>();
     auto pos = String::find(haystack, needle, 0);
     if (pos == haystack->get_len())
       vm->return_value = Value(-1);
@@ -146,31 +146,31 @@ static VMStatus string_find(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else
     THROW("TypeError", "The first argument must be a String, not "
-                           << slots[1].type_string());
+                           << args[1].type_string());
 }
 
-static VMStatus string_replace(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<String>() &&
-      slots[2].is_object() && slots[2].as_object()->is<String>()) {
-    vm->return_value = Value(slots[0].as_object()->as<String>()->replace(
-        vm, slots[1].as_object()->as<String>(),
-        slots[2].as_object()->as<String>()));
+static VMStatus string_replace(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<String>() &&
+      args[2].is_object() && args[2].as_object()->is<String>()) {
+    vm->return_value = Value(args[0].as_object()->as<String>()->replace(
+        vm, args[1].as_object()->as<String>(),
+        args[2].as_object()->as<String>()));
     return VMStatus::Success;
   } else
     THROW("TypeError",
           "The first and second argument must be a String and String, not "
-              << slots[1].type_string() << " and " << slots[2].type_string());
+              << args[1].type_string() << " and " << args[2].type_string());
 }
 
-static VMStatus array_construct(VM *vm, Value *slots) {
-  if (slots[1].is_int()) {
-    if (slots[1].as_int() < 0)
+static VMStatus array_construct(VM *vm, Value *args) {
+  if (args[1].is_int()) {
+    if (args[1].as_int() < 0)
       THROW("Error", "The array size must be non negative");
-    vm->return_value = Value(vm->allocate<Array>(slots[1].as_int(), slots[2]));
+    vm->return_value = Value(vm->allocate<Array>(args[1].as_int(), args[2]));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
-          "The first argument must be a Int, not " << slots[1].type_string());
+          "The first argument must be a Int, not " << args[1].type_string());
   }
 }
 
@@ -186,69 +186,69 @@ static VMStatus object_construct(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus range_construct(VM *vm, Value *slots) {
-  if (slots[1].is_int() && slots[2].is_int()) {
+static VMStatus range_construct(VM *vm, Value *args) {
+  if (args[1].is_int() && args[2].is_int()) {
     vm->return_value =
-        Value(vm->allocate<Range>(slots[1].as_int(), slots[2].as_int()));
+        Value(vm->allocate<Range>(args[1].as_int(), args[2].as_int()));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
           "Expected Int and Int for the start and end of the range got "
-              << slots[1].type_string() << " and " << slots[2].type_string()
+              << args[1].type_string() << " and " << args[2].type_string()
               << " instead");
   }
 }
 
-static VMStatus symbol_construct(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
-    vm->return_value = Value(vm->intern(*slots[1].as_object()->as<String>()));
+static VMStatus symbol_construct(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<String>()) {
+    vm->return_value = Value(vm->intern(*args[1].as_object()->as<String>()));
     return VMStatus::Success;
   } else {
     THROW("TypeError", "The first argument must be a String, not "
-                           << slots[1].type_string());
+                           << args[1].type_string());
   }
 }
 
-static VMStatus range_next(VM *vm, Value *slots) {
-  auto &range = *slots[0].as_object()->as<Range>();
+static VMStatus range_next(VM *vm, Value *args) {
+  auto &range = *args[0].as_object()->as<Range>();
   vm->return_value = Value(range.start);
   if (range.start != range.end)
     range.start++;
   return VMStatus::Success;
 }
 
-static VMStatus range_hasnext(VM *vm, Value *slots) {
-  auto &range = *slots[0].as_object()->as<Range>();
+static VMStatus range_hasnext(VM *vm, Value *args) {
+  auto &range = *args[0].as_object()->as<Range>();
   vm->return_value = Value(range.start < range.end);
   return VMStatus::Success;
 }
 
-static VMStatus array_iter(VM *vm, Value *slots) {
+static VMStatus array_iter(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<ArrayIterator>(slots[0].as_object()->as<Array>()));
+      Value(vm->allocate<ArrayIterator>(args[0].as_object()->as<Array>()));
   return VMStatus::Success;
 }
 
-static VMStatus map_keys(VM *vm, Value *slots) {
+static VMStatus map_keys(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<MapIterator>(slots[0].as_object()->as<Map>()));
+      Value(vm->allocate<MapIterator>(args[0].as_object()->as<Map>()));
   return VMStatus::Success;
 }
 
-static VMStatus string_chars(VM *vm, Value *slots) {
+static VMStatus string_chars(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<StringIterator>(slots[0].as_object()->as<String>()));
+      Value(vm->allocate<StringIterator>(args[0].as_object()->as<String>()));
   return VMStatus::Success;
 }
 
-static VMStatus mapiterator_hasnext(VM *vm, Value *slots) {
+static VMStatus mapiterator_hasnext(VM *vm, Value *args) {
   vm->return_value =
-      Value(!slots[0].as_object()->as<MapIterator>()->last_key.is_empty());
+      Value(!args[0].as_object()->as<MapIterator>()->last_key.is_empty());
   return VMStatus::Success;
 }
 
-static VMStatus mapiterator_next(VM *vm, Value *slots) {
-  auto mi = slots[0].as_object()->as<MapIterator>();
+static VMStatus mapiterator_next(VM *vm, Value *args) {
+  auto mi = args[0].as_object()->as<MapIterator>();
   if (mi->last_key.is_empty())
     vm->return_value = Value::null();
   else {
@@ -267,14 +267,14 @@ static VMStatus mapiterator_next(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus arrayiterator_hasnext(VM *vm, Value *slots) {
-  auto ai = slots[0].as_object()->as<ArrayIterator>();
+static VMStatus arrayiterator_hasnext(VM *vm, Value *args) {
+  auto ai = args[0].as_object()->as<ArrayIterator>();
   vm->return_value = Value(ai->position < ai->array->inner.size());
   return VMStatus::Success;
 }
 
-static VMStatus arrayiterator_next(VM *vm, Value *slots) {
-  auto ai = slots[0].as_object()->as<ArrayIterator>();
+static VMStatus arrayiterator_next(VM *vm, Value *args) {
+  auto ai = args[0].as_object()->as<ArrayIterator>();
   if (ai->position < ai->array->inner.size()) {
     vm->return_value = ai->array->inner[ai->position];
     ai->position++;
@@ -284,15 +284,15 @@ static VMStatus arrayiterator_next(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus stringiterator_hasnext(VM *vm, Value *slots) {
-  auto si = slots[0].as_object()->as<StringIterator>();
+static VMStatus stringiterator_hasnext(VM *vm, Value *args) {
+  auto si = args[0].as_object()->as<StringIterator>();
   auto str = static_cast<StringSlice>(*si->string);
   vm->return_value = Value(si->position < str.len);
   return VMStatus::Success;
 }
 
-static VMStatus stringiterator_next(VM *vm, Value *slots) {
-  auto si = slots[0].as_object()->as<StringIterator>();
+static VMStatus stringiterator_next(VM *vm, Value *args) {
+  auto si = args[0].as_object()->as<StringIterator>();
   auto str = static_cast<StringSlice>(*si->string);
   if (si->position < str.len) {
     auto old_pos = si->position;
@@ -309,8 +309,8 @@ static VMStatus stringiterator_next(VM *vm, Value *slots) {
 }
 
 #define FN(x)                                                                  \
-  VMStatus x(VM *vm, Value *slots) {                                           \
-    auto num = slots[0];                                                       \
+  VMStatus x(VM *vm, Value *args) {                                           \
+    auto num = args[0];                                                       \
     if (num.is_int()) {                                                        \
       vm->return_value = Value(std::x(num.as_int()));                          \
       return VMStatus::Success;                                                \
@@ -319,35 +319,35 @@ static VMStatus stringiterator_next(VM *vm, Value *slots) {
       return VMStatus::Success;                                                \
     } else {                                                                   \
       THROW("TypeError", "The first argument must be a Int or Float, not "     \
-                             << slots[0].type_string());                       \
+                             << args[0].type_string());                       \
     }                                                                          \
   }
 MATH_FNS
 #undef FN
 
-VMStatus pow(VM *vm, Value *slots) {
-  if (slots[0].is_float() && slots[1].is_float()) {
+VMStatus pow(VM *vm, Value *args) {
+  if (args[0].is_float() && args[1].is_float()) {
     vm->return_value =
-        Value(std::pow(slots[0].as_float(), slots[1].as_float()));
+        Value(std::pow(args[0].as_float(), args[1].as_float()));
     return VMStatus::Success;
-  } else if (slots[0].is_int() && slots[1].is_int()) {
-    vm->return_value = Value(std::pow(slots[0].as_int(), slots[1].as_int()));
+  } else if (args[0].is_int() && args[1].is_int()) {
+    vm->return_value = Value(std::pow(args[0].as_int(), args[1].as_int()));
     return VMStatus::Success;
-  } else if (slots[0].is_float() && slots[1].is_int()) {
-    vm->return_value = Value(std::pow(slots[0].as_float(), slots[1].as_int()));
+  } else if (args[0].is_float() && args[1].is_int()) {
+    vm->return_value = Value(std::pow(args[0].as_float(), args[1].as_int()));
     return VMStatus::Success;
-  } else if (slots[0].is_int() && slots[1].is_float()) {
-    vm->return_value = Value(std::pow(slots[0].as_int(), slots[1].as_float()));
+  } else if (args[0].is_int() && args[1].is_float()) {
+    vm->return_value = Value(std::pow(args[0].as_int(), args[1].as_float()));
     return VMStatus::Success;
   } else {
     THROW("TypeError", "The two arguments must be a Int or Float, not "
-                           << slots[0].type_string() << " and "
-                           << slots[1].type_string());
+                           << args[0].type_string() << " and "
+                           << args[1].type_string());
   }
 }
 
-static VMStatus abs(VM *vm, Value *slots) {
-  auto num = slots[0];
+static VMStatus abs(VM *vm, Value *args) {
+  auto num = args[0];
   if (num.is_int()) {
     if (num.as_int() == std::numeric_limits<int32_t>::min())
       THROW("OverflowError",
@@ -359,12 +359,12 @@ static VMStatus abs(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else {
     THROW("TypeError", "The first argument must be a Int or Float, not "
-                           << slots[1].type_string());
+                           << args[1].type_string());
   }
 }
 
-static VMStatus disassemble(VM *vm, Value *slots) {
-  auto fn = slots[0];
+static VMStatus disassemble(VM *vm, Value *args) {
+  auto fn = args[0];
   if (fn.is_object() && fn.as_object()->is<Function>()) {
     std::ostringstream os;
     neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
@@ -375,7 +375,7 @@ static VMStatus disassemble(VM *vm, Value *slots) {
                            << fn.as_object()->as<NativeFunction>()->name);
   } else {
     THROW("TypeError", "The first argument must be a Function, not "
-                           << slots[0].type_string());
+                           << args[0].type_string());
   }
 }
 
@@ -385,10 +385,10 @@ static VMStatus gc(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus _getModule(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<String>()) {
+static VMStatus _getModule(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<String>()) {
     auto module =
-        vm->get_module(StringSlice(*slots[0].as_object()->as<String>()));
+        vm->get_module(StringSlice(*args[0].as_object()->as<String>()));
     if (module == nullptr)
       vm->return_value = Value::null();
     else
@@ -396,7 +396,7 @@ static VMStatus _getModule(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else {
     THROW("TypeError", "The first argument must be a Function, not "
-                           << slots[0].type_string());
+                           << args[0].type_string());
   }
 }
 
@@ -411,21 +411,21 @@ static VMStatus _getCallerModule(VM *vm, Value *) {
   }
 }
 
-static VMStatus ecall(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<Symbol>()) {
-    auto efunc_iter = vm->efuncs.find(slots[0].as_object()->as<Symbol>());
+static VMStatus ecall(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<Symbol>()) {
+    auto efunc_iter = vm->efuncs.find(args[0].as_object()->as<Symbol>());
     if (efunc_iter == vm->efuncs.end()) {
       THROW("Error", "Cannot find EFunc "
-                         << StringSlice(*slots[0].as_object()->as<Symbol>()));
+                         << StringSlice(*args[0].as_object()->as<Symbol>()));
 
     } else {
       auto task = vm->current_task;
       auto efunc = efunc_iter->second;
       auto old_stack_top = task->stack_top;
-      task->stack_top = slots + 2;
+      task->stack_top = args + 2;
       VMStatus result =
-          efunc.callback(EFuncContext(vm, task, slots + 1), efunc.data);
-      if (task->stack_top == slots + 1)
+          efunc.callback(EFuncContext(vm, task, args + 1), efunc.data);
+      if (task->stack_top == args + 1)
         vm->return_value = Value::null();
       else {
         vm->return_value = *(task->stack_top - 1);
@@ -435,26 +435,26 @@ static VMStatus ecall(VM *vm, Value *slots) {
     }
   } else {
     THROW("TypeError", "The first argument must be a Symbol, not "
-                           << slots[0].type_string());
+                           << args[0].type_string());
   }
 }
 
-static VMStatus generateStackTrace(VM *vm, Value *slots) {
-  if (slots[0].is_int()) {
+static VMStatus generateStackTrace(VM *vm, Value *args) {
+  if (args[0].is_int()) {
     vm->return_value = Value(vm->allocate<String>(
-        vm->generate_stack_trace(false, slots[0].as_int())));
+        vm->generate_stack_trace(false, args[0].as_int())));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
-          "The first argument must be a Int, not " << slots[0].type_string());
+          "The first argument must be a Int, not " << args[0].type_string());
   }
 }
 
-static VMStatus _extendClass(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<Class>() &&
-      slots[1].is_object() && slots[1].as_object()->is<Class>()) {
-    auto class0 = slots[0].as_object()->as<Class>();
-    auto class1 = slots[1].as_object()->as<Class>();
+static VMStatus _extendClass(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<Class>() &&
+      args[1].is_object() && args[1].as_object()->is<Class>()) {
+    auto class0 = args[0].as_object()->as<Class>();
+    auto class1 = args[1].as_object()->as<Class>();
     if (class1->is_native && class1 != vm->builtin_classes.Object)
       THROW("TypeError", "Cannot inherit from native class");
     class0->super = class1;
@@ -462,16 +462,16 @@ static VMStatus _extendClass(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else {
     THROW("TypeError", "Expected Class and Class for  got "
-                           << slots[0].type_string() << " and "
-                           << slots[1].type_string() << " instead");
+                           << args[0].type_string() << " and "
+                           << args[1].type_string() << " instead");
   }
 }
 
-static VMStatus _copyMethods(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<Class>() &&
-      slots[1].is_object() && slots[1].as_object()->is<Class>()) {
-    auto class0 = slots[0].as_object()->as<Class>();
-    auto class1 = slots[1].as_object()->as<Class>();
+static VMStatus _copyMethods(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<Class>() &&
+      args[1].is_object() && args[1].as_object()->is<Class>()) {
+    auto class0 = args[0].as_object()->as<Class>();
+    auto class1 = args[1].as_object()->as<Class>();
     if (class1->is_native)
       THROW("TypeError", "Cannot copy methods from native class");
     class0->copy_methods(*class1);
@@ -479,8 +479,8 @@ static VMStatus _copyMethods(VM *vm, Value *slots) {
     return VMStatus::Success;
   } else {
     THROW("TypeError", "Expected Class and Class for  got "
-                           << slots[0].type_string() << " and "
-                           << slots[1].type_string() << " instead");
+                           << args[0].type_string() << " and "
+                           << args[1].type_string() << " instead");
   }
 }
 
@@ -490,88 +490,88 @@ static VMStatus random(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus shuffle(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<Array>()) {
-    auto &array = slots[0].as_object()->as<Array>()->inner;
+static VMStatus shuffle(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<Array>()) {
+    auto &array = args[0].as_object()->as<Array>()->inner;
     std::shuffle(array.begin(), array.end(), vm->rng);
     vm->return_value = Value::null();
     return VMStatus::Success;
   } else {
     THROW("TypeError", "The first argument must be an Array, not "
-                           << slots[0].type_string());
+                           << args[0].type_string());
   }
 }
 
-static VMStatus random_range(VM *vm, Value *slots) {
-  if (slots[0].is_int() && slots[1].is_int()) {
-    std::uniform_int_distribution<int32_t> dist(slots[0].as_int(),
-                                                slots[1].as_int());
+static VMStatus random_range(VM *vm, Value *args) {
+  if (args[0].is_int() && args[1].is_int()) {
+    std::uniform_int_distribution<int32_t> dist(args[0].as_int(),
+                                                args[1].as_int());
     vm->return_value = Value(dist(vm->rng));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
           "Expected Int and Int for the start and end of the range got "
-              << slots[0].type_string() << " and " << slots[1].type_string()
+              << args[0].type_string() << " and " << args[1].type_string()
               << " instead");
   }
 }
 
-static VMStatus map_clear(VM *vm, Value *slots) {
-  slots[0].as_object()->as<Map>()->inner.clear();
+static VMStatus map_clear(VM *vm, Value *args) {
+  args[0].as_object()->as<Map>()->inner.clear();
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
-static VMStatus map_len(VM *vm, Value *slots) {
+static VMStatus map_len(VM *vm, Value *args) {
   vm->return_value =
-      Value((int32_t)slots[0].as_object()->as<Map>()->inner.size());
+      Value((int32_t)args[0].as_object()->as<Map>()->inner.size());
   return VMStatus::Success;
 }
 
-static VMStatus map_contains(VM *vm, Value *slots) {
+static VMStatus map_contains(VM *vm, Value *args) {
   vm->return_value =
-      Value(slots[0].as_object()->as<Map>()->inner.count(slots[1]) == 1);
+      Value(args[0].as_object()->as<Map>()->inner.count(args[1]) == 1);
   return VMStatus::Success;
 }
 
-static VMStatus map_remove(VM *vm, Value *slots) {
-  if (!slots[0].as_object()->as<Map>()->inner.erase(slots[1]))
-    THROW("KeyError", "Key " << slots[1] << " does not exist in map.");
+static VMStatus map_remove(VM *vm, Value *args) {
+  if (!args[0].as_object()->as<Map>()->inner.erase(args[1]))
+    THROW("KeyError", "Key " << args[1] << " does not exist in map.");
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
-static VMStatus range_start(VM *vm, Value *slots) {
-  vm->return_value = Value(slots[0].as_object()->as<Range>()->start);
+static VMStatus range_start(VM *vm, Value *args) {
+  vm->return_value = Value(args[0].as_object()->as<Range>()->start);
   return VMStatus::Success;
 }
 
-static VMStatus range_end(VM *vm, Value *slots) {
-  vm->return_value = Value(slots[0].as_object()->as<Range>()->end);
+static VMStatus range_end(VM *vm, Value *args) {
+  vm->return_value = Value(args[0].as_object()->as<Range>()->end);
   return VMStatus::Success;
 }
-static VMStatus float_toint(VM *vm, Value *slots) {
-  auto f = slots[0].as_float();
+static VMStatus float_toint(VM *vm, Value *args) {
+  auto f = args[0].as_float();
   if (std::isnan(f) || f > std::numeric_limits<int32_t>::max() ||
       f < std::numeric_limits<int32_t>::min())
-    THROW("OverflowError", slots[0].as_float() << " does not fit in an Int");
+    THROW("OverflowError", args[0].as_float() << " does not fit in an Int");
   vm->return_value = Value(int(f));
   return VMStatus::Success;
 }
 
-static VMStatus int_tofloat(VM *vm, Value *slots) {
-  vm->return_value = Value(double(slots[0].as_int()));
+static VMStatus int_tofloat(VM *vm, Value *args) {
+  vm->return_value = Value(double(args[0].as_int()));
   return VMStatus::Success;
 }
 
-static VMStatus float_isnan(VM *vm, Value *slots) {
-  vm->return_value = Value(bool(std::isnan(slots[0].as_float())));
+static VMStatus float_isnan(VM *vm, Value *args) {
+  vm->return_value = Value(bool(std::isnan(args[0].as_float())));
   return VMStatus::Success;
 }
 
-static VMStatus string_len(VM *vm, Value *slots) {
+static VMStatus string_len(VM *vm, Value *args) {
   vm->return_value =
-      Value(int32_t(slots[0].as_object()->as<String>()->get_len()));
+      Value(int32_t(args[0].as_object()->as<String>()->get_len()));
   return VMStatus::Success;
 }
 
@@ -580,20 +580,20 @@ static VMStatus suspendCurrentTask(VM *vm, Value *) {
   return VMStatus::Suspend;
 }
 
-static VMStatus spawn(VM *vm, Value *slots) {
-  if (slots[0].is_object() && slots[0].as_object()->is<Function>()) {
-    Task *t = vm->allocate<Task>(slots[0].as_object()->as<Function>());
+static VMStatus spawn(VM *vm, Value *args) {
+  if (args[0].is_object() && args[0].as_object()->is<Function>()) {
+    Task *t = vm->allocate<Task>(args[0].as_object()->as<Function>());
     vm->return_value = Value(t);
     vm->tasks_queue.push_back({t, Value::null(), false});
     vm->main_task->links.insert(t);
     return VMStatus::Success;
   } else
     THROW("TypeError", "The first argument must be a Function, not "
-                           << slots[0].type_string());
+                           << args[0].type_string());
 }
 
-static VMStatus spawn_link(VM *vm, Value *slots) {
-  auto status = spawn(vm, slots);
+static VMStatus spawn_link(VM *vm, Value *args) {
+  auto status = spawn(vm, args);
   if (status == VMStatus::Success) {
     auto task = vm->return_value.as_object()->as<Task>();
     task->links.insert(vm->current_task);
@@ -602,8 +602,8 @@ static VMStatus spawn_link(VM *vm, Value *slots) {
   return status;
 }
 
-static VMStatus task_kill(VM *vm, Value *slots) {
-  vm->kill(slots[0].as_object()->as<Task>(), slots[1]);
+static VMStatus task_kill(VM *vm, Value *args) {
+  vm->kill(args[0].as_object()->as<Task>(), args[1]);
   return VMStatus::Success;
 }
 
@@ -612,14 +612,14 @@ static VMStatus channel_construct(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus channel_send(VM *vm, Value *slots) {
-  slots[0].as_object()->as<Channel>()->send(slots[1], vm);
+static VMStatus channel_send(VM *vm, Value *args) {
+  args[0].as_object()->as<Channel>()->send(args[1], vm);
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
-static VMStatus channel_recv(VM *vm, Value *slots) {
-  auto chan = slots[0].as_object()->as<Channel>();
+static VMStatus channel_recv(VM *vm, Value *args) {
+  auto chan = args[0].as_object()->as<Channel>();
   if (chan->queue.empty()) {
     chan->wait_list.push_back(vm->current_task);
     return VMStatus::Suspend;
@@ -630,8 +630,8 @@ static VMStatus channel_recv(VM *vm, Value *slots) {
   }
 }
 
-static VMStatus task_name(VM *vm, Value *slots) {
-  auto name = slots[0].as_object()->as<Task>()->name;
+static VMStatus task_name(VM *vm, Value *args) {
+  auto name = args[0].as_object()->as<Task>()->name;
   if (name == nullptr)
     vm->return_value = Value::null();
   else
@@ -639,39 +639,39 @@ static VMStatus task_name(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus task_setname(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<String>()) {
-    slots[0].as_object()->as<Task>()->name = slots[1].as_object()->as<String>();
+static VMStatus task_setname(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<String>()) {
+    args[0].as_object()->as<Task>()->name = args[1].as_object()->as<String>();
     return VMStatus::Success;
   } else
     THROW("TypeError", "The first argument must be a String, not "
-                           << slots[1].type_string());
+                           << args[1].type_string());
 }
 
-static VMStatus task_monitor(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<Channel>()) {
-    auto task = slots[0].as_object()->as<Task>();
-    auto chan = slots[1].as_object()->as<Channel>();
+static VMStatus task_monitor(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<Channel>()) {
+    auto task = args[0].as_object()->as<Task>();
+    auto chan = args[1].as_object()->as<Channel>();
     if (task->status == VMStatus::Suspend)
-      slots[0].as_object()->as<Task>()->monitors.push_back(chan);
+      args[0].as_object()->as<Task>()->monitors.push_back(chan);
     else
       chan->send(Value(task), vm);
     return VMStatus::Success;
   } else
     THROW("TypeError", "The first argument must be a Channel, not "
-                           << slots[1].type_string());
+                           << args[1].type_string());
 }
 
-static VMStatus task_link(VM *vm, Value *slots) {
-  if (slots[1].is_object() && slots[1].as_object()->is<Task>()) {
-    auto task0 = slots[0].as_object()->as<Task>();
-    auto task1 = slots[1].as_object()->as<Task>();
+static VMStatus task_link(VM *vm, Value *args) {
+  if (args[1].is_object() && args[1].as_object()->is<Task>()) {
+    auto task0 = args[0].as_object()->as<Task>();
+    auto task1 = args[1].as_object()->as<Task>();
     task0->links.insert(task1);
     task1->links.insert(task0);
     return VMStatus::Success;
   } else
     THROW("TypeError",
-          "The first argument must be a Task, not " << slots[1].type_string());
+          "The first argument must be a Task, not " << args[1].type_string());
 }
 
 static VMStatus currentTask(VM *vm, Value *) {
@@ -679,8 +679,8 @@ static VMStatus currentTask(VM *vm, Value *) {
   return VMStatus::Success;
 }
 
-static VMStatus task_status(VM *vm, Value *slots) {
-  switch (slots[0].as_object()->as<Task>()->status) {
+static VMStatus task_status(VM *vm, Value *args) {
+  switch (args[0].as_object()->as<Task>()->status) {
   case VMStatus::Suspend:
     vm->return_value = Value(vm->builtin_symbols.running);
     break;
@@ -693,8 +693,8 @@ static VMStatus task_status(VM *vm, Value *slots) {
   return VMStatus::Success;
 }
 
-static VMStatus task_get_uncaught_exception(VM *vm, Value *slots) {
-  auto task = slots[0].as_object()->as<Task>();
+static VMStatus task_get_uncaught_exception(VM *vm, Value *args) {
+  auto task = args[0].as_object()->as<Task>();
   if (task->status == VMStatus::Error)
     vm->return_value = task->uncaught_exception;
   else
