@@ -231,6 +231,9 @@ pub enum Literal {
     Float(f64),
     String(String),
     Symbol(String),
+    Null,
+    True,
+    False,
     Default,
 }
 
@@ -1247,6 +1250,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                     TokenType::FloatLiteral(f) => literals.push(Literal::Float(*f)),
                     TokenType::String(s) => literals.push(Literal::String(s.clone())),
                     TokenType::Symbol(s) => literals.push(Literal::Symbol(s.clone())),
+                    TokenType::Null => literals.push(Literal::Null),
+                    TokenType::True => literals.push(Literal::True),
+                    TokenType::False => literals.push(Literal::False),
                     TokenType::Default => literals.push(Literal::Default),
                     TokenType::Interpolation => {
                         return Err(
@@ -1271,7 +1277,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             self.ignore_newline();
             let statement = self
                 .statement(false, false)
-                .ok_or(self.error_at_current("Expect statement".to_string()))?;
+                .ok_or_else(|| self.error_at_current("Expect statement".to_string()))?;
             cases.push((literals, statement));
             self.ignore_newline();
         }
