@@ -2,6 +2,7 @@
 #include "hash_table.h"
 #include "native_function.h"
 #include "rust/cxx.h"
+#include "util.h"
 #include <deque>
 #include <functional>
 #include <memory>
@@ -16,14 +17,13 @@ constexpr bool STRESS_GC = false;
 constexpr bool DEBUG_GC = false;
 
 namespace neptune_vm {
-template<typename T>
-using vector=std::vector<T,mi_stl_allocator<T>>;
-
 struct Frame {
   Value *bp;
   Function *f;
   const uint8_t *ip;
 };
+
+class Task;
 
 class Channel : public Object {
 public:
@@ -44,9 +44,7 @@ public:
   vector<Frame> frames;
   vector<Channel *> monitors;
   String *name;
-  HashSet<Task *, PointerHash<Task>, std::equal_to<Task *>, NullptrEmpty<Task>,
->
-      links;
+  HashSet<Task *, PointerHash<Task>, std::equal_to<Task *>, NullptrEmpty<Task>> links;
 
   static constexpr Type type = Type::Task;
   void close(Value *last);
@@ -74,9 +72,7 @@ private:
   // Linked list of all objects
   Object *first_obj;
   size_t threshhold;
-  HashSet<Symbol *, StringHasher, StringEquality, NullptrEmpty<Symbol>,
-          >
-      symbols;
+  HashSet<Symbol *, StringHasher, StringEquality, NullptrEmpty<Symbol>> symbols;
   Handle<Object> *handles;
   vector<Object *> greyobjects;
   bool is_running;

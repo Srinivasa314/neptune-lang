@@ -3,6 +3,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include <mimalloc.h>
 
 #ifndef NDEBUG
 #define unreachable()                                                          \
@@ -86,3 +88,8 @@ template <typename T> static T power_of_two_ceil(T n) {
 #else
 #define IF_CLANG(x)
 #endif
+
+namespace neptune_vm {
+  template<typename T>
+    using vector=std::vector<T,mi_stl_allocator<T>>;
+}

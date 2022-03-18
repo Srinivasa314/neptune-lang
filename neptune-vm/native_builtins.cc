@@ -424,7 +424,7 @@ static VMStatus ecall(VM *vm, Value *args) {
       auto old_stack_top = task->stack_top;
       task->stack_top = args + 2;
       VMStatus result =
-          efunc.callback(EFuncContext(vm, task, args + 1), efunc.data);
+          efunc.callback(EFuncContext(vm, args + 1), efunc.data);
       if (task->stack_top == args + 1)
         vm->return_value = Value::null();
       else {

@@ -1,4 +1,5 @@
 #include "util.h"
+#include <mimalloc.h>
 #include <cstdint>
 #include <vector>
 #pragma once

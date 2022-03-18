@@ -33,7 +33,7 @@ struct EFuncContext {
   VM *vm;
   Task *task;
   Value *arg;
-  EFuncContext(VM *vm, Task *task, Value *arg) : vm(vm), task(task), arg(arg) {}
+  EFuncContext(VM *vm, Value *arg);
   void push(Value v);
   void push_int(int32_t i);
   void push_float(double d);

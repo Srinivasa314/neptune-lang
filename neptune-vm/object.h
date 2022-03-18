@@ -144,13 +144,10 @@ struct ValueEmpty {
 };
 
 template <typename T>
-using ValueMap = HashMap<Value, T, ValueHasher, ValueStrictEquality, ValueEmpty,
-                         >;
+using ValueMap = HashMap<Value, T, ValueHasher, ValueStrictEquality, ValueEmpty>;
 
 template <typename T>
-using SymbolMap =
-    HashMap<Symbol *, T, StringHasher, StringEquality, NullptrEmpty<Symbol>,
-            >;
+using SymbolMap = HashMap<Symbol *, T, StringHasher, StringEquality, NullptrEmpty<Symbol>>;
 
 class Map : public Object {
 public:
