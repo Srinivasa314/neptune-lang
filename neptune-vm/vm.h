@@ -44,7 +44,8 @@ public:
   vector<Frame> frames;
   vector<Channel *> monitors;
   String *name;
-  HashSet<Task *, PointerHash<Task>, std::equal_to<Task *>, NullptrEmpty<Task>> links;
+  HashSet<Task *, PointerHash<Task>, std::equal_to<Task *>, NullptrEmpty<Task>>
+      links;
 
   static constexpr Type type = Type::Task;
   void close(Value *last);

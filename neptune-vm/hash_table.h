@@ -1,6 +1,6 @@
 #include "util.h"
-#include <mimalloc.h>
 #include <cstdint>
+#include <mimalloc.h>
 #include <vector>
 #pragma once
 

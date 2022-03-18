@@ -5,7 +5,8 @@
   return EFuncStatus::Underflow
 
 namespace neptune_vm {
-    EFuncContext::EFuncContext(VM* vm,Value* arg) : vm(vm), task(vm->current_task), arg(arg) {}
+EFuncContext::EFuncContext(VM *vm, Value *arg)
+    : vm(vm), task(vm->current_task), arg(arg) {}
 void EFuncContext::push(Value v) {
   if (task->stack_top == task->stack.get() + task->stack_size)
     arg = task->grow_stack(arg, 1);

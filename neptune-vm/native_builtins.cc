@@ -145,8 +145,8 @@ static VMStatus string_find(VM *vm, Value *args) {
       vm->return_value = Value(static_cast<int32_t>(pos));
     return VMStatus::Success;
   } else
-    THROW("TypeError", "The first argument must be a String, not "
-                           << args[1].type_string());
+    THROW("TypeError",
+          "The first argument must be a String, not " << args[1].type_string());
 }
 
 static VMStatus string_replace(VM *vm, Value *args) {
@@ -204,8 +204,8 @@ static VMStatus symbol_construct(VM *vm, Value *args) {
     vm->return_value = Value(vm->intern(*args[1].as_object()->as<String>()));
     return VMStatus::Success;
   } else {
-    THROW("TypeError", "The first argument must be a String, not "
-                           << args[1].type_string());
+    THROW("TypeError",
+          "The first argument must be a String, not " << args[1].type_string());
   }
 }
 
@@ -309,8 +309,8 @@ static VMStatus stringiterator_next(VM *vm, Value *args) {
 }
 
 #define FN(x)                                                                  \
-  VMStatus x(VM *vm, Value *args) {                                           \
-    auto num = args[0];                                                       \
+  VMStatus x(VM *vm, Value *args) {                                            \
+    auto num = args[0];                                                        \
     if (num.is_int()) {                                                        \
       vm->return_value = Value(std::x(num.as_int()));                          \
       return VMStatus::Success;                                                \
@@ -319,7 +319,7 @@ static VMStatus stringiterator_next(VM *vm, Value *args) {
       return VMStatus::Success;                                                \
     } else {                                                                   \
       THROW("TypeError", "The first argument must be a Int or Float, not "     \
-                             << args[0].type_string());                       \
+                             << args[0].type_string());                        \
     }                                                                          \
   }
 MATH_FNS
@@ -327,8 +327,7 @@ MATH_FNS
 
 VMStatus pow(VM *vm, Value *args) {
   if (args[0].is_float() && args[1].is_float()) {
-    vm->return_value =
-        Value(std::pow(args[0].as_float(), args[1].as_float()));
+    vm->return_value = Value(std::pow(args[0].as_float(), args[1].as_float()));
     return VMStatus::Success;
   } else if (args[0].is_int() && args[1].is_int()) {
     vm->return_value = Value(std::pow(args[0].as_int(), args[1].as_int()));
@@ -423,8 +422,7 @@ static VMStatus ecall(VM *vm, Value *args) {
       auto efunc = efunc_iter->second;
       auto old_stack_top = task->stack_top;
       task->stack_top = args + 2;
-      VMStatus result =
-          efunc.callback(EFuncContext(vm, args + 1), efunc.data);
+      VMStatus result = efunc.callback(EFuncContext(vm, args + 1), efunc.data);
       if (task->stack_top == args + 1)
         vm->return_value = Value::null();
       else {
@@ -434,8 +432,8 @@ static VMStatus ecall(VM *vm, Value *args) {
       return result;
     }
   } else {
-    THROW("TypeError", "The first argument must be a Symbol, not "
-                           << args[0].type_string());
+    THROW("TypeError",
+          "The first argument must be a Symbol, not " << args[0].type_string());
   }
 }
 
@@ -497,8 +495,8 @@ static VMStatus shuffle(VM *vm, Value *args) {
     vm->return_value = Value::null();
     return VMStatus::Success;
   } else {
-    THROW("TypeError", "The first argument must be an Array, not "
-                           << args[0].type_string());
+    THROW("TypeError",
+          "The first argument must be an Array, not " << args[0].type_string());
   }
 }
 
@@ -644,8 +642,8 @@ static VMStatus task_setname(VM *vm, Value *args) {
     args[0].as_object()->as<Task>()->name = args[1].as_object()->as<String>();
     return VMStatus::Success;
   } else
-    THROW("TypeError", "The first argument must be a String, not "
-                           << args[1].type_string());
+    THROW("TypeError",
+          "The first argument must be a String, not " << args[1].type_string());
 }
 
 static VMStatus task_monitor(VM *vm, Value *args) {

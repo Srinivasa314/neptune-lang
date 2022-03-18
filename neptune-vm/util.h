@@ -1,10 +1,10 @@
 #pragma once
 #include <cstring>
 #include <iostream>
+#include <mimalloc.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <mimalloc.h>
 
 #ifndef NDEBUG
 #define unreachable()                                                          \
@@ -90,6 +90,5 @@ template <typename T> static T power_of_two_ceil(T n) {
 #endif
 
 namespace neptune_vm {
-  template<typename T>
-    using vector=std::vector<T,mi_stl_allocator<T>>;
+template <typename T> using vector = std::vector<T, mi_stl_allocator<T>>;
 }

@@ -254,11 +254,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     unreachable();
   }
 }
-Array::Array(size_t size)
-    : inner(vector<Value>(size, Value::null())) {}
+Array::Array(size_t size) : inner(vector<Value>(size, Value::null())) {}
 
-Array::Array(size_t size, Value v)
-    : inner(vector<Value>(size, v)) {}
+Array::Array(size_t size, Value v) : inner(vector<Value>(size, v)) {}
 
 Map::Map(uint32_t size) : inner(size) {}
 Object *Class::find_method(Symbol *method) {
