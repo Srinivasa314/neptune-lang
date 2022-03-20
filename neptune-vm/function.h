@@ -48,6 +48,7 @@ public:
 class FunctionInfoWriter {
   Handle<FunctionInfo> *hf;
   VM *vm;
+  bool reuse_constants;
   std::unique_ptr<ValueMap<uint16_t>> constants;
 
 public:
@@ -81,6 +82,8 @@ public:
   void add_upvalue(uint16_t index, bool is_local);
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
                              uint16_t error_reg, uint32_t catch_begin);
+  uint16_t jump_table();
+  void insert_in_jump_table(uint16_t jump_table,uint32_t offset);
   friend struct EFuncContext;
 };
 

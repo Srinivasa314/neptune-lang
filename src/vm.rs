@@ -43,6 +43,7 @@ unsafe impl<'a> ExternType for StringSlice<'a> {
 pub struct FunctionInfoWriter<'vm> {
     handle: *mut c_void,
     vm: *mut c_void,
+    pub reuse_constants: bool,
     constants: *mut c_void,
     _marker: PhantomData<&'vm ()>,
 }
@@ -277,6 +278,8 @@ mod ffi {
             error_reg: u16,
             catch_begin: u32,
         );
+        fn jump_table(self: &mut FunctionInfoWriter) -> Result<u16>;
+        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u16, offset: u32);
         fn size(self: &FunctionInfoWriter) -> usize;
         fn get_result(self: &VM) -> String;
         fn create_module(self: &VM, module_name: StringSlice);

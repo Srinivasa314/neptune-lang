@@ -3,6 +3,7 @@
 #include <memory>
 #include <ostream>
 #include <sstream>
+#include <limits>
 
 namespace neptune_vm {
 template <typename T> void FunctionInfoWriter::write(T t) {
@@ -29,7 +30,7 @@ uint16_t FunctionInfoWriter::constant(Value v) {
     throw std::overflow_error("Cannot store more than 65535 constants");
   } else {
     auto pos = constants->find(v);
-    if (pos != constants->end()) {
+    if (pos != constants->end()&&reuse_constants) {
       return pos->second;
     } else {
       hf->object->constants.push_back(v);
@@ -169,6 +170,23 @@ void FunctionInfoWriter::add_method(uint16_t class_, StringSlice name,
   val.as_object()->as<Class>()->methods.insert(
       {vm->intern(name), f.hf->object});
   f.release();
+}
+
+uint16_t FunctionInfoWriter::jump_table(){
+  return constant(Value(vm->allocate<Map>()));
+}
+
+void FunctionInfoWriter::insert_in_jump_table(uint16_t jump_table,uint32_t offset){
+  if (jump_table+1 >= hf->object->constants.size())
+    throw std::runtime_error("Index out of bounds");
+  if(offset>uint32_t(std::numeric_limits<int32_t>::max()))
+    throw std::runtime_error("Offset too large");
+  auto val=hf->object->constants[jump_table];
+  if(val.is_object()&&val.as_object()->is<Map>()){
+    val.as_object()->as<Map>()->inner.insert({hf->object->constants[jump_table+1],Value(int32_t(offset))});
+  }else{
+    throw std::runtime_error("Expect Map");
+  }
 }
 
 #define CASE(x)                                                                \

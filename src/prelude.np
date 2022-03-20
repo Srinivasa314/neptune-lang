@@ -260,3 +260,28 @@ class ArraySort {
 }
 
 _copyMethods(Array, ArraySort)
+
+export fun join(tasks) {
+	if tasks.getClass() != Array {
+		throw new TypeError('The first argument must be a list of tasks')
+	}
+	for task in tasks {
+		if task.getClass() != Task {
+			throw new TypeError('The first argument must be a list of tasks')
+		}
+	}
+	let monitorChan = new Channel()
+	for task in tasks {
+		task.monitor(monitorChan)
+	}
+	for i in 0..tasks.len() {
+		let task = monitorChan.recv()
+		if task.status() === @killed {
+			let reason = task.getUncaughtException()
+			for task in tasks {
+				task.kill(reason)
+			}	
+			break
+		}
+	}
+}
