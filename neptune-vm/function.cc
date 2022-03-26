@@ -23,48 +23,38 @@ void FunctionInfoWriter::write_u8(uint8_t u) { write(u); }
 void FunctionInfoWriter::write_u16(uint16_t u) { write(u); }
 void FunctionInfoWriter::write_u32(uint32_t u) { write(u); }
 
-constexpr size_t MAX_CONSTANTS = 65535;
-
-uint16_t FunctionInfoWriter::constant(Value v) {
-  if (hf->object->constants.size() == MAX_CONSTANTS) {
-    throw std::overflow_error("Cannot store more than 65535 constants");
-  } else {
+uint32_t FunctionInfoWriter::constant(Value v) {
     auto pos = constants->find(v);
     if (pos != constants->end()&&reuse_constants) {
       return pos->second;
     } else {
       hf->object->constants.push_back(v);
-      uint16_t pos = static_cast<uint16_t>(hf->object->constants.size() - 1);
+      auto pos = static_cast<uint32_t>(hf->object->constants.size() - 1);
       constants->insert({v, pos});
       return pos;
     }
-  }
 }
 
-uint16_t FunctionInfoWriter::reserve_constant() {
-  if (hf->object->constants.size() == MAX_CONSTANTS) {
-    throw std::overflow_error("Cannot store more than 65535 constants");
-  } else {
+uint32_t FunctionInfoWriter::reserve_constant() {
     hf->object->constants.push_back(Value::null());
-    return static_cast<uint16_t>(hf->object->constants.size() - 1);
-  }
+    return static_cast<uint32_t>(hf->object->constants.size() - 1);
 }
 
-uint16_t FunctionInfoWriter::float_constant(double d) {
+uint32_t FunctionInfoWriter::float_constant(double d) {
   return constant(Value{d});
 }
 
-uint16_t FunctionInfoWriter::string_constant(StringSlice s) {
+uint32_t FunctionInfoWriter::string_constant(StringSlice s) {
   String *p = vm->allocate<String>(s);
   return constant(Value{static_cast<Object *>(p)});
 }
 
-uint16_t FunctionInfoWriter::symbol_constant(StringSlice s) {
+uint32_t FunctionInfoWriter::symbol_constant(StringSlice s) {
   Symbol *p = vm->intern(s);
   return constant(Value{static_cast<Object *>(p)});
 }
 
-uint16_t FunctionInfoWriter::fun_constant(FunctionInfoWriter f) {
+uint32_t FunctionInfoWriter::fun_constant(FunctionInfoWriter f) {
   auto c = constant(Value{static_cast<Object *>(f.hf->object)});
   f.release();
   return c;
@@ -100,7 +90,7 @@ VMStatus FunctionInfoWriter::run() {
   return vm->run();
 }
 
-void FunctionInfoWriter::set_max_registers(uint16_t max_registers) {
+void FunctionInfoWriter::set_max_registers(uint32_t max_registers) {
   hf->object->max_registers = max_registers;
 }
 
@@ -115,7 +105,11 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
   auto len = hf->object->bytecode.size();
   auto bytecode = hf->object->bytecode.data();
   assert_in_range(op_position, len);
-  if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
+  if(bytecode[op_position]==static_cast<uint8_t>(Op::ExtraWide)){
+    assert_in_range(op_position + 5, len);
+    bytecode[op_position+1]-=PATCH_OFFSET;
+    write_unaligned<uint32_t>(bytecode+op_position+2,jump_offset);
+  }else if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
     assert_in_range(op_position + 3, len);
     if (jump_offset < 65536) {
       bytecode[op_position + 1] -= PATCH_OFFSET;
@@ -140,27 +134,27 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
 
 size_t FunctionInfoWriter::size() const { return hf->object->bytecode.size(); }
 
-uint16_t FunctionInfoWriter::int_constant(int32_t i) {
+uint32_t FunctionInfoWriter::int_constant(int32_t i) {
   return constant(Value(i));
 }
 
-void FunctionInfoWriter::add_upvalue(uint16_t index, bool is_local) {
+void FunctionInfoWriter::add_upvalue(uint32_t index, bool is_local) {
   hf->object->upvalues.push_back(UpvalueInfo{index, is_local});
 }
 
 void FunctionInfoWriter::add_exception_handler(uint32_t try_begin,
                                                uint32_t try_end,
-                                               uint16_t error_reg,
+                                               uint32_t error_reg,
                                                uint32_t catch_begin) {
   hf->object->exception_handlers.push_back(
       ExceptionHandler{try_begin, try_end, error_reg, catch_begin});
 }
-uint16_t FunctionInfoWriter::class_constant(StringSlice s) {
+uint32_t FunctionInfoWriter::class_constant(StringSlice s) {
   Class *c = vm->allocate<Class>();
   c->name = std::string(s.data, s.len);
   return constant(Value{static_cast<Object *>(c)});
 }
-void FunctionInfoWriter::add_method(uint16_t class_, StringSlice name,
+void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
                                     FunctionInfoWriter f) {
   if (class_ >= hf->object->constants.size())
     throw std::runtime_error("Index out of bounds");
@@ -172,11 +166,11 @@ void FunctionInfoWriter::add_method(uint16_t class_, StringSlice name,
   f.release();
 }
 
-uint16_t FunctionInfoWriter::jump_table(){
+uint32_t FunctionInfoWriter::jump_table(){
   return constant(Value(vm->allocate<Map>()));
 }
 
-void FunctionInfoWriter::insert_in_jump_table(uint16_t jump_table,uint32_t offset){
+void FunctionInfoWriter::insert_in_jump_table(uint32_t jump_table,uint32_t offset){
   if (jump_table+1 >= hf->object->constants.size())
     throw std::runtime_error("Index out of bounds");
   if(offset>uint32_t(std::numeric_limits<int32_t>::max()))
@@ -340,7 +334,7 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
                            << f.constants[READ(uint16_t)];
         break;
         CASE(StoreProperty)
-            << REG(uint8_t) << ' ' << f.constants[READ(uint8_t)];
+            << REG(uint16_t) << ' ' << f.constants[READ(uint16_t)];
         break;
         CASE(Close) << READ(uint16_t);
         break;
@@ -352,10 +346,36 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
     case Op::ExtraWide: {
       os << "ExtraWide ";
       switch (READ(Op)) {
+        CASE(LoadRegister) << REG(uint32_t);
+        break;
+
+        CASE(LoadConstant) << f.constants[READ(uint32_t)];
+        break;
+
+        CASE(StoreRegister) << REG(uint32_t);
+        break;
+
+        CASE(Move) << REG(uint32_t) << ' ' << REG(uint32_t);
+        break;
+
         CASE(LoadModuleVariable) << READ(uint32_t);
         break;
         CASE(StoreModuleVariable) << READ(uint32_t);
         break;
+
+        CASE(AddRegister) << REG(uint32_t);
+        break;
+        CASE(SubtractRegister) << REG(uint32_t);
+        break;
+        CASE(MultiplyRegister) << REG(uint32_t);
+        break;
+        CASE(DivideRegister) << REG(uint32_t);
+        break;
+        CASE(ModRegister) << REG(uint32_t);
+        break;
+        CASE(ConcatRegister) << REG(uint32_t);
+        break;
+
         CASE(AddInt) << READ(int32_t);
         break;
         CASE(SubtractInt) << READ(int32_t);
@@ -366,9 +386,86 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
         break;
         CASE(ModInt) << READ(int32_t);
         break;
+
+        CASE(Equal) << REG(uint32_t);
+        break;
+        CASE(NotEqual) << REG(uint32_t);
+        break;
+        CASE(StrictEqual) << REG(uint32_t);
+        break;
+        CASE(StrictNotEqual) << REG(uint32_t);
+        break;
+        CASE(GreaterThan) << REG(uint32_t);
+        break;
+        CASE(LesserThan) << REG(uint32_t);
+        break;
+        CASE(GreaterThanOrEqual) << REG(uint32_t);
+        break;
+        CASE(LesserThanOrEqual) << REG(uint32_t);
+        break;
+
+        CASE(Call) << REG(uint32_t) << ' ' << READ(uint8_t);
+        break;
+        CASE(CallMethod) << REG(uint32_t) << ' ' << f.constants[READ(uint32_t)]
+                         << ' ' << READ(uint32_t) << ' ' << READ(uint8_t);
+        break;
+        CASE(SuperCall) << f.constants[READ(uint32_t)] << ' ' << READ(uint32_t)
+                        << ' ' << READ(uint8_t);
+        break;
+        CASE(Construct) << READ(uint32_t) << ' ' << READ(uint8_t);
+        break;
+        CASE(MakeClass) << f.constants[READ(uint32_t)];
+        break;
+
+        CASE(NewArray) << READ(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(StoreSubscript) << REG(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(StoreArrayUnchecked) << REG(uint32_t) << ' ' << READ(uint32_t);
+        break;
+        CASE(LoadSubscript) << REG(uint32_t);
+        break;
+        CASE(NewMap) << READ(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(NewObject) << READ(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(Range) << REG(uint32_t);
+        break;
+
+        CASE(Jump) << READ(uint32_t);
+        break;
+        CASE(JumpIfFalseOrNull) << READ(uint32_t);
+        break;
+        CASE(JumpIfNotFalseOrNull) << READ(uint32_t);
+        break;
+        CASE(JumpConstant) << f.constants[READ(uint32_t)];
+        break;
+        CASE(JumpIfFalseOrNullConstant) << f.constants[READ(uint32_t)];
+        break;
+        CASE(JumpIfNotFalseOrNullConstant) << f.constants[READ(uint32_t)];
+        break;
         CASE(JumpBack) << READ(uint32_t);
         break;
+        CASE(BeginForLoop) << READ(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(BeginForLoopConstant)
+            << f.constants[READ(uint32_t)] << ' ' << REG(uint32_t);
+        break;
         CASE(ForLoop) << READ(uint32_t) << ' ' << REG(uint32_t);
+        break;
+        CASE(MakeFunction) << f.constants[READ(uint32_t)];
+        break;
+        CASE(LoadUpvalue) << READ(uint32_t);
+        break;
+        CASE(StoreUpvalue) << READ(uint32_t);
+        break;
+        CASE(LoadProperty) << REG(uint32_t) << ' '
+                           << f.constants[READ(uint32_t)];
+        break;
+        CASE(StoreProperty)
+            << REG(uint32_t) << ' ' << f.constants[READ(uint32_t)];
+        break;
+        CASE(Close) << READ(uint32_t);
         break;
 
       default:

@@ -49,7 +49,6 @@
     "test_no_separator",
     "test_null",
     "test_return_outside_function",
-    "test_too_many_constants_locals",
     "test_unterminated_comment",
     "test_unterminated_escape",
     "test_unterminated_number1",

@@ -176,30 +176,10 @@ void VM::run(TaskQueueEntry entry) {
 #undef itype
 #undef handler
 
-#define handler(op, impl) EXTRAWIDE_HANDLER(op) : unreachable()
-#include "wide_handlers.h"
-#undef handler
-
-#define utype uint8_t
-#define itype int8_t
-#define handler(op, impl) HANDLER(op) : impl DISPATCH()
-#include "extrawide_handlers.h"
-#undef utype
-#undef itype
-#undef handler
-
-#define utype uint16_t
-#define itype int16_t
-#define handler(op, impl) WIDE_HANDLER(op) : impl DISPATCH()
-#include "extrawide_handlers.h"
-#undef utype
-#undef itype
-#undef handler
-
 #define utype uint32_t
 #define itype int32_t
 #define handler(op, impl) EXTRAWIDE_HANDLER(op) : impl DISPATCH()
-#include "extrawide_handlers.h"
+#include "wide_handlers.h"
 #undef utype
 #undef itype
 #undef handler

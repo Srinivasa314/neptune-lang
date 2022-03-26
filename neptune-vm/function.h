@@ -16,14 +16,14 @@ struct LineInfo {
 };
 
 struct UpvalueInfo {
-  uint16_t index;
+  uint32_t index;
   bool is_local;
 };
 
 struct ExceptionHandler {
   uint32_t try_begin;
   uint32_t try_end;
-  uint16_t error_reg; // used for closing upvalues of try block and storing
+  uint32_t error_reg; // used for closing upvalues of try block and storing
                       // exception
   uint32_t catch_begin;
 };
@@ -36,7 +36,7 @@ public:
   vector<uint8_t> bytecode;
   vector<Value> constants;
   vector<LineInfo> lines;
-  uint16_t max_registers;
+  uint32_t max_registers;
   uint8_t arity;
   vector<UpvalueInfo> upvalues;
   vector<ExceptionHandler> exception_handlers;
@@ -49,7 +49,7 @@ class FunctionInfoWriter {
   Handle<FunctionInfo> *hf;
   VM *vm;
   bool reuse_constants;
-  std::unique_ptr<ValueMap<uint16_t>> constants;
+  std::unique_ptr<ValueMap<uint32_t>> constants;
 
 public:
   using IsRelocatable = std::true_type;
@@ -57,33 +57,33 @@ public:
   explicit FunctionInfoWriter(Handle<FunctionInfo> *hf_, const VM *vm_)
       : hf(hf_), vm(const_cast<VM *>(vm_)),
         constants(
-            std::unique_ptr<ValueMap<uint16_t>>(new ValueMap<uint16_t>())) {}
+            std::unique_ptr<ValueMap<uint32_t>>(new ValueMap<uint32_t>())) {}
   template <typename T> void write(T t);
-  uint16_t constant(Value v);
+  uint32_t constant(Value v);
   size_t write_op(Op op, uint32_t line);
   void write_u8(uint8_t u);
   void write_u16(uint16_t u);
   void write_u32(uint32_t u);
-  uint16_t float_constant(double d);
-  uint16_t string_constant(StringSlice s);
-  uint16_t symbol_constant(StringSlice s);
-  uint16_t fun_constant(FunctionInfoWriter f);
-  uint16_t class_constant(StringSlice s);
-  void add_method(uint16_t class_, StringSlice name, FunctionInfoWriter f);
+  uint32_t float_constant(double d);
+  uint32_t string_constant(StringSlice s);
+  uint32_t symbol_constant(StringSlice s);
+  uint32_t fun_constant(FunctionInfoWriter f);
+  uint32_t class_constant(StringSlice s);
+  void add_method(uint32_t class_, StringSlice name, FunctionInfoWriter f);
   void shrink();
   void pop_last_op(size_t last_op_pos);
   void release();
-  void set_max_registers(uint16_t max_registers);
+  void set_max_registers(uint32_t max_registers);
   void patch_jump(size_t op_position, uint32_t jump_offset);
   size_t size() const;
-  uint16_t int_constant(int32_t i);
-  uint16_t reserve_constant();
+  uint32_t int_constant(int32_t i);
+  uint32_t reserve_constant();
   VMStatus run();
-  void add_upvalue(uint16_t index, bool is_local);
+  void add_upvalue(uint32_t index, bool is_local);
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
-                             uint16_t error_reg, uint32_t catch_begin);
-  uint16_t jump_table();
-  void insert_in_jump_table(uint16_t jump_table,uint32_t offset);
+                             uint32_t error_reg, uint32_t catch_begin);
+  uint32_t jump_table();
+  void insert_in_jump_table(uint32_t jump_table,uint32_t offset);
   friend struct EFuncContext;
 };
 
@@ -101,7 +101,7 @@ class Function : public Object {
 public:
   static constexpr Type type = Type::Function;
   FunctionInfo *function_info;
-  uint16_t num_upvalues;
+  uint32_t num_upvalues;
   Class *super_class;
   UpValue *upvalues[];
   Function() = delete;

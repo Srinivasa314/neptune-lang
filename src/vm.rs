@@ -223,28 +223,28 @@ mod ffi {
         fn write_u8(self: &mut FunctionInfoWriter, u: u8);
         fn write_u16(self: &mut FunctionInfoWriter, u: u16);
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
-        fn reserve_constant(self: &mut FunctionInfoWriter) -> Result<u16>;
-        fn float_constant(self: &mut FunctionInfoWriter, f: f64) -> Result<u16>;
+        fn reserve_constant(self: &mut FunctionInfoWriter) -> u32;
+        fn float_constant(self: &mut FunctionInfoWriter, f: f64) -> u32;
         fn string_constant<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,
             s: StringSlice<'s>,
-        ) -> Result<u16>;
+        ) -> u32;
         fn symbol_constant<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,
             s: StringSlice<'s>,
-        ) -> Result<u16>;
-        fn int_constant(self: &mut FunctionInfoWriter, i: i32) -> Result<u16>;
-        fn fun_constant(self: &mut FunctionInfoWriter, f: FunctionInfoWriter) -> Result<u16>;
+        ) -> u32;
+        fn int_constant(self: &mut FunctionInfoWriter, i: i32) -> u32;
+        fn fun_constant(self: &mut FunctionInfoWriter, f: FunctionInfoWriter) -> u32;
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
-        fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u16);
+        fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u32);
         fn class_constant<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,
             s: StringSlice<'s>,
-        ) -> Result<u16>;
+        ) -> u32;
         fn add_method<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,
-            class_: u16,
+            class_: u32,
             name: StringSlice<'s>,
             f: FunctionInfoWriter,
         );
@@ -270,16 +270,16 @@ mod ffi {
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
-        fn add_upvalue(self: &mut FunctionInfoWriter, index: u16, is_local: bool);
+        fn add_upvalue(self: &mut FunctionInfoWriter, index: u32, is_local: bool);
         fn add_exception_handler(
             self: &mut FunctionInfoWriter,
             try_begin: u32,
             try_end: u32,
-            error_reg: u16,
+            error_reg: u32,
             catch_begin: u32,
         );
-        fn jump_table(self: &mut FunctionInfoWriter) -> Result<u16>;
-        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u16, offset: u32);
+        fn jump_table(self: &mut FunctionInfoWriter) -> u32;
+        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u32, offset: u32);
         fn size(self: &FunctionInfoWriter) -> usize;
         fn get_result(self: &VM) -> String;
         fn create_module(self: &VM, module_name: StringSlice);

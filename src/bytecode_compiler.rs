@@ -1,5 +1,3 @@
-use cxx::Exception;
-
 use crate::parser::ClosureBody;
 use crate::parser::Function;
 use crate::parser::Statement;
@@ -68,9 +66,7 @@ impl<'vm> Compiler<'vm> {
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
-                if let Err(e) = b.store_in_accumulator(er, 1) {
-                    b.error(e)
-                }
+                b.store_in_accumulator(er, 1);
             }
             Err(e) => b.error(e),
         }
@@ -149,8 +145,8 @@ struct BytecodeCompiler<'c, 'vm> {
     parent: Option<Box<BytecodeCompiler<'c, 'vm>>>,
     bytecode: FunctionInfoWriter<'vm>,
     locals: Vec<HashMap<String, Local>>,
-    regcount: u16,
-    max_registers: u16,
+    regcount: u32,
+    max_registers: u32,
     op_positions: Vec<usize>,
     loops: Vec<Loop>,
     bctype: BytecodeType,
@@ -167,12 +163,12 @@ enum BytecodeType {
 
 enum Loop {
     While {
-        start_reg: u16,
+        start_reg: u32,
         loop_start: usize,
         breaks: Vec<usize>,
     },
     For {
-        start_reg: u16,
+        start_reg: u32,
         continues: Vec<usize>,
         breaks: Vec<usize>,
     },
@@ -180,13 +176,13 @@ enum Loop {
 
 #[derive(Clone)]
 struct Local {
-    reg: u16,
+    reg: u32,
     mutable: bool,
     is_captured: bool,
 }
 
 struct UpValue {
-    index: u16,
+    index: u32,
     is_local: bool,
     mutable: bool,
 }
@@ -213,19 +209,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn push_register(&mut self, line: u32) -> CompileResult<u16> {
-        if self.regcount == u16::MAX {
-            Err(CompileError {
-                message: "Cannot have more than 65535 locals and temporaries".into(),
-                line,
-            })
-        } else {
-            self.regcount += 1;
-            if self.regcount > self.max_registers {
-                self.max_registers = self.regcount;
-            }
-            Ok(self.regcount - 1)
+    fn push_register(&mut self,) -> u32 {
+        self.regcount += 1;
+        if self.regcount > self.max_registers {
+            self.max_registers = self.regcount;
         }
+        self.regcount - 1
     }
 
     fn pop_register(&mut self) {
@@ -284,23 +273,31 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn write2(&mut self, op: Op, u1: u16, u2: u16, line: u32) {
+    fn write2(&mut self, op: Op, u1: u32, u2: u32, line: u32) {
         match (u8::try_from(u1), u8::try_from(u2)) {
             (Ok(u1), Ok(u2)) => {
                 self.write0(op, line);
                 self.bytecode.write_u8(u1);
                 self.bytecode.write_u8(u2)
             }
-            _ => {
-                self.write0(Op::Wide, line);
-                self.bytecode.write_u8(op.repr);
-                self.bytecode.write_u16(u1);
-                self.bytecode.write_u16(u2)
-            }
+            _ => match (u16::try_from(u1), u16::try_from(u2)) {
+                (Ok(u1), Ok(u2)) => {
+                    self.write0(Op::Wide, line);
+                    self.bytecode.write_u8(op.repr);
+                    self.bytecode.write_u16(u1);
+                    self.bytecode.write_u16(u2)
+                }
+                _ => {
+                    self.write0(Op::ExtraWide, line);
+                    self.bytecode.write_u8(op.repr);
+                    self.bytecode.write_u32(u1);
+                    self.bytecode.write_u32(u2)
+                }
+            },
         }
     }
 
-    fn write3(&mut self, op: Op, u1: u16, u2: u16, u3: u16, line: u32) {
+    fn write3(&mut self, op: Op, u1: u32, u2: u32, u3: u32, line: u32) {
         match (u8::try_from(u1), u8::try_from(u2), u8::try_from(u3)) {
             (Ok(u1), Ok(u2), Ok(u3)) => {
                 self.write0(op, line);
@@ -308,25 +305,22 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 self.bytecode.write_u8(u2);
                 self.bytecode.write_u8(u3)
             }
-            _ => {
-                self.write0(Op::Wide, line);
-                self.bytecode.write_u8(op.repr);
-                self.bytecode.write_u16(u1);
-                self.bytecode.write_u16(u2);
-                self.bytecode.write_u16(u3)
-            }
-        }
-    }
-
-    fn write2_u32(&mut self, op: Op, u1: u32, u2: u16, line: u32) {
-        match u16::try_from(u1) {
-            Ok(u1) => self.write2(op, u1, u2, line),
-            Err(_) => {
-                self.write0(Op::ExtraWide, line);
-                self.bytecode.write_u8(op.repr);
-                self.bytecode.write_u32(u1);
-                self.bytecode.write_u32(u2 as u32);
-            }
+            _ => match (u16::try_from(u1), u16::try_from(u2), u16::try_from(u3)) {
+                (Ok(u1), Ok(u2), Ok(u3)) => {
+                    self.write0(Op::Wide, line);
+                    self.bytecode.write_u8(op.repr);
+                    self.bytecode.write_u16(u1);
+                    self.bytecode.write_u16(u2);
+                    self.bytecode.write_u16(u3)
+                }
+                _ => {
+                    self.write0(Op::ExtraWide, line);
+                    self.bytecode.write_u8(op.repr);
+                    self.bytecode.write_u32(u1);
+                    self.bytecode.write_u32(u2);
+                    self.bytecode.write_u32(u3)
+                }
+            },
         }
     }
 
@@ -337,7 +331,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 }
 
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
-    fn write_op_store_register(&mut self, reg: u16, line: u32) {
+    fn write_op_store_register(&mut self, reg: u32, line: u32) {
         match reg {
             0..=15 => {
                 self.write0(
@@ -366,12 +360,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 );
             }
             _ => {
-                self.write1(Op::StoreRegister, reg as u32, line);
+                self.write1(Op::StoreRegister, reg, line);
             }
         }
     }
 
-    fn write_op_load_register(&mut self, reg: u16, line: u32) {
+    fn write_op_load_register(&mut self, reg: u32, line: u32) {
         match reg {
             0..=15 => {
                 self.write0(
@@ -400,43 +394,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 );
             }
             _ => {
-                self.write1(Op::LoadRegister, reg as u32, line);
+                self.write1(Op::LoadRegister, reg, line);
             }
         }
     }
 
-    fn load_const(&mut self, constant: Result<u16, Exception>, line: u32) -> CompileResult<()> {
-        self.write1(
-            Op::LoadConstant,
-            constant.map_err(|_| CompileError {
-                line,
-                message: "Cannot have more than 65535 constants per function".into(),
-            })? as u32,
-            line,
-        );
-        Ok(())
-    }
-
-    fn reserve_int(&mut self, line: u32) -> CompileResult<u16> {
-        self.bytecode.reserve_constant().map_err(|_| CompileError {
-            line,
-            message: "Cannot have more than 65535 constants per function".into(),
-        })
-    }
-
-    fn load_int(&mut self, i: i32, line: u32) -> CompileResult<()> {
+    fn load_int(&mut self, i: i32, line: u32) {
         match i8::try_from(i) {
             Ok(i) => self.write1(Op::LoadSmallInt, i as u8 as u32, line),
             _ => {
                 let c = self.bytecode.int_constant(i);
-                self.load_const(c, line)?;
+                self.write1(Op::LoadConstant, c, line);
             }
         }
-        Ok(())
     }
 
-    fn new_local(&mut self, line: u32, name: String, mutable: bool) -> CompileResult<u16> {
-        let reg = self.push_register(line)?;
+    fn new_local(&mut self, name: String, mutable: bool) -> u32 {
+        let reg = self.push_register();
         self.locals.last_mut().unwrap().insert(
             name,
             Local {
@@ -445,13 +419,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 is_captured: false,
             },
         );
-        Ok(reg)
+        reg
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 enum ExprResult {
-    Register(u16),
+    Register(u32),
     Accumulator,
     Int(i32),
 }
@@ -462,8 +436,8 @@ macro_rules! binary_op {
             let left = self.evaluate_expr(left)?;
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
-                reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line)?;
+                reg = self.push_register();
+                self.store_in_accumulator(left, line);
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -485,17 +459,17 @@ macro_rules! binary_op {
                 }
                 (left, ExprResult::Int(i)) => {
                     self.undo_save_to_register(left);
-                    self.store_in_accumulator(left, line)?;
+                    self.store_in_accumulator(left, line);
                     self.write1_signed(Op::$int_inst, i, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$register_inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$register_inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -510,8 +484,8 @@ macro_rules! comparing_binary_op {
             let left = self.evaluate_expr(left)?;
             let mut reg = 0;
             if !matches!(left, ExprResult::Register(_)) {
-                reg = self.push_register(line)?;
-                self.store_in_accumulator(left, line)?;
+                reg = self.push_register();
+                self.store_in_accumulator(left, line);
                 self.write_op_store_register(reg, line);
             }
             let right = self.evaluate_expr(right)?;
@@ -525,12 +499,12 @@ macro_rules! comparing_binary_op {
                     Ok(ExprResult::Accumulator)
                 }
                 (ExprResult::Register(r), right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$inst, r as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
                 (_, right) => {
-                    self.store_in_accumulator(right, line)?;
+                    self.store_in_accumulator(right, line);
                     self.write1(Op::$inst, reg as u32, line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -553,36 +527,30 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) -> CompileResult<()> {
+    fn store_in_accumulator(&mut self, result: ExprResult, line: u32) {
         match result {
             ExprResult::Register(reg) => {
                 self.write_op_load_register(reg, line);
             }
             ExprResult::Accumulator => {}
             ExprResult::Int(i) => {
-                self.load_int(i, line)?;
+                self.load_int(i, line);
             }
         }
-        Ok(())
     }
 
-    fn store_in_register(&mut self, result: ExprResult, line: u32) -> CompileResult<u16> {
+    fn store_in_register(&mut self, result: ExprResult, line: u32) -> u32 {
         if let ExprResult::Register(r) = result {
-            Ok(r)
+            r
         } else {
-            self.store_in_accumulator(result, line)?;
-            let reg = self.push_register(line)?;
+            self.store_in_accumulator(result, line);
+            let reg = self.push_register();
             self.write_op_store_register(reg, line);
-            Ok(reg)
+            reg
         }
     }
 
-    fn store_in_specific_register(
-        &mut self,
-        result: ExprResult,
-        reg: u16,
-        line: u32,
-    ) -> CompileResult<()> {
+    fn store_in_specific_register(&mut self, result: ExprResult, reg: u32, line: u32) {
         match result {
             ExprResult::Register(r) => {
                 if r != reg {
@@ -591,11 +559,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             ExprResult::Accumulator => self.write_op_store_register(reg, line),
             ExprResult::Int(i) => {
-                self.load_int(i, line)?;
+                self.load_int(i, line);
                 self.write_op_store_register(reg, line)
             }
         }
-        Ok(())
     }
 
     fn resolve_local(&mut self, name: &str) -> Option<&mut Local> {
@@ -607,54 +574,40 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         None
     }
 
-    fn resolve_upvalue(&mut self, name: &str, line: u32) -> CompileResult<Option<u16>> {
+    fn resolve_upvalue(&mut self, name: &str, line: u32) -> Option<u32> {
         match self.parent.as_mut() {
             Some(parent) => match parent.resolve_local(name) {
                 Some(l) => {
                     l.is_captured = true;
                     let l = l.clone();
-                    let u = self.add_upvalue(l.reg, true, l.mutable, line)?;
-                    Ok(Some(u))
+                    let u = self.add_upvalue(l.reg, true, l.mutable);
+                    Some(u)
                 }
                 None => match parent.resolve_upvalue(name, line) {
-                    Ok(Some(u)) => {
+                    Some(u) => {
                         let mutable = parent.upvalues[u as usize].mutable;
-                        Ok(Some(self.add_upvalue(u, false, mutable, line)?))
+                        Some(self.add_upvalue(u, false, mutable))
                     }
-                    Ok(None) => Ok(None),
-                    Err(e) => Err(e),
+                    None => None,
                 },
             },
-            None => Ok(None),
+            None => None,
         }
     }
 
-    fn add_upvalue(
-        &mut self,
-        index: u16,
-        is_local: bool,
-        mutable: bool,
-        line: u32,
-    ) -> CompileResult<u16> {
+    fn add_upvalue(&mut self, index: u32, is_local: bool, mutable: bool) -> u32 {
         for (i, upvalue) in self.upvalues.iter().enumerate() {
             if upvalue.index == index && upvalue.is_local == is_local {
-                return Ok(i as u16);
+                return i as u32;
             }
         }
-        if self.upvalues.len() == 65536 {
-            Err(CompileError {
-                message: "Cannot have more than 65536 upvalues".into(),
-                line,
-            })
-        } else {
-            self.upvalues.push(UpValue {
-                index,
-                is_local,
-                mutable,
-            });
-            self.bytecode.add_upvalue(index, is_local);
-            Ok((self.upvalues.len() - 1) as u16)
-        }
+        self.upvalues.push(UpValue {
+            index,
+            is_local,
+            mutable,
+        });
+        self.bytecode.add_upvalue(index, is_local);
+        (self.upvalues.len() - 1) as u32
     }
 
     fn compile_statments(&mut self, statements: &[Statement]) {
@@ -675,7 +628,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         if self.bctype == BytecodeType::Script && self.locals.is_empty() {
             let g = self.get_global(name).unwrap();
             let res = self.evaluate_expr(expr)?;
-            self.store_in_accumulator(res, line)?;
+            self.store_in_accumulator(res, line);
             self.write1(Op::StoreModuleVariable, g.position, line);
         } else {
             if self.locals.last().unwrap().contains_key(name) {
@@ -684,11 +637,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     line,
                 });
             }
-            let reg = self.push_register(line)?;
+            let reg = self.push_register();
             let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
             self.pop_register();
-            let reg = self.new_local(line, name.into(), mutable)?;
-            self.store_in_specific_register(res, reg, line)?;
+            let reg = self.new_local( name.into(), mutable);
+            self.store_in_specific_register(res, reg, line);
         }
         Ok(())
     }
@@ -709,7 +662,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     line,
                 });
             }
-            let reg = self.new_local(line, name.into(), mutable)?;
+            let reg = self.new_local( name.into(), mutable);
             self.write_op_store_register(reg, line);
         }
         Ok(())
@@ -820,31 +773,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         || (self.bctype == BytecodeType::Script && self.locals.is_empty()))
                     {
                         let target = names.len() + (self.regcount as usize);
-                        if target > (u16::MAX as usize) {
-                            self.error(CompileError {
-                                message: "Cannot have more than 65535 locals and temporaries"
-                                    .into(),
-                                line: *line,
-                            });
+                        if (target as u32) > self.max_registers {
+                            self.max_registers = target as u32;
                         }
-                        if (target as u16) > self.max_registers {
-                            self.max_registers = target as u16;
-                        }
-                        self.store_in_specific_register(object_res, target as u16, *line)?;
-                        target as u16
+                        self.store_in_specific_register(object_res, target as u32, *line);
+                        target as u32
                     } else {
-                        self.store_in_register(object_res, *line)?
+                        self.store_in_register(object_res, *line)
                     };
                     for name in names {
-                        let property = self
-                            .bytecode
-                            .symbol_constant(name.as_str().into())
-                            .map_err(|_| CompileError {
-                                line: *line,
-                                message: "Cannot have more than 65535 constants per function"
-                                    .into(),
-                            })?;
-                        self.write2(Op::LoadProperty, reg as u16, property, *line);
+                        let property = self.bytecode.symbol_constant(name.as_str().into());
+                        self.write2(Op::LoadProperty, reg, property, *line);
                         self.create_variable_and_store_accumulator(name, *mutable, *line)?;
                     }
                     if !matches!(object_res, ExprResult::Register(_))
@@ -883,19 +822,17 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     match res {
                         Err(e) => self.error(e),
                         Ok(res) => {
-                            if let Err(e) = self.store_in_accumulator(res, line) {
-                                self.error(e);
-                            }
+                            self.store_in_accumulator(res, line);
                         }
                     }
-                    let c = self.reserve_int(line)?;
+                    let c = self.bytecode.reserve_constant();
                     let cond_check = self.bytecode.size();
-                    self.write1(Op::JumpIfFalseOrNullConstant, c.into(), line);
+                    self.write1(Op::JumpIfFalseOrNullConstant, c, line);
                     self.block(block, *if_end);
                     let if_end_pos = self.bytecode.size();
                     if let Some(else_stmt) = else_stmt {
-                        let c = self.reserve_int(*if_end)?;
-                        self.write1(Op::JumpConstant, c.into(), *if_end);
+                        let c = self.bytecode.reserve_constant();
+                        self.write1(Op::JumpConstant, c, *if_end);
                         let jump_end = self.bytecode.size();
                         self.bytecode
                             .patch_jump(cond_check, (jump_end - cond_check) as u32);
@@ -922,13 +859,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     match self.evaluate_expr(condition) {
                         Err(e) => self.error(e),
                         Ok(res) => {
-                            if let Err(e) = self.store_in_accumulator(res, condition.line()) {
-                                self.error(e);
-                            }
+                            self.store_in_accumulator(res, condition.line());
                         }
                     }
 
-                    let c = self.reserve_int(condition.line())?;
+                    let c = self.bytecode.reserve_constant();
                     let loop_cond_check = self.bytecode.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
                     self.block(block, *end_line);
@@ -969,29 +904,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             self.error(e.clone());
                         }
                         self.locals.push(HashMap::default());
-                        let iter_reg = self.new_local(expr.line(), iter.clone(), false)?;
+                        let iter_reg = self.new_local( iter.clone(), false);
                         if let Ok(start) = start {
-                            if let Err(e) =
-                                self.store_in_specific_register(start, iter_reg, expr.line())
-                            {
-                                self.error(e);
-                            }
+                            self.store_in_specific_register(start, iter_reg, expr.line());
                         }
                         let end = self.evaluate_expr(end);
                         if let Err(ref e) = end {
                             self.error(e.clone());
                         }
-                        let end_reg = self.new_local(expr.line(), "$end".into(), false)?;
+                        let end_reg = self.new_local( "$end".into(), false);
                         if let Ok(end) = end {
-                            if let Err(e) =
-                                self.store_in_specific_register(end, end_reg, expr.line())
-                            {
-                                self.error(e);
-                            }
+                            self.store_in_specific_register(end, end_reg, expr.line());
                         }
-                        let c = self.reserve_int(expr.line())?;
+                        let c = self.bytecode.reserve_constant();
                         let before_loop_prep = self.bytecode.size();
-                        self.write2_u32(Op::BeginForLoopConstant, c as u32, iter_reg, expr.line());
+                        self.write2(Op::BeginForLoopConstant, c as u32, iter_reg, expr.line());
                         let loop_start = self.bytecode.size();
                         self.loops.push(Loop::For {
                             start_reg: iter_reg,
@@ -1006,7 +933,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             self.write1(Op::Close, (iter_reg) as u32, *end_line);
                         }
                         let loop_almost_end = self.bytecode.size();
-                        self.write2_u32(
+                        self.write2(
                             Op::ForLoop,
                             (loop_almost_end - loop_start) as u32,
                             iter_reg,
@@ -1030,33 +957,26 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                         self.loops.pop();
                         let last_block = self.locals.pop().unwrap();
-                        self.regcount -= last_block.len() as u16;
+                        self.regcount -= last_block.len() as u32;
                     } else {
                         let res = self.evaluate_expr(expr);
                         if let Ok(res) = res {
-                            self.store_in_accumulator(res, expr.line())?;
+                            self.store_in_accumulator(res, expr.line());
                         } else if let Err(e) = res {
                             self.error(e);
                         }
                         self.locals.push(HashMap::default());
-                        let iterator = self.new_local(expr.line(), "$iter".into(), false)?;
+                        let iterator = self.new_local( "$iter".into(), false);
                         self.store_in_specific_register(
                             ExprResult::Accumulator,
                             iterator,
                             expr.line(),
-                        )?;
+                        );
 
                         let loop_start = self.bytecode.size();
-                        let hasnext_property = self
-                            .bytecode
-                            .symbol_constant("hasNext".into())
-                            .map_err(|_| CompileError {
-                                line: expr.line(),
-                                message: "Cannot have more than 65535 constants per function"
-                                    .into(),
-                            })?;
+                        let hasnext_property = self.bytecode.symbol_constant("hasNext".into());
                         let start = self.regcount;
-                        self.push_register(expr.line())?;
+                        self.push_register();
                         self.write3(
                             Op::CallMethod,
                             iterator,
@@ -1067,21 +987,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.bytecode.write_u8(0);
                         self.pop_register();
 
-                        let c = self.reserve_int(expr.line())?;
+                        let c = self.bytecode.reserve_constant();
                         let loop_cond_check = self.bytecode.size();
                         self.write1(Op::JumpIfFalseOrNullConstant, c as u32, expr.line());
 
-                        let iter_reg = self.new_local(expr.line(), iter.into(), false)?;
-                        let next_property =
-                            self.bytecode.symbol_constant("next".into()).map_err(|_| {
-                                CompileError {
-                                    line: expr.line(),
-                                    message: "Cannot have more than 65535 constants per function"
-                                        .into(),
-                                }
-                            })?;
+                        let iter_reg = self.new_local( iter.into(), false);
+                        let next_property = self.bytecode.symbol_constant("next".into());
                         let start = self.regcount;
-                        self.push_register(expr.line())?;
+                        self.push_register();
                         self.write3(Op::CallMethod, iterator, next_property, start, expr.line());
                         self.bytecode.write_u8(0);
                         self.pop_register();
@@ -1089,7 +1002,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             ExprResult::Accumulator,
                             iter_reg,
                             expr.line(),
-                        )?;
+                        );
                         self.loops.push(Loop::While {
                             start_reg: iter_reg,
                             loop_start,
@@ -1120,7 +1033,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             _ => unreachable!(),
                         }
                         let last_block = self.locals.pop().unwrap();
-                        self.regcount -= last_block.len() as u16;
+                        self.regcount -= last_block.len() as u32;
                     }
                 }
                 Statement::Break { line } => self.break_stmt(*line)?,
@@ -1154,14 +1067,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         *last_line,
                     )?;
                     let c = self.bytecode.fun_constant(bytecode);
-                    self.write1(
-                        Op::MakeFunction,
-                        c.map_err(|_| CompileError {
-                            line: *line,
-                            message: "Cannot have more than 65535 constants per function".into(),
-                        })? as u32,
-                        *last_line,
-                    );
+                    self.write1(Op::MakeFunction, c, *last_line);
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
                 Statement::Return { line, expr } => {
@@ -1179,7 +1085,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             });
                         }
                         let expr_res = self.evaluate_expr(expr)?;
-                        self.store_in_accumulator(expr_res, *line)?;
+                        self.store_in_accumulator(expr_res, *line);
                     } else if self.bctype == BytecodeType::Constructor {
                         self.write0(Op::LoadR0, *line);
                     } else {
@@ -1189,7 +1095,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 Statement::Throw(e) => {
                     let expr_res = self.evaluate_expr(e)?;
-                    self.store_in_accumulator(expr_res, e.line())?;
+                    self.store_in_accumulator(expr_res, e.line());
                     self.write0(Op::Throw, e.line());
                 }
                 Statement::TryCatch {
@@ -1202,11 +1108,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     let try_start_pos = self.bytecode.size();
                     self.block(try_block, *try_end);
                     let try_end_pos = self.bytecode.size();
-                    let c = self.reserve_int(*try_end)?;
+                    let c = self.bytecode.reserve_constant();
                     let jump_pos = self.bytecode.size();
-                    self.write1(Op::JumpConstant, c.into(), *try_end);
+                    self.write1(Op::JumpConstant, c, *try_end);
                     self.locals.push(HashMap::default());
-                    let error_reg = self.push_register(*try_end)?;
+                    let error_reg = self.push_register();
                     self.locals.last_mut().unwrap().insert(
                         error_var.clone(),
                         Local {
@@ -1220,7 +1126,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.compile_statement(stmt);
                     }
                     let last_block = self.locals.pop().unwrap();
-                    self.regcount -= last_block.len() as u16;
+                    self.regcount -= last_block.len() as u32;
                     if last_block.values().any(|l| l.is_captured) {
                         self.write1(Op::Close, self.regcount as u32, *catch_end);
                     }
@@ -1249,18 +1155,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         });
                     }
                     let class = self.bytecode.class_constant(name.as_str().into());
-                    if class.is_err() {
-                        self.error(CompileError {
-                            line: *line,
-                            message: "Cannot have more than 65535 constants per function".into(),
-                        });
-                    }
                     if let Some(parent) = parent {
                         let res = self.evaluate_expr(parent);
                         if let Ok(res) = res {
-                            if let Err(e) = self.store_in_accumulator(res, *line) {
-                                self.error(e);
-                            }
+                            self.store_in_accumulator(res, *line);
                         } else if let Err(e) = res {
                             self.error(e);
                         }
@@ -1286,21 +1184,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         );
 
                         match bytecode {
-                            Ok(bytecode) => {
-                                if let Ok(class) = class {
-                                    self.bytecode.add_method(
-                                        class,
-                                        method.name.as_str().into(),
-                                        bytecode,
-                                    )
-                                }
-                            }
+                            Ok(bytecode) => self.bytecode.add_method(
+                                class,
+                                method.name.as_str().into(),
+                                bytecode,
+                            ),
                             Err(e) => self.error(e),
                         }
                     }
-                    if let Ok(class) = class {
-                        self.write1(Op::MakeClass, class as u32, *line);
-                    }
+                    self.write1(Op::MakeClass, class as u32, *line);
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
                 Statement::Switch { .. } => todo!(),
@@ -1317,7 +1209,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             self.compile_statement(stmt);
         }
         let last_block = self.locals.pop().unwrap();
-        self.regcount -= last_block.len() as u16;
+        self.regcount -= last_block.len() as u32;
         if last_block.values().any(|l| l.is_captured) {
             self.write1(Op::Close, self.regcount as u32, end_line);
         }
@@ -1365,8 +1257,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             if self.locals.last().unwrap().values().any(|l| l.is_captured) {
                 self.write1(Op::Close, start as u32, line);
             }
-            let c = self.reserve_int(line)?;
-            self.write1(Op::JumpConstant, c.into(), line);
+            let c = self.bytecode.reserve_constant();
+            self.write1(Op::JumpConstant, c, line);
         }
         Ok(())
     }
@@ -1409,8 +1301,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     } else {
                         continues.push(continue_pos);
                     }
-                    let c = self.reserve_int(line)?;
-                    self.write1(Op::JumpConstant, c.into(), line);
+                    let c = self.bytecode.reserve_constant();
+                    self.write1(Op::JumpConstant, c, line);
                 }
             }
         }
@@ -1424,7 +1316,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn evaluate_expr_with_dest(
         &mut self,
         expr: &Expr,
-        dest: Option<u16>,
+        dest: Option<u32>,
     ) -> CompileResult<ExprResult> {
         match expr {
             Expr::Literal { inner, line } => match inner {
@@ -1440,7 +1332,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 TokenType::FloatLiteral(f) => Ok({
                     let c = self.bytecode.float_constant(*f);
-                    self.load_const(c, *line)?;
+                    self.write1(Op::LoadConstant, c, *line);
                     ExprResult::Accumulator
                 }),
                 TokenType::Null => {
@@ -1457,7 +1349,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }
                 TokenType::Symbol(sym) => {
                     let sym = self.bytecode.symbol_constant(sym.as_str().into());
-                    self.load_const(sym, *line)?;
+                    self.write1(Op::LoadConstant, sym, *line);
                     Ok(ExprResult::Accumulator)
                 }
                 _ => unreachable!(),
@@ -1512,33 +1404,33 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 }),
                 TokenType::And => {
                     let left = self.evaluate_expr(left)?;
-                    self.store_in_accumulator(left, *line)?;
+                    self.store_in_accumulator(left, *line);
                     let jump_pos = self.bytecode.size();
-                    let c = self.reserve_int(*line)?;
+                    let c = self.bytecode.reserve_constant();
                     self.write1(Op::JumpIfFalseOrNullConstant, c as u32, *line);
                     let right = self.evaluate_expr(right)?;
-                    self.store_in_accumulator(right, *line)?;
+                    self.store_in_accumulator(right, *line);
                     let end = self.bytecode.size();
                     self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::Or => {
                     let left = self.evaluate_expr(left)?;
-                    self.store_in_accumulator(left, *line)?;
+                    self.store_in_accumulator(left, *line);
                     let jump_pos = self.bytecode.size();
-                    let c = self.reserve_int(*line)?;
+                    let c = self.bytecode.reserve_constant();
                     self.write1(Op::JumpIfNotFalseOrNullConstant, c as u32, *line);
                     let right = self.evaluate_expr(right)?;
-                    self.store_in_accumulator(right, *line)?;
+                    self.store_in_accumulator(right, *line);
                     let end = self.bytecode.size();
                     self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::DotDot => {
                     let left = self.evaluate_expr(left)?;
-                    let left_reg = self.store_in_register(left, *line)?;
+                    let left_reg = self.store_in_register(left, *line);
                     let right = self.evaluate_expr(right)?;
-                    self.store_in_accumulator(right, *line)?;
+                    self.store_in_accumulator(right, *line);
                     self.write1(Op::Range, left_reg as u32, *line);
                     if !(matches!(left, ExprResult::Register(_))) {
                         self.pop_register();
@@ -1554,7 +1446,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             },
             Expr::Variable { name, line } => match self.resolve_local(name) {
                 Some(local) => Ok(ExprResult::Register(local.reg)),
-                None => match self.resolve_upvalue(name, *line)? {
+                None => match self.resolve_upvalue(name, *line) {
                     Some(upval) => {
                         self.write1(Op::LoadUpvalue, upval as u32, *line);
                         Ok(ExprResult::Accumulator)
@@ -1572,34 +1464,34 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::String { inner, line } => {
                 if inner.is_empty() {
                     let str = self.bytecode.string_constant("".into());
-                    self.load_const(str, *line)?;
+                    self.write1(Op::LoadConstant, str, *line);
                 } else {
                     match &inner[0] {
                         Substring::String(s) => {
                             let str = self.bytecode.string_constant(s.as_str().into());
-                            self.load_const(str, *line)?;
+                            self.write1(Op::LoadConstant, str, *line);
                         }
                         Substring::Expr(e) => {
                             let expr_res = self.evaluate_expr(e)?;
-                            self.expr_to_string(expr_res, *line)?;
+                            self.expr_to_string(expr_res, *line);
                         }
                     }
                     if inner.len() > 1 {
-                        let reg = self.push_register(*line)?;
+                        let reg = self.push_register();
                         for i in &inner[1..] {
                             self.write_op_store_register(reg, *line);
                             match i {
                                 Substring::String(s) => {
                                     if !s.is_empty() {
                                         let str = self.bytecode.string_constant(s.as_str().into());
-                                        self.load_const(str, *line)?;
+                                        self.write1(Op::LoadConstant, str, *line);
                                     } else {
                                         continue;
                                     }
                                 }
                                 Substring::Expr(expr) => {
                                     let expr = self.evaluate_expr(expr)?;
-                                    self.expr_to_string(expr, *line)?;
+                                    self.expr_to_string(expr, *line);
                                 }
                             }
                             self.write1(Op::ConcatRegister, reg as u32, *line);
@@ -1612,24 +1504,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Array { inner, line } => {
                 let array_reg = match dest {
                     Some(r) => r,
-                    None => self.push_register(*line)?,
+                    None => self.push_register(),
                 };
-                self.write2(
-                    Op::NewArray,
-                    u16::try_from(inner.len()).map_err(|_| CompileError {
-                        message: "Array literal can have upto 65535 elements".to_string(),
-                        line: *line,
-                    })?,
-                    array_reg,
-                    *line,
-                );
+                self.write2(Op::NewArray, inner.len() as u32, array_reg, *line);
                 for (index, expr) in inner.iter().enumerate() {
                     let expr_res = self.evaluate_expr(expr)?;
-                    self.store_in_accumulator(expr_res, expr.line())?;
+                    self.store_in_accumulator(expr_res, expr.line());
                     self.write2(
                         Op::StoreArrayUnchecked,
                         array_reg,
-                        u16::try_from(index).unwrap(),
+                        index as u32,
                         expr.line(),
                     );
                 }
@@ -1647,9 +1531,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             } => {
                 let res = self.evaluate_expr(object)?;
-                let reg = self.store_in_register(res, *line)?;
+                let reg = self.store_in_register(res, *line);
                 let subscript = self.evaluate_expr(subscript)?;
-                self.store_in_accumulator(subscript, *line)?;
+                self.store_in_accumulator(subscript, *line);
                 self.write1(Op::LoadSubscript, reg as u32, *line);
                 if !matches!(res, ExprResult::Register(_)) {
                     self.pop_register();
@@ -1659,22 +1543,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Map { inner, line } => {
                 let map_reg = match dest {
                     Some(r) => r,
-                    None => self.push_register(*line)?,
+                    None => self.push_register(),
                 };
-                self.write2(
-                    Op::NewMap,
-                    u16::try_from(inner.len()).map_err(|_| CompileError {
-                        message: "Map literal can have up to 65535 elements".to_string(),
-                        line: *line,
-                    })?,
-                    map_reg,
-                    *line,
-                );
+                self.write2(Op::NewMap, inner.len() as u32, map_reg, *line);
                 for (key, val) in inner.iter() {
                     let key_res = self.evaluate_expr(key)?;
-                    let key_reg = self.store_in_register(key_res, key.line())?;
+                    let key_reg = self.store_in_register(key_res, key.line());
                     let val_res = self.evaluate_expr(val)?;
-                    self.store_in_accumulator(val_res, val.line())?;
+                    self.store_in_accumulator(val_res, val.line());
                     self.write2(Op::StoreSubscript, map_reg, key_reg, val.line());
                     if !(matches!(key_res, ExprResult::Register(_))) {
                         self.pop_register();
@@ -1701,12 +1577,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     });
                 }
                 for arg in arguments {
-                    let reg = self.push_register(*line)?;
+                    let reg = self.push_register();
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
-                    self.store_in_specific_register(expr, reg, *line)?;
+                    self.store_in_specific_register(expr, reg, *line);
                 }
                 let expr = self.evaluate_expr(function)?;
-                self.store_in_accumulator(expr, *line)?;
+                self.store_in_accumulator(expr, *line);
                 self.write1(Op::Call, start as u32, *line);
                 self.bytecode.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
@@ -1731,10 +1607,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let c = self.bytecode.fun_constant(bytecode);
                 self.write1(
                     Op::MakeFunction,
-                    c.map_err(|_| CompileError {
-                        line: *line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })? as u32,
+                    c,
                     *last_line,
                 );
                 Ok(ExprResult::Accumulator)
@@ -1742,14 +1615,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Member { object, property } => {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
-                let reg = self.store_in_register(object_res, line)?;
-                let property = self
-                    .bytecode
-                    .symbol_constant(property.as_str().into())
-                    .map_err(|_| CompileError {
-                        line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })?;
+                let reg = self.store_in_register(object_res, line);
+                let property = self.bytecode.symbol_constant(property.as_str().into());
                 self.write2(Op::LoadProperty, reg, property, line);
                 if !matches!(object_res, ExprResult::Register(_)) {
                     self.pop_register();
@@ -1759,25 +1626,13 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::ObjectLiteral { line, inner } => {
                 let obj_reg = match dest {
                     Some(r) => r,
-                    None => self.push_register(*line)?,
+                    None => self.push_register(),
                 };
-                self.write2(
-                    Op::NewObject,
-                    u16::try_from(inner.len()).map_err(|_| CompileError {
-                        message: "Object literal can have up to 65535 elements".to_string(),
-                        line: *line,
-                    })?,
-                    obj_reg,
-                    *line,
-                );
+                self.write2(Op::NewObject, inner.len() as u32, obj_reg, *line);
                 for (key, val) in inner.iter() {
                     let sym = self
                         .bytecode
-                        .symbol_constant(key.as_str().into())
-                        .map_err(|_| CompileError {
-                            line: *line,
-                            message: "Cannot have more than 65535 constants per function".into(),
-                        })?;
+                        .symbol_constant(key.as_str().into());
                     let val_res = if let Some(val) = val {
                         self.evaluate_expr(val)?
                     } else {
@@ -1791,7 +1646,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     } else {
                         *line
                     };
-                    self.store_in_accumulator(val_res, line)?;
+                    self.store_in_accumulator(val_res, line);
                     self.write2(Op::StoreProperty, obj_reg, sym, line);
                 }
                 if dest.is_none() {
@@ -1814,14 +1669,14 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     });
                 }
-                self.push_register(*line)?;
+                self.push_register();
                 for arg in arguments {
-                    let reg = self.push_register(*line)?;
+                    let reg = self.push_register();
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
-                    self.store_in_specific_register(expr, reg, *line)?;
+                    self.store_in_specific_register(expr, reg, *line);
                 }
                 let expr = self.evaluate_expr(class)?;
-                self.store_in_accumulator(expr, *line)?;
+                self.store_in_accumulator(expr, *line);
                 self.write1(Op::Construct, start as u32, *line);
                 self.bytecode.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
@@ -1847,14 +1702,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             } => {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
-                let reg = self.store_in_register(object_res, line)?;
+                let reg = self.store_in_register(object_res, line);
                 let property = self
                     .bytecode
-                    .symbol_constant(property.as_str().into())
-                    .map_err(|_| CompileError {
-                        line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })?;
+                    .symbol_constant(property.as_str().into());
                 let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
@@ -1862,11 +1713,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line,
                     });
                 }
-                self.push_register(line)?;
+                self.push_register();
                 for arg in arguments {
-                    let reg = self.push_register(line)?;
+                    let reg = self.push_register();
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
-                    self.store_in_specific_register(expr, reg, line)?;
+                    self.store_in_specific_register(expr, reg, line);
                 }
                 self.write3(Op::CallMethod, reg, property, start, line);
                 self.bytecode.write_u8(arguments.len() as u8);
@@ -1892,13 +1743,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     });
                 }
-                let property = self
-                    .bytecode
-                    .symbol_constant(method.as_str().into())
-                    .map_err(|_| CompileError {
-                        line: *line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })?;
+                let property = self.bytecode.symbol_constant(method.as_str().into());
                 let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
@@ -1906,11 +1751,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     });
                 }
-                self.push_register(*line)?;
+                self.push_register();
                 for arg in arguments {
-                    let reg = self.push_register(*line)?;
+                    let reg = self.push_register();
                     let expr = self.evaluate_expr_with_dest(arg, Some(reg))?;
-                    self.store_in_specific_register(expr, reg, *line)?;
+                    self.store_in_specific_register(expr, reg, *line);
                 }
                 self.write2(Op::SuperCall, property, start, *line);
                 self.bytecode.write_u8(arguments.len() as u8);
@@ -1947,10 +1792,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         let parent = std::mem::replace(self, bc);
         self.parent = Some(Box::new(parent));
         if bctype == BytecodeType::Method || bctype == BytecodeType::Constructor {
-            self.new_local(line, "this".to_string(), false)?;
+            self.new_local( "this".to_string(), false);
         }
         for arg in args {
-            self.new_local(line, arg.clone(), true)?;
+            self.new_local( arg.clone(), true);
         }
         match body {
             ClosureBody::Block(body) => {
@@ -1967,9 +1812,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             ClosureBody::Expr(body) => {
                 match self.evaluate_expr(body) {
                     Ok(res) => {
-                        if let Err(e) = self.store_in_accumulator(res, last_line) {
-                            self.error(e)
-                        }
+                        self.store_in_accumulator(res, last_line);
                     }
                     Err(e) => self.error(e),
                 }
@@ -1989,7 +1832,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         } = right
         {
             let c = self.bytecode.float_constant(-f);
-            self.load_const(c, *line)?;
+            self.write1(Op::LoadConstant, c, *line);
             return Ok(ExprResult::Accumulator);
         }
         match self.evaluate_expr(right)? {
@@ -2014,29 +1857,24 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn expr_to_string(&mut self, expr_res: ExprResult, line: u32) -> CompileResult<()> {
-        let reg = self.store_in_register(expr_res, line)?;
+    fn expr_to_string(&mut self, expr_res: ExprResult, line: u32)  {
+        let reg = self.store_in_register(expr_res, line);
         let property = self
             .bytecode
-            .symbol_constant("toString".into())
-            .map_err(|_| CompileError {
-                line,
-                message: "Cannot have more than 65535 constants per function".into(),
-            })?;
+            .symbol_constant("toString".into());
         let start = self.regcount;
-        self.push_register(line)?;
+        self.push_register();
         self.write3(Op::CallMethod, reg, property, start, line);
         self.bytecode.write_u8(0);
         self.pop_register();
         if !matches!(expr_res, ExprResult::Register(_)) {
             self.pop_register();
         }
-        Ok(())
     }
 
     fn not(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
         let result = self.evaluate_expr(right)?;
-        self.store_in_accumulator(result, line)?;
+        self.store_in_accumulator(result, line);
         self.write0(Op::Not, line);
         Ok(ExprResult::Accumulator)
     }
@@ -2047,7 +1885,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match left {
             ExprResult::Register(r) => reg = r,
             ExprResult::Accumulator => {
-                reg = self.push_register(line)?;
+                reg = self.push_register();
                 self.write_op_store_register(reg, line)
             }
             ExprResult::Int(_) => {
@@ -2071,7 +1909,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             }),
             right => {
-                self.store_in_accumulator(right, line)?;
+                self.store_in_accumulator(right, line);
                 self.write1(Op::ConcatRegister, reg as u32, line);
                 Ok(ExprResult::Accumulator)
             }
@@ -2086,11 +1924,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             } => {
                 let object = self.evaluate_expr(object)?;
-                let object_reg = self.store_in_register(object, *line)?;
+                let object_reg = self.store_in_register(object, *line);
                 let subscript = self.evaluate_expr(subscript)?;
-                let subscript_reg = self.store_in_register(subscript, *line)?;
+                let subscript_reg = self.store_in_register(subscript, *line);
                 let right = self.evaluate_expr(right)?;
-                self.store_in_accumulator(right, *line)?;
+                self.store_in_accumulator(right, *line);
                 self.write2(Op::StoreSubscript, object_reg, subscript_reg, *line);
                 if !matches!(subscript, ExprResult::Register(_)) {
                     self.pop_register();
@@ -2108,8 +1946,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                         });
                     }
-                    self.store_in_specific_register(expr_res, local.reg, *line)?;
-                } else if let Some(upval) = self.resolve_upvalue(name, *line)? {
+                    self.store_in_specific_register(expr_res, local.reg, *line);
+                } else if let Some(upval) = self.resolve_upvalue(name, *line) {
                     let res = self.evaluate_expr(right)?;
                     if !self.upvalues[upval as usize].mutable {
                         return Err(CompileError {
@@ -2117,7 +1955,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                         });
                     }
-                    self.store_in_accumulator(res, *line)?;
+                    self.store_in_accumulator(res, *line);
                     self.write1(Op::StoreUpvalue, upval as u32, *line);
                 } else {
                     let global = self.get_global(name).ok_or_else(|| CompileError {
@@ -2125,7 +1963,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     })?;
                     let res = self.evaluate_expr(right)?;
-                    self.store_in_accumulator(res, *line)?;
+                    self.store_in_accumulator(res, *line);
                     if !global.mutable {
                         return Err(CompileError {
                             message: format!("Cannot modify constant {}", name),
@@ -2138,16 +1976,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             }
             Expr::Member { object, property } => {
                 let res = self.evaluate_expr(object)?;
-                let object = self.store_in_register(res, line)?;
+                let object = self.store_in_register(res, line);
                 let sym = self
                     .bytecode
-                    .symbol_constant(property.as_str().into())
-                    .map_err(|_| CompileError {
-                        line,
-                        message: "Cannot have more than 65535 constants per function".into(),
-                    })?;
+                    .symbol_constant(property.as_str().into());
                 let right = self.evaluate_expr(right)?;
-                self.store_in_accumulator(right, line)?;
+                self.store_in_accumulator(right, line);
                 self.write2(Op::StoreProperty, object, sym, line);
                 if !matches!(res, ExprResult::Register(_)) {
                     self.pop_register();
