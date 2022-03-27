@@ -413,6 +413,20 @@ mod tests {
                 panic!("Error in file {}, {:?}", test, e);
             }
         }
+        if let InterpretError::UncaughtException(e) = n
+            .exec("test_deadlock.np", &read("test_deadlock.np").unwrap())
+            .unwrap_err()
+        {
+            assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)\n")
+        } else {
+            panic!("Expected error")
+        }
+        n.exec("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
+            .unwrap();
+        //n.exec("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap())
+        //    .unwrap();
+        //n.exec("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
+        //    .unwrap();
     }
 
     #[test]

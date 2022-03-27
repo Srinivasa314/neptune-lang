@@ -209,7 +209,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn push_register(&mut self,) -> u32 {
+    fn push_register(&mut self) -> u32 {
         self.regcount += 1;
         if self.regcount > self.max_registers {
             self.max_registers = self.regcount;
@@ -640,7 +640,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             let reg = self.push_register();
             let res = self.evaluate_expr_with_dest(expr, Some(reg))?;
             self.pop_register();
-            let reg = self.new_local( name.into(), mutable);
+            let reg = self.new_local(name.into(), mutable);
             self.store_in_specific_register(res, reg, line);
         }
         Ok(())
@@ -662,7 +662,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     line,
                 });
             }
-            let reg = self.new_local( name.into(), mutable);
+            let reg = self.new_local(name.into(), mutable);
             self.write_op_store_register(reg, line);
         }
         Ok(())
@@ -904,7 +904,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             self.error(e.clone());
                         }
                         self.locals.push(HashMap::default());
-                        let iter_reg = self.new_local( iter.clone(), false);
+                        let iter_reg = self.new_local(iter.clone(), false);
                         if let Ok(start) = start {
                             self.store_in_specific_register(start, iter_reg, expr.line());
                         }
@@ -912,7 +912,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         if let Err(ref e) = end {
                             self.error(e.clone());
                         }
-                        let end_reg = self.new_local( "$end".into(), false);
+                        let end_reg = self.new_local("$end".into(), false);
                         if let Ok(end) = end {
                             self.store_in_specific_register(end, end_reg, expr.line());
                         }
@@ -966,7 +966,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             self.error(e);
                         }
                         self.locals.push(HashMap::default());
-                        let iterator = self.new_local( "$iter".into(), false);
+                        let iterator = self.new_local("$iter".into(), false);
                         self.store_in_specific_register(
                             ExprResult::Accumulator,
                             iterator,
@@ -991,7 +991,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         let loop_cond_check = self.bytecode.size();
                         self.write1(Op::JumpIfFalseOrNullConstant, c as u32, expr.line());
 
-                        let iter_reg = self.new_local( iter.into(), false);
+                        let iter_reg = self.new_local(iter.into(), false);
                         let next_property = self.bytecode.symbol_constant("next".into());
                         let start = self.regcount;
                         self.push_register();
@@ -1032,6 +1032,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             }
                             _ => unreachable!(),
                         }
+                        self.loops.pop();
                         let last_block = self.locals.pop().unwrap();
                         self.regcount -= last_block.len() as u32;
                     }
@@ -1605,11 +1606,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     *last_line,
                 )?;
                 let c = self.bytecode.fun_constant(bytecode);
-                self.write1(
-                    Op::MakeFunction,
-                    c,
-                    *last_line,
-                );
+                self.write1(Op::MakeFunction, c, *last_line);
                 Ok(ExprResult::Accumulator)
             }
             Expr::Member { object, property } => {
@@ -1630,9 +1627,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 };
                 self.write2(Op::NewObject, inner.len() as u32, obj_reg, *line);
                 for (key, val) in inner.iter() {
-                    let sym = self
-                        .bytecode
-                        .symbol_constant(key.as_str().into());
+                    let sym = self.bytecode.symbol_constant(key.as_str().into());
                     let val_res = if let Some(val) = val {
                         self.evaluate_expr(val)?
                     } else {
@@ -1703,9 +1698,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
                 let reg = self.store_in_register(object_res, line);
-                let property = self
-                    .bytecode
-                    .symbol_constant(property.as_str().into());
+                let property = self.bytecode.symbol_constant(property.as_str().into());
                 let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
@@ -1792,10 +1785,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         let parent = std::mem::replace(self, bc);
         self.parent = Some(Box::new(parent));
         if bctype == BytecodeType::Method || bctype == BytecodeType::Constructor {
-            self.new_local( "this".to_string(), false);
+            self.new_local("this".to_string(), false);
         }
         for arg in args {
-            self.new_local( arg.clone(), true);
+            self.new_local(arg.clone(), true);
         }
         match body {
             ClosureBody::Block(body) => {
@@ -1816,6 +1809,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     Err(e) => self.error(e),
                 }
+                self.bytecode.shrink();
+                self.bytecode.set_max_registers(self.max_registers);
                 self.write0(Op::Return, last_line);
             }
         }
@@ -1857,11 +1852,9 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         }
     }
 
-    fn expr_to_string(&mut self, expr_res: ExprResult, line: u32)  {
+    fn expr_to_string(&mut self, expr_res: ExprResult, line: u32) {
         let reg = self.store_in_register(expr_res, line);
-        let property = self
-            .bytecode
-            .symbol_constant("toString".into());
+        let property = self.bytecode.symbol_constant("toString".into());
         let start = self.regcount;
         self.push_register();
         self.write3(Op::CallMethod, reg, property, start, line);
@@ -1977,9 +1970,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Member { object, property } => {
                 let res = self.evaluate_expr(object)?;
                 let object = self.store_in_register(res, line);
-                let sym = self
-                    .bytecode
-                    .symbol_constant(property.as_str().into());
+                let sym = self.bytecode.symbol_constant(property.as_str().into());
                 let right = self.evaluate_expr(right)?;
                 self.store_in_accumulator(right, line);
                 self.write2(Op::StoreProperty, object, sym, line);

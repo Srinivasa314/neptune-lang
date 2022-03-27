@@ -1,0 +1,4 @@
+const {assert_eq} = import("assert.np")
+
+assert_eq(main_task.status(),@killed)
+assert_eq(task2.status(),@killed)

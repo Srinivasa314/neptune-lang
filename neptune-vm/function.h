@@ -48,7 +48,7 @@ public:
 class FunctionInfoWriter {
   Handle<FunctionInfo> *hf;
   VM *vm;
-  bool reuse_constants;
+  bool reuse_constants = true;
   std::unique_ptr<ValueMap<uint32_t>> constants;
 
 public:
@@ -83,7 +83,7 @@ public:
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
                              uint32_t error_reg, uint32_t catch_begin);
   uint32_t jump_table();
-  void insert_in_jump_table(uint32_t jump_table,uint32_t offset);
+  void insert_in_jump_table(uint32_t jump_table, uint32_t offset);
   friend struct EFuncContext;
 };
 

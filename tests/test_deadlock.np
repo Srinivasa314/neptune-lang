@@ -1,0 +1,8 @@
+let main_task=import('vm').currentTask()
+let chan=new Channel()
+let task2=spawn(||{
+    chan.recv()
+    throw 'unreachable'
+})
+chan.recv()
+throw 'unreachable'

@@ -1,0 +1,4 @@
+let main_task=import('vm').currentTask()
+let task2=spawn(||{main_task.kill(null)
+})
+throw 'unreachable'

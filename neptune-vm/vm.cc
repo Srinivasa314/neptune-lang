@@ -292,10 +292,12 @@ template <typename O> Handle<O> *VM::make_handle(O *object) {
     return reinterpret_cast<Handle<O> *>(
         handles = new Handle<Object>(nullptr, static_cast<Object *>(object),
                                      nullptr));
-  else
-    return reinterpret_cast<Handle<O> *>(
-        handles = new Handle<Object>(nullptr, static_cast<Object *>(object),
-                                     handles));
+  else {
+    handles->previous =
+        new Handle<Object>(nullptr, static_cast<Object *>(object), handles);
+    handles = handles->previous;
+    return reinterpret_cast<Handle<O> *>(handles);
+  }
 }
 
 template <typename O> void VM::release(Handle<O> *handle) {
