@@ -1,0 +1,8 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect { after expression in switch statement at end",
+      "line": 1
+    }
+  ]
+}

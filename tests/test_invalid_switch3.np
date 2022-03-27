@@ -1,0 +1,4 @@
+switch 1{
+    default:1
+    2 or default:2
+}

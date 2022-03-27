@@ -30,7 +30,9 @@ uint32_t FunctionInfoWriter::constant(Value v) {
   } else {
     hf->object->constants.push_back(v);
     auto pos = static_cast<uint32_t>(hf->object->constants.size() - 1);
-    constants->insert({v, pos});
+    if (reuse_constants) {
+      constants->insert({v, pos});
+    }
     return pos;
   }
 }

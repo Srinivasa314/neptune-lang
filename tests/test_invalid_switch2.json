@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Only string literals can be used at token \\",
+      "line": 2
+    },
+    {
+      "message": "Expect expression at token }",
+      "line": 3
+    }
+  ]
+}

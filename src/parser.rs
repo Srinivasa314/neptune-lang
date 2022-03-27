@@ -225,7 +225,7 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize,PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Literal {
     Int(i32),
     Float(f64),
@@ -300,7 +300,7 @@ pub enum Statement {
     Switch {
         line: u32,
         expr: Expr,
-        cases: Vec<(Vec<Literal>, Statement,u32)>,
+        cases: Vec<(Vec<Literal>, Statement, u32)>,
     },
     Class {
         line: u32,
@@ -847,6 +847,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                 | TokenType::Let
                 | TokenType::For
                 | TokenType::If
+                | TokenType::Switch
                 | TokenType::While
                 | TokenType::Return => return,
                 _ => {}
@@ -1232,7 +1233,7 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
         let expr = self.expression()?;
         let line = self.current.line;
         let mut cases = vec![];
-        let mut default=false;
+        let mut default = false;
         self.ignore_newline();
         self.consume(
             TokenType::LeftBrace,
@@ -1257,15 +1258,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                     TokenType::Default => {
                         if !default {
                             literals.push(Literal::Default);
-                            default=true;
-                        }else{
-                            self.error_at_current("Cannot repeat cases in switch statement".into());
+                            default = true;
+                        } else {
+                            return Err(self.error_at_current("Cannot repeat cases in switch statement".into()));
                         }
-                    },
-                    TokenType::Interpolation => {
-                        return Err(
-                            self.error_at_current("Only string literals can be used".to_string())
-                        )
                     }
                     _ => return Err(self.error_at_current("Expect literal or default".to_string())),
                 }
@@ -1279,6 +1275,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                         self.advance();
                         break;
                     }
+                    TokenType::Interpolation => {
+                        return Err(
+                            self.error_at_current("Only string literals can be used".to_string())
+                        )
+                    }
                     _ => return Err(self.error_at_current("Expect : or or".to_string())),
                 }
             }
@@ -1286,14 +1287,10 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             let statement = self
                 .statement(false, false)
                 .ok_or_else(|| self.error_at_current("Expect statement".to_string()))?;
-            cases.push((literals, statement,self.previous.line));
+            cases.push((literals, statement, self.previous.line));
             self.ignore_newline();
         }
-        Ok(Statement::Switch {
-            line,
-            expr,
-            cases,
-        })
+        Ok(Statement::Switch { line, expr, cases })
     }
 
     fn dot(&mut self, left: Box<Expr>) -> CompileResult<Expr> {

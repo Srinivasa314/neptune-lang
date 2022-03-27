@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Expect literal or default at token [",
+      "line": 2
+    },
+    {
+      "message": "Expect expression at token }",
+      "line": 3
+    }
+  ]
+}

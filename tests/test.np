@@ -143,6 +143,30 @@ if i==8{
 }
 assert_eq(i,6)
 
+switch ""{
+    "":i=10
+}
+assert_eq(i,10)
+
+switch i{
+    20 or 10:i=40
+    default:i=50
+}
+assert_eq(i,40)
+
+switch i{
+    30:i=20
+    40 or default:i=30
+}
+assert_eq(i,30)
+
+switch i{
+    20:i=30
+    default:i=40
+}
+assert_eq(i,40)
+
+i=0
 while i<10 {
     i=i+1
 }

@@ -421,7 +421,7 @@ mod tests {
         } else {
             panic!("Expected error")
         }
-        n.exec("test_deadlock_post.np", &read("test_deadlock_post.np").unwrap())
+        n.exec("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
             .unwrap();
         //n.exec("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap())
         //    .unwrap();

@@ -1,0 +1,12 @@
+{
+  "CompileError": [
+    {
+      "message": "Cannot repeat cases in switch statement at token default",
+      "line": 3
+    },
+    {
+      "message": "Expect expression at token }",
+      "line": 4
+    }
+  ]
+}
