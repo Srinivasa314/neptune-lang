@@ -651,3 +651,10 @@ handler(ForLoop, {
     ip -= (offset + 1 + 2 * sizeof(utype) + header_size<utype>());
   }
 });
+
+handler(Switch,{
+  auto& jump_table = task->frames.back().f->function_info->jump_tables[READ(utype)];
+  auto offset_iter = jump_table.find(accumulator);
+  if(offset_iter!=jump_table.end())
+    ip+=offset_iter->second;
+});

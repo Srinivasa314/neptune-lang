@@ -40,6 +40,7 @@ public:
   uint8_t arity;
   vector<UpvalueInfo> upvalues;
   vector<ExceptionHandler> exception_handlers;
+  vector<ValueMap<uint32_t>> jump_tables;
   FunctionInfo(StringSlice module, StringSlice name, uint8_t arity)
       : module(module.data, module.len), name(name.data, name.len),
         arity(arity) {}
@@ -69,6 +70,8 @@ public:
   uint32_t symbol_constant(StringSlice s);
   uint32_t fun_constant(FunctionInfoWriter f);
   uint32_t class_constant(StringSlice s);
+  uint32_t bool_constant(bool b);
+  uint32_t null_constant();
   void add_method(uint32_t class_, StringSlice name, FunctionInfoWriter f);
   void shrink();
   void pop_last_op(size_t last_op_pos);
@@ -83,7 +86,7 @@ public:
   void add_exception_handler(uint32_t try_begin, uint32_t try_end,
                              uint32_t error_reg, uint32_t catch_begin);
   uint32_t jump_table();
-  void insert_in_jump_table(uint32_t jump_table, uint32_t offset);
+  bool insert_in_jump_table(uint32_t jump_table, uint32_t offset);
   friend struct EFuncContext;
 };
 

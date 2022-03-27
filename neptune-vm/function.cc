@@ -1,9 +1,9 @@
 #include "neptune-vm.h"
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <ostream>
 #include <sstream>
-#include <limits>
 
 namespace neptune_vm {
 template <typename T> void FunctionInfoWriter::write(T t) {
@@ -24,20 +24,20 @@ void FunctionInfoWriter::write_u16(uint16_t u) { write(u); }
 void FunctionInfoWriter::write_u32(uint32_t u) { write(u); }
 
 uint32_t FunctionInfoWriter::constant(Value v) {
-    auto pos = constants->find(v);
-    if (pos != constants->end()&&reuse_constants) {
-      return pos->second;
-    } else {
-      hf->object->constants.push_back(v);
-      auto pos = static_cast<uint32_t>(hf->object->constants.size() - 1);
-      constants->insert({v, pos});
-      return pos;
-    }
+  auto pos = constants->find(v);
+  if (pos != constants->end() && reuse_constants) {
+    return pos->second;
+  } else {
+    hf->object->constants.push_back(v);
+    auto pos = static_cast<uint32_t>(hf->object->constants.size() - 1);
+    constants->insert({v, pos});
+    return pos;
+  }
 }
 
 uint32_t FunctionInfoWriter::reserve_constant() {
-    hf->object->constants.push_back(Value::null());
-    return static_cast<uint32_t>(hf->object->constants.size() - 1);
+  hf->object->constants.push_back(Value::null());
+  return static_cast<uint32_t>(hf->object->constants.size() - 1);
 }
 
 uint32_t FunctionInfoWriter::float_constant(double d) {
@@ -105,11 +105,11 @@ void FunctionInfoWriter::patch_jump(size_t op_position, uint32_t jump_offset) {
   auto len = hf->object->bytecode.size();
   auto bytecode = hf->object->bytecode.data();
   assert_in_range(op_position, len);
-  if(bytecode[op_position]==static_cast<uint8_t>(Op::ExtraWide)){
+  if (bytecode[op_position] == static_cast<uint8_t>(Op::ExtraWide)) {
     assert_in_range(op_position + 5, len);
-    bytecode[op_position+1]-=PATCH_OFFSET;
-    write_unaligned<uint32_t>(bytecode+op_position+2,jump_offset);
-  }else if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
+    bytecode[op_position + 1] -= PATCH_OFFSET;
+    write_unaligned<uint32_t>(bytecode + op_position + 2, jump_offset);
+  } else if (bytecode[op_position] == static_cast<uint8_t>(Op::Wide)) {
     assert_in_range(op_position + 3, len);
     if (jump_offset < 65536) {
       bytecode[op_position + 1] -= PATCH_OFFSET;
@@ -157,7 +157,7 @@ uint32_t FunctionInfoWriter::class_constant(StringSlice s) {
 void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
                                     FunctionInfoWriter f) {
   if (class_ >= hf->object->constants.size())
-    throw std::runtime_error("Index out of bounds");
+    throw std::overflow_error("Index out of bounds");
   auto val = hf->object->constants[class_];
   if (!val.is_object() || !val.as_object()->is<Class>())
     throw std::runtime_error("Expected class");
@@ -166,22 +166,27 @@ void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
   f.release();
 }
 
-uint32_t FunctionInfoWriter::jump_table(){
-  return constant(Value(vm->allocate<Map>()));
+uint32_t FunctionInfoWriter::jump_table() {
+  uint32_t size = hf->object->jump_tables.size();
+  hf->object->jump_tables.push_back({});
+  return size;
 }
 
-void FunctionInfoWriter::insert_in_jump_table(uint32_t jump_table,uint32_t offset){
-  if (jump_table+1 >= hf->object->constants.size())
-    throw std::runtime_error("Index out of bounds");
-  if(offset>uint32_t(std::numeric_limits<int32_t>::max()))
-    throw std::runtime_error("Offset too large");
-  auto val=hf->object->constants[jump_table];
-  if(val.is_object()&&val.as_object()->is<Map>()){
-    val.as_object()->as<Map>()->inner.insert({hf->object->constants[jump_table+1],Value(int32_t(offset))});
-  }else{
-    throw std::runtime_error("Expect Map");
-  }
+bool FunctionInfoWriter::insert_in_jump_table(uint32_t jump_table,
+                                              uint32_t offset) {
+  if (jump_table >= hf->object->jump_tables.size())
+    throw std::overflow_error("Index out of bounds");
+  if (hf->object->constants.empty())
+    throw std::runtime_error("Constants is empty");
+  Value val = hf->object->constants.back();
+  hf->object->constants.pop_back();
+  return hf->object->jump_tables[jump_table].insert({val, offset});
 }
+
+uint32_t FunctionInfoWriter::bool_constant(bool b) {
+  return constant(Value(b));
+}
+uint32_t FunctionInfoWriter::null_constant() { return constant(Value::null()); }
 
 #define CASE(x)                                                                \
   case Op::x:                                                                  \

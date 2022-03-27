@@ -601,10 +601,11 @@ static VMStatus spawn_link(VM *vm, Value *args) {
 }
 
 static VMStatus task_kill(VM *vm, Value *args) {
-  // What about indirectly?
-  if (args[0].as_object()->as<Task>() == vm->current_task)
-    THROW("Error", "A task cannot kill itself");
   vm->kill(args[0].as_object()->as<Task>(), args[1]);
+  if (vm->current_task->status==VMStatus::Error){
+    vm->current_task->status=VMStatus::Suspend;
+    THROW("Error", "A task cannot kill itself");
+  }
   return VMStatus::Success;
 }
 

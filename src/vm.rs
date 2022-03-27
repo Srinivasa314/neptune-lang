@@ -177,6 +177,7 @@ mod ffi {
         JumpIfNotFalseOrNull,
         BeginForLoop,
         JumpBack,
+        Switch,
         JumpConstant,
         JumpIfFalseOrNullConstant,
         JumpIfNotFalseOrNullConstant,
@@ -242,6 +243,8 @@ mod ffi {
             self: &mut FunctionInfoWriter<'vm>,
             s: StringSlice<'s>,
         ) -> u32;
+        fn bool_constant(self: &mut FunctionInfoWriter, b: bool) -> u32;
+        fn null_constant(self: &mut FunctionInfoWriter) -> u32;
         fn add_method<'vm, 's>(
             self: &mut FunctionInfoWriter<'vm>,
             class_: u32,
@@ -279,7 +282,7 @@ mod ffi {
             catch_begin: u32,
         );
         fn jump_table(self: &mut FunctionInfoWriter) -> u32;
-        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u32, offset: u32);
+        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u32, offset: u32)->bool;
         fn size(self: &FunctionInfoWriter) -> usize;
         fn get_result(self: &VM) -> String;
         fn create_module(self: &VM, module_name: StringSlice);

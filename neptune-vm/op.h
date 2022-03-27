@@ -89,6 +89,7 @@
   OP(JumpIfNotFalseOrNull)                                                     \
   OP(BeginForLoop)                                                             \
   OP(JumpBack)                                                                 \
+  OP(Switch)                                                                   \
   OP(JumpConstant)                                                             \
   OP(JumpIfFalseOrNullConstant)                                                \
   OP(JumpIfNotFalseOrNullConstant)                                             \
