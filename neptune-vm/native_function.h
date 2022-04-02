@@ -29,11 +29,12 @@ enum class EFuncStatus : uint8_t {
 };
 
 class Task;
+class TaskHandle;
 struct EFuncContext {
   VM *vm;
   Task *task;
   Value *arg;
-  EFuncContext(VM *vm, Value *arg);
+  EFuncContext(VM *vm, Value *arg, Task *task);
   void push(Value v);
   void push_int(int32_t i);
   void push_float(double d);

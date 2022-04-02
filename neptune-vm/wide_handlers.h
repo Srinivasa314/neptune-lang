@@ -95,7 +95,8 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 
 #ifndef CALLOP
 #define CALLOP
-uint8_t callop_actual_nargs, callop_nargs;uint32_t callop_offset;
+uint8_t callop_actual_nargs, callop_nargs;
+uint32_t callop_offset;
 callop : {
   if (likely(accumulator.is_object())) {
     if (accumulator.as_object()->is<Function>()) {
@@ -652,9 +653,10 @@ handler(ForLoop, {
   }
 });
 
-handler(Switch,{
-  auto& jump_table = task->frames.back().f->function_info->jump_tables[READ(utype)];
+handler(Switch, {
+  auto &jump_table =
+      task->frames.back().f->function_info->jump_tables[READ(utype)];
   auto offset_iter = jump_table.find(accumulator);
-  if(offset_iter!=jump_table.end())
-    ip+=offset_iter->second;
+  if (offset_iter != jump_table.end())
+    ip += offset_iter->second;
 });

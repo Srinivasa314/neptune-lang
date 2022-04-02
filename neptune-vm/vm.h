@@ -37,6 +37,7 @@ class Task : public Object {
 public:
   VMStatus status;
   Value uncaught_exception;
+  bool waiting_for_rust_future;
   std::unique_ptr<Value[]> stack;
   UpValue *open_upvalues;
   size_t stack_size;
@@ -59,12 +60,20 @@ struct TaskQueueEntry {
   bool uncaught_exception;
 };
 
-class VM {
-public:
-  Task *current_task;
-  Task *main_task;
+class TaskHandle {
+  Handle<Task> *handle;
+  VM *vm;
 
+public:
+  TaskHandle(VM *vm, Task *task);
+  void release();
+  VMStatus resume(EFuncCallback *callback, Data *data);
+};
+
+class VM {
 private:
+  Data *user_data;
+  FreeDataCallback *free_user_data;
   HashMap<String *, Module *, StringHasher, StringEquality,
           NullptrEmpty<String>>
       modules;
@@ -82,6 +91,8 @@ private:
   template <typename O> O *manage(O *object);
 
 public:
+  Task *current_task;
+  Task *main_task;
   BuiltinClasses builtin_classes;
   BuiltinSymbols builtin_symbols;
   vector<Value> temp_roots;
@@ -134,11 +145,12 @@ public:
   std::string report_error(Value error);
   void kill(Task *task, Value uncaught_exception);
   rust::String kill_main_task(StringSlice error, StringSlice message) const;
-  VM();
+  TaskHandle get_current_task()const {return TaskHandle(const_cast<VM*>(this),current_task);}
+  VM(Data *user_data, FreeDataCallback *free_user_data);
   ~VM();
 };
 
-std::unique_ptr<VM> new_vm();
+std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data);
 template <> String *VM::allocate<String, StringSlice>(StringSlice s);
 
 template <> String *VM::allocate<String, std::string>(std::string s);

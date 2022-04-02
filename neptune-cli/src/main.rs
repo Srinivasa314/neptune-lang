@@ -25,6 +25,11 @@ fn main() {
     })
     .unwrap();
     n.exec("time", include_str!("time.np")).unwrap();
+    n.create_efunc_async("sleep", |cx|{
+        async{
+           Result::<i32,()>::Ok(1)
+        }
+    }).unwrap();
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {

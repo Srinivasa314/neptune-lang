@@ -55,11 +55,11 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 namespace neptune_vm {
 
-VM::VM()
-    : current_task(nullptr), bytes_allocated(0), first_obj(nullptr),
-      threshhold(INITIAL_HEAP_SIZE), handles(nullptr), is_running(false),
-      last_native_function(nullptr), return_value(Value::null()),
-      rng(std::random_device()()) {
+VM::VM(Data *user_data, FreeDataCallback *free_user_data)
+    : user_data(user_data), free_user_data(free_user_data), bytes_allocated(0),
+      first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
+      is_running(false), last_native_function(nullptr), current_task(nullptr),
+      return_value(Value::null()), rng(std::random_device()()) {
   builtin_symbols.construct = intern("construct");
   builtin_symbols.message = intern("message");
   builtin_symbols.stack = intern("stack");
@@ -109,6 +109,7 @@ VMStatus VM::run() {
       return VMStatus::Success;
     }
   }
+  is_running = false;
   return VMStatus::Suspend;
 }
 
@@ -240,7 +241,7 @@ ModuleVariable VM::get_module_variable(StringSlice module_name,
     throw std::runtime_error("No such module variable");
   return it->second;
 }
-std::unique_ptr<VM> new_vm() { return std::unique_ptr<VM>{new VM}; }
+std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data) { return std::unique_ptr<VM>{new VM(user_data,free_user_data)}; }
 
 FunctionInfoWriter VM::new_function_info(StringSlice module, StringSlice name,
                                          uint8_t arity) const {
@@ -1053,5 +1054,33 @@ rust::String VM::kill_main_task(StringSlice error, StringSlice message) const {
   this_->main_task = nullptr;
   auto s = this_->report_error(err_val);
   return rust::String(std::move(s));
+}
+
+TaskHandle::TaskHandle(VM *vm, Task *task) {
+  handle = vm->make_handle(task);
+  this->vm = vm;
+}
+
+void TaskHandle::release() {
+  vm->release(handle);
+  handle = nullptr;
+}
+
+VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data) {
+  auto task = handle->object;
+  if (!task->waiting_for_rust_future)
+    return task->status;
+  auto old_stack_top = task->stack_top;
+  VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
+  auto accumulator = Value::null();
+  if (task->stack_top != old_stack_top) {
+    accumulator = *(task->stack_top - 1);
+  }
+  auto frame = task->frames.back();
+  task->stack_top = frame.bp + frame.f->function_info->max_registers;
+  vm->tasks_queue.push_back(
+      TaskQueueEntry{task, accumulator, status == VMStatus::Error});
+  task->waiting_for_rust_future = false;
+  return vm->run();
 }
 } // namespace neptune_vm

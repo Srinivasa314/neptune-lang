@@ -422,7 +422,12 @@ static VMStatus ecall(VM *vm, Value *args) {
       auto efunc = efunc_iter->second;
       auto old_stack_top = task->stack_top;
       task->stack_top = args + 2;
-      VMStatus result = efunc.callback(EFuncContext(vm, args + 1), efunc.data);
+      VMStatus result = efunc.callback(
+          EFuncContext(vm, args + 1, vm->current_task), efunc.data);
+      if (result == VMStatus::Suspend) {
+        task->waiting_for_rust_future = true;
+        return VMStatus::Suspend;
+      }
       if (task->stack_top == args + 1)
         vm->return_value = Value::null();
       else {
@@ -602,9 +607,11 @@ static VMStatus spawn_link(VM *vm, Value *args) {
 
 static VMStatus task_kill(VM *vm, Value *args) {
   vm->kill(args[0].as_object()->as<Task>(), args[1]);
-  if (vm->current_task->status==VMStatus::Error){
-    vm->current_task->status=VMStatus::Suspend;
-    THROW("Error", "A task cannot kill itself");
+  if (vm->current_task->status == VMStatus::Error) {
+    vm->current_task->status = VMStatus::Suspend;
+    vm->return_value = vm->current_task->uncaught_exception;
+    vm->current_task->uncaught_exception = Value::null();
+    return VMStatus::Error;
   }
   return VMStatus::Success;
 }

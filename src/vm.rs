@@ -1,4 +1,5 @@
 use cxx::{type_id, ExternType};
+use futures::{stream::FuturesUnordered, Future};
 use std::{ffi::c_void, fmt::Display, marker::PhantomData};
 
 #[derive(Clone, Copy)]
@@ -54,6 +55,24 @@ unsafe impl<'vm> ExternType for FunctionInfoWriter<'vm> {
 }
 
 impl<'vm> Drop for FunctionInfoWriter<'vm> {
+    fn drop(&mut self) {
+        unsafe { self.release() }
+    }
+}
+
+#[repr(C)]
+pub struct TaskHandle<'vm> {
+    handle: *mut c_void,
+    vm: *mut c_void,
+    _marker: PhantomData<&'vm ()>,
+}
+
+unsafe impl<'vm> ExternType for TaskHandle<'vm> {
+    type Id = type_id!("neptune_vm::TaskHandle");
+    type Kind = cxx::kind::Trivial;
+}
+
+impl<'vm> Drop for TaskHandle<'vm> {
     fn drop(&mut self) {
         unsafe { self.release() }
     }
@@ -213,6 +232,7 @@ mod ffi {
         type EFuncStatus;
         type VM;
         type FunctionInfoWriter<'a> = super::FunctionInfoWriter<'a>;
+        type TaskHandle<'a> = super::TaskHandle<'a>;
         type EFuncContext<'a> = super::EFuncContextInner<'a>;
         type EFuncCallback;
         type FreeDataCallback;
@@ -226,23 +246,14 @@ mod ffi {
         fn write_u32(self: &mut FunctionInfoWriter, u: u32);
         fn reserve_constant(self: &mut FunctionInfoWriter) -> u32;
         fn float_constant(self: &mut FunctionInfoWriter, f: f64) -> u32;
-        fn string_constant<'vm, 's>(
-            self: &mut FunctionInfoWriter<'vm>,
-            s: StringSlice<'s>,
-        ) -> u32;
-        fn symbol_constant<'vm, 's>(
-            self: &mut FunctionInfoWriter<'vm>,
-            s: StringSlice<'s>,
-        ) -> u32;
+        fn string_constant<'vm, 's>(self: &mut FunctionInfoWriter<'vm>, s: StringSlice<'s>) -> u32;
+        fn symbol_constant<'vm, 's>(self: &mut FunctionInfoWriter<'vm>, s: StringSlice<'s>) -> u32;
         fn int_constant(self: &mut FunctionInfoWriter, i: i32) -> u32;
         fn fun_constant(self: &mut FunctionInfoWriter, f: FunctionInfoWriter) -> u32;
         fn shrink(self: &mut FunctionInfoWriter);
         fn pop_last_op(self: &mut FunctionInfoWriter, last_op_pos: usize);
         fn set_max_registers(self: &mut FunctionInfoWriter, max_registers: u32);
-        fn class_constant<'vm, 's>(
-            self: &mut FunctionInfoWriter<'vm>,
-            s: StringSlice<'s>,
-        ) -> u32;
+        fn class_constant<'vm, 's>(self: &mut FunctionInfoWriter<'vm>, s: StringSlice<'s>) -> u32;
         fn bool_constant(self: &mut FunctionInfoWriter, b: bool) -> u32;
         fn null_constant(self: &mut FunctionInfoWriter) -> u32;
         fn add_method<'vm, 's>(
@@ -269,7 +280,9 @@ mod ffi {
             name: StringSlice,
             arity: u8,
         ) -> FunctionInfoWriter<'vm>;
-        fn new_vm() -> UniquePtr<VM>;
+        /*free_data should have correct type and must
+        not exhibit undefined behaviour if user_data is passed to it*/
+        unsafe fn new_vm(data: *mut Data, free_user_data: *mut FreeDataCallback) -> UniquePtr<VM>;
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
@@ -282,14 +295,18 @@ mod ffi {
             catch_begin: u32,
         );
         fn jump_table(self: &mut FunctionInfoWriter) -> u32;
-        fn insert_in_jump_table(self: &mut FunctionInfoWriter, jump_table: u32, offset: u32)->bool;
+        fn insert_in_jump_table(
+            self: &mut FunctionInfoWriter,
+            jump_table: u32,
+            offset: u32,
+        ) -> bool;
         fn size(self: &FunctionInfoWriter) -> usize;
         fn get_result(self: &VM) -> String;
         fn create_module(self: &VM, module_name: StringSlice);
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
         /*functions of the correct type should be passed and the functions must
-        not exhibit undefined behaviour if data is passed to them*/
+        not exhibit undefined behaviour if correct data is passed to them*/
         unsafe fn create_efunc(
             self: &VM,
             name: StringSlice,
@@ -329,15 +346,35 @@ mod ffi {
         fn insert_in_map(self: &mut EFuncContext) -> EFuncStatus;
         //Function must contain valid bytecode
         unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
+        // This must only be called by drop
+        unsafe fn release(self: &mut TaskHandle);
+        fn get_current_task<'vm>(self: &'vm VM) -> TaskHandle<'vm>;
+        /*callback should have correct type and must not exhibit undefined behaviour
+        if data is passed to it*/
+        unsafe fn resume(self: &mut TaskHandle, callback: *mut EFuncCallback, data: *mut Data)->VMStatus;
     }
 }
 
 use ffi::EFuncStatus;
-pub use ffi::{new_vm, Op, VMStatus, VM};
+pub use ffi::{new_vm, Data, FreeDataCallback, Op, VMStatus, VM};
 
 use crate::CompileError;
 
+pub struct UserData<'vm> {
+    pub futures: FuturesUnordered<NeptuneFuture<'vm>>,
+}
+
+pub struct NeptuneFuture<'vm> {
+    task: TaskHandle<'vm>,
+    fut: Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool)> + 'vm>,
+}
+
 impl VM {
+    pub fn get_user_data<'vm>(&'vm self) -> &UserData<'vm> {
+        let user_data_ptr = self as *const VM as *const *const UserData;
+        unsafe { &**user_data_ptr }
+    }
+
     pub fn create_efunc_safe<'vm, F>(&'vm self, name: &str, callback: F) -> bool
     where
         F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
@@ -350,6 +387,35 @@ impl VM {
                 free_data::<F> as *mut ffi::FreeDataCallback,
             )
         }
+    }
+
+    pub fn create_efunc_async<'vm, F, Fut, T1, T2>(&'vm self, name: &str, callback: F) -> bool
+    where
+        F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
+        Fut: Future<Output = Result<T1, T2>> + 'vm,
+        T1: ToNeptuneValue + 'static,
+        T2: ToNeptuneValue + 'static,
+    {
+        unsafe {
+            self.create_efunc(
+                name.into(),
+                async_trampoline::<F, Fut, T1, T2> as *mut ffi::EFuncCallback,
+                Box::into_raw(Box::new(callback)) as *mut ffi::Data,
+                free_data::<F> as *mut ffi::FreeDataCallback,
+            )
+        }
+    }
+}
+
+impl<'vm> TaskHandle<'vm> {
+    pub fn resume_safe<F>(&mut self, callback: F)->VMStatus
+    where
+        F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
+    {
+        unsafe{self.resume(
+            trampoline::<F> as *mut ffi::EFuncCallback,
+            Box::into_raw(Box::new(callback)) as *mut ffi::Data,
+        )}
     }
 }
 
@@ -369,8 +435,43 @@ where
     }
 }
 
+// data must contain a valid pointer to a callback of type F
+unsafe extern "C" fn async_trampoline<'vm, F, Fut, T1, T2>(
+    mut cx: EFuncContext,
+    data: *mut c_void,
+) -> VMStatus
+where
+    F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
+    Fut: Future<Output = Result<T1, T2>> + 'vm,
+    T1: ToNeptuneValue + 'static,
+    T2: ToNeptuneValue + 'static,
+{
+    let callback = &mut *(data as *mut F);
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Here the VM can not be used to run code or resume a task so it must never
+        // be passed to the callback
+        let vm: &'vm VM = &*cx.0.vm;
+        let user_data = vm.get_user_data();
+        let task = vm.get_current_task();
+        let fut = callback(&mut cx);
+        let fut = async {
+            let b: (Box<dyn ToNeptuneValue>, bool) = match fut.await {
+                Ok(x) => (Box::new(x), true),
+                Err(x) => (Box::new(x), false),
+            };
+            b
+        };
+        user_data.futures.push(NeptuneFuture {
+            fut: Box::new(fut),
+            task,
+        });
+    }))
+    .unwrap_or_else(|_| std::process::abort());
+    VMStatus::Suspend
+}
+
 // data must contain a valid pointer to a boxed callback of type F and must only be called once
-unsafe extern "C" fn free_data<F>(data: *mut c_void) {
+pub unsafe extern "C" fn free_data<F>(data: *mut c_void) {
     Box::from_raw(data as *mut F);
 }
 

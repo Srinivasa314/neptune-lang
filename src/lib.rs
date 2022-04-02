@@ -1,11 +1,17 @@
 use crate::vm::VMStatus;
 use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
+use futures::stream::FuturesUnordered;
+use futures::Future;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fmt::Display;
+use vm::free_data;
+use vm::Data;
+use vm::FreeDataCallback;
+use vm::UserData;
 use vm::{new_vm, FunctionInfoWriter, VM};
 pub use vm::{EFuncContext, EFuncError, ToNeptuneValue};
 mod bytecode_compiler;
@@ -52,31 +58,31 @@ impl std::error::Error for InterpretError {}
 pub type CompileResult<T> = Result<T, CompileError>;
 
 #[derive(Debug)]
-pub enum NeptuneError {
+pub enum Error {
     FunctionAlreadyExists,
     ModuleNotFound,
     ModuleAlreadyExists,
     EFuncAlreadyExists,
 }
 
-impl Display for NeptuneError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NeptuneError::FunctionAlreadyExists => {
+            Error::FunctionAlreadyExists => {
                 f.write_str("A function with the same name already exists")
             }
-            NeptuneError::ModuleNotFound => f.write_str("The module cannot be found"),
-            NeptuneError::ModuleAlreadyExists => {
+            Error::ModuleNotFound => f.write_str("The module cannot be found"),
+            Error::ModuleAlreadyExists => {
                 f.write_str("A module with the same name already exists")
             }
-            NeptuneError::EFuncAlreadyExists => {
+            Error::EFuncAlreadyExists => {
                 f.write_str("An EFunc with the same name already exists")
             }
         }
     }
 }
 
-impl std::error::Error for NeptuneError {}
+impl std::error::Error for Error {}
 
 pub enum EFuncErrorOr<T: ToNeptuneValue> {
     EFuncError(EFuncError),
@@ -118,9 +124,9 @@ impl<T: ToNeptuneValue> From<EFuncError> for EFuncErrorOr<T> {
     }
 }
 
-pub struct Error(String);
+pub struct NeptuneError(String);
 
-impl ToNeptuneValue for Error {
+impl ToNeptuneValue for NeptuneError {
     fn to_neptune_value(&self, cx: &mut EFuncContext) {
         cx.error("<prelude>", "Error", &self.0).unwrap();
     }
@@ -165,7 +171,16 @@ impl ModuleLoader for NoopModuleLoader {
 
 impl Neptune {
     pub fn new<M: ModuleLoader + 'static>(module_loader: M) -> Self {
-        let n = Self { vm: new_vm() };
+        let n = Self {
+            vm: unsafe {
+                new_vm(
+                    Box::into_raw(Box::new(UserData {
+                        futures: FuturesUnordered::new(),
+                    })) as *mut Data,
+                    free_data::<UserData> as *mut FreeDataCallback,
+                )
+            },
+        };
 
         n.vm.create_efunc_safe("compile", |vm, mut cx| -> bool {
             let mut eval = false;
@@ -229,11 +244,11 @@ impl Neptune {
 
         n.create_efunc(
             "fetchModule",
-            move |cx| -> Result<String, EFuncErrorOr<Error>> {
+            move |cx| -> Result<String, EFuncErrorOr<NeptuneError>> {
                 let module = cx.as_string()?;
                 match module_loader.load(module) {
                     Some(src) => Ok(src),
-                    None => Err(EFuncErrorOr::Other(Error(format!(
+                    None => Err(EFuncErrorOr::Other(NeptuneError(format!(
                         "Cannot get source of module {}",
                         module
                     )))),
@@ -251,26 +266,32 @@ impl Neptune {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
-                VMStatus::Suspend => Err(InterpretError::UncaughtException(
-                    self.vm
-                        .kill_main_task("DeadlockError".into(), "All tasks were asleep".into()),
-                )),
+                VMStatus::Suspend => {
+                    if self.vm.get_user_data().futures.is_empty() {
+                        Err(InterpretError::UncaughtException(self.vm.kill_main_task(
+                            "DeadlockError".into(),
+                            "All tasks were asleep".into(),
+                        )))
+                    } else {     
+                        todo!("Resume the required task(s)")
+                    }
+                }
                 _ => unreachable!(),
             },
             Err(e) => Err(InterpretError::CompileError(e)),
         }
     }
 
-    pub fn create_module(&self, name: &str) -> Result<(), NeptuneError> {
+    pub fn create_module(&self, name: &str) -> Result<(), Error> {
         if self.vm.module_exists(name.into()) {
-            Err(NeptuneError::ModuleAlreadyExists)
+            Err(Error::ModuleAlreadyExists)
         } else {
             self.vm.create_module(name.into());
             Ok(())
         }
     }
 
-    pub fn create_efunc<F, T1, T2>(&self, name: &str, mut callback: F) -> Result<(), NeptuneError>
+    pub fn create_efunc<F, T1, T2>(&self, name: &str, mut callback: F) -> Result<(), Error>
     where
         F: FnMut(&mut EFuncContext) -> Result<T1, T2> + 'static,
         T1: ToNeptuneValue,
@@ -289,7 +310,21 @@ impl Neptune {
         if self.vm.create_efunc_safe(name, callback) {
             Ok(())
         } else {
-            Err(NeptuneError::EFuncAlreadyExists)
+            Err(Error::EFuncAlreadyExists)
+        }
+    }
+
+    pub fn create_efunc_async<'vm, F, Fut, T1, T2>(&'vm self, name: &str,callback:F)->Result<(),Error>
+    where
+        F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
+        Fut: Future<Output = Result<T1, T2>> + 'vm,
+        T1: ToNeptuneValue + 'static,
+        T2: ToNeptuneValue + 'static,
+    {
+        if self.vm.create_efunc_async(name, callback){
+            Ok(())
+        }else{
+            Err(Error::EFuncAlreadyExists)
         }
     }
 }
@@ -335,7 +370,7 @@ fn compile<'vm>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        EFuncError, EFuncErrorOr, Error, InterpretError, ModuleLoader, Neptune, ToNeptuneValue,
+        EFuncError, EFuncErrorOr, NeptuneError, InterpretError, ModuleLoader, Neptune, ToNeptuneValue,
     };
     use std::{
         env,
@@ -531,11 +566,11 @@ mod tests {
             Ok(FirstRest { first, rest })
         })
         .unwrap();
-        n.create_efunc("test_sym", |ctx| -> Result<Bar, EFuncErrorOr<Error>> {
+        n.create_efunc("test_sym", |ctx| -> Result<Bar, EFuncErrorOr<NeptuneError>> {
             match ctx.as_symbol()? {
                 "abc" => Ok(Bar::Baz),
                 "def" => Ok(Bar::Ja),
-                _ => Err(EFuncErrorOr::Other(Error("invalid!!!".into()))),
+                _ => Err(EFuncErrorOr::Other(NeptuneError("invalid!!!".into()))),
             }
         })
         .unwrap();
@@ -550,11 +585,11 @@ mod tests {
             Ok(Foo { a, b, d: d.clone() })
         })
         .unwrap();
-        n.create_efunc("test_null", move |ctx| -> Result<(), Error> {
+        n.create_efunc("test_null", move |ctx| -> Result<(), NeptuneError> {
             if ctx.is_null().unwrap() {
                 Ok(())
             } else {
-                Err(Error("Not null!!!".into()))
+                Err(NeptuneError("Not null!!!".into()))
             }
         })
         .unwrap();

@@ -78,6 +78,7 @@ void FunctionInfoWriter::pop_last_op(size_t last_op_pos) {
 
 void FunctionInfoWriter::release() {
   vm->release(hf);
+  hf = nullptr;
   constants.reset();
 }
 
