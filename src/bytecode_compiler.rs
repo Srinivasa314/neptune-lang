@@ -1197,59 +1197,68 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.write1(Op::MakeClass, class as u32, *line);
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
-                Statement::Switch{line,expr,cases} => {
-                    let jump_table=self.bytecode.jump_table();
-                    match self.evaluate_expr(expr){
-                        Ok(res)=>self.store_in_accumulator(res, *line),
-                        Err(e)=>self.error(e)
+                Statement::Switch { line, expr, cases } => {
+                    let jump_table = self.bytecode.jump_table();
+                    match self.evaluate_expr(expr) {
+                        Ok(res) => self.store_in_accumulator(res, *line),
+                        Err(e) => self.error(e),
                     }
                     self.write1(Op::Switch, jump_table, *line);
-                    let switch_start=self.bytecode.size();
-                    let c=self.bytecode.reserve_constant();
+                    let switch_start = self.bytecode.size();
+                    let c = self.bytecode.reserve_constant();
                     self.write1(Op::JumpConstant, c, *line);
-                    let mut case_positions=vec![];
-                    let mut default_statement=None;
-                    for case in cases.iter(){
-                        let case_start=self.bytecode.size();
+                    let mut case_positions = vec![];
+                    let mut default_statement = None;
+                    for case in cases.iter() {
+                        let case_start = self.bytecode.size();
                         self.compile_statement(&case.1);
-                        let c=self.bytecode.reserve_constant();
+                        let c = self.bytecode.reserve_constant();
                         case_positions.push(self.bytecode.size());
                         self.write1(Op::JumpConstant, c, case.2);
-                        if case.0.contains(&Literal::Default){
-                            default_statement=Some(case_start);
-                        }else{
-                            for literal in &case.0{
-                                self.bytecode.reuse_constants=false;
-                                match literal{
+                        if case.0.contains(&Literal::Default) {
+                            default_statement = Some(case_start);
+                        } else {
+                            for literal in &case.0 {
+                                self.bytecode.reuse_constants = false;
+                                match literal {
                                     Literal::Int(i) => self.bytecode.int_constant(*i),
                                     Literal::Float(f) => self.bytecode.float_constant(*f),
-                                    Literal::String(s) => self.bytecode.string_constant(s.as_str().into()),
-                                    Literal::Symbol(sym) => self.bytecode.symbol_constant(sym.as_str().into()),
+                                    Literal::String(s) => {
+                                        self.bytecode.string_constant(s.as_str().into())
+                                    }
+                                    Literal::Symbol(sym) => {
+                                        self.bytecode.symbol_constant(sym.as_str().into())
+                                    }
                                     Literal::Null => self.bytecode.null_constant(),
                                     Literal::True => self.bytecode.bool_constant(true),
                                     Literal::False => self.bytecode.bool_constant(false),
                                     Literal::Default => unreachable!(),
                                 };
-                                self.bytecode.reuse_constants=true;
-                                if !self.bytecode.insert_in_jump_table(jump_table, (case_start-switch_start) as u32){
-                                    self.error(CompileError{
-                                        message:"Cannot repeat cases in switch statement".into(),
-                                        line:case.2
+                                self.bytecode.reuse_constants = true;
+                                if !self.bytecode.insert_in_jump_table(
+                                    jump_table,
+                                    (case_start - switch_start) as u32,
+                                ) {
+                                    self.error(CompileError {
+                                        message: "Cannot repeat cases in switch statement".into(),
+                                        line: case.2,
                                     });
                                 }
                             }
-                        } 
+                        }
                     }
-                    let end_pos=self.bytecode.size();
-                    if let Some(pos)=default_statement{
-                        self.bytecode.patch_jump(switch_start, (pos-switch_start) as u32);
-                    }else{
-                        self.bytecode.patch_jump(switch_start, (end_pos-switch_start) as u32);
+                    let end_pos = self.bytecode.size();
+                    if let Some(pos) = default_statement {
+                        self.bytecode
+                            .patch_jump(switch_start, (pos - switch_start) as u32);
+                    } else {
+                        self.bytecode
+                            .patch_jump(switch_start, (end_pos - switch_start) as u32);
                     }
-                    for pos in case_positions{
-                        self.bytecode.patch_jump(pos, (end_pos-pos) as u32);
+                    for pos in case_positions {
+                        self.bytecode.patch_jump(pos, (end_pos - pos) as u32);
                     }
-                },
+                }
             };
             Ok(())
         })() {

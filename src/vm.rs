@@ -351,12 +351,13 @@ mod ffi {
         unsafe fn release(self: &mut TaskHandle);
         fn clone<'vm>(self: &TaskHandle<'vm>) -> TaskHandle<'vm>;
         fn get_current_task<'vm>(self: &'vm VM) -> TaskHandle<'vm>;
-        /*callback should have correct type and must not exhibit undefined behaviour
+        /*callbacks should have correct type and must not exhibit undefined behaviour
         if data is passed to it*/
         unsafe fn resume(
             self: &mut TaskHandle,
             callback: *mut EFuncCallback,
             data: *mut Data,
+            free_data:*mut FreeDataCallback
         ) -> VMStatus;
     }
 }
@@ -435,6 +436,7 @@ impl<'vm> TaskHandle<'vm> {
             self.resume(
                 trampoline::<F> as *mut ffi::EFuncCallback,
                 Box::into_raw(Box::new(callback)) as *mut ffi::Data,
+                free_data::<F> as *mut FreeDataCallback
             )
         }
     }

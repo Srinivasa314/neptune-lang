@@ -1072,13 +1072,15 @@ void TaskHandle::release() {
   handle = nullptr;
 }
 
-VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data) {
+VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
+                            FreeDataCallback *free_data) {
   auto task = handle->object;
   if (!task->waiting_for_rust_future)
     return task->status;
   auto old_stack_top = task->stack_top;
   vm->current_task = task;
   VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
+  free_data(data);
   vm->current_task = nullptr;
   auto accumulator = Value::null();
   if (task->stack_top != old_stack_top) {

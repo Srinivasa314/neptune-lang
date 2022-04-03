@@ -1260,7 +1260,9 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                             literals.push(Literal::Default);
                             default = true;
                         } else {
-                            return Err(self.error_at_current("Cannot repeat cases in switch statement".into()));
+                            return Err(self.error_at_current(
+                                "Cannot repeat cases in switch statement".into(),
+                            ));
                         }
                     }
                     _ => return Err(self.error_at_current("Expect literal or default".to_string())),

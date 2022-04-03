@@ -68,7 +68,8 @@ public:
   TaskHandle(VM *vm, Task *task);
   TaskHandle clone() const;
   void release();
-  VMStatus resume(EFuncCallback *callback, Data *data);
+  VMStatus resume(EFuncCallback *callback, Data *data,
+                  FreeDataCallback *free_data);
 };
 
 class VM {
