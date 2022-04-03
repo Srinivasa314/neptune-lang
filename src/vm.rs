@@ -1,7 +1,7 @@
 use cxx::{type_id, ExternType};
 use futures::{stream::FuturesUnordered, Future};
-use std::{ffi::c_void, fmt::Display, marker::PhantomData};
-
+use std::task::Poll;
+use std::{ffi::c_void, fmt::Display, marker::PhantomData, pin::Pin};
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct StringSlice<'a> {
@@ -348,10 +348,15 @@ mod ffi {
         unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
         // This must only be called by drop
         unsafe fn release(self: &mut TaskHandle);
+        fn clone<'vm>(self: &TaskHandle) -> TaskHandle<'vm>;
         fn get_current_task<'vm>(self: &'vm VM) -> TaskHandle<'vm>;
         /*callback should have correct type and must not exhibit undefined behaviour
         if data is passed to it*/
-        unsafe fn resume(self: &mut TaskHandle, callback: *mut EFuncCallback, data: *mut Data)->VMStatus;
+        unsafe fn resume(
+            self: &mut TaskHandle,
+            callback: *mut EFuncCallback,
+            data: *mut Data,
+        ) -> VMStatus;
     }
 }
 
@@ -366,13 +371,26 @@ pub struct UserData<'vm> {
 
 pub struct NeptuneFuture<'vm> {
     task: TaskHandle<'vm>,
-    fut: Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool)> + 'vm>,
+    fut: Pin<Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool)> + 'vm>>,
+}
+
+impl<'vm> Future for NeptuneFuture<'vm> {
+    type Output = (TaskHandle<'vm>, (Box<dyn ToNeptuneValue + 'vm>, bool));
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Self::Output> {
+        let task = self.task.clone();
+        let fut = &mut self.fut;
+        fut.as_mut().poll(cx).map(|b| ((task, b)))
+    }
 }
 
 impl VM {
-    pub fn get_user_data<'vm>(&'vm self) -> &UserData<'vm> {
-        let user_data_ptr = self as *const VM as *const *const UserData;
-        unsafe { &**user_data_ptr }
+    pub fn get_user_data<'vm>(&'vm self) -> &mut UserData<'vm> {
+        let user_data_ptr = self as *const VM as *const *mut UserData;
+        unsafe { &mut **user_data_ptr }
     }
 
     pub fn create_efunc_safe<'vm, F>(&'vm self, name: &str, callback: F) -> bool
@@ -408,14 +426,16 @@ impl VM {
 }
 
 impl<'vm> TaskHandle<'vm> {
-    pub fn resume_safe<F>(&mut self, callback: F)->VMStatus
+    pub fn resume_safe<F>(&mut self, callback: F) -> VMStatus
     where
         F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
     {
-        unsafe{self.resume(
-            trampoline::<F> as *mut ffi::EFuncCallback,
-            Box::into_raw(Box::new(callback)) as *mut ffi::Data,
-        )}
+        unsafe {
+            self.resume(
+                trampoline::<F> as *mut ffi::EFuncCallback,
+                Box::into_raw(Box::new(callback)) as *mut ffi::Data,
+            )
+        }
     }
 }
 
@@ -462,7 +482,7 @@ where
             b
         };
         user_data.futures.push(NeptuneFuture {
-            fut: Box::new(fut),
+            fut: Box::pin(fut),
             task,
         });
     }))

@@ -265,13 +265,13 @@ export fun join(tasks) {
 	if tasks.getClass() != Array {
 		throw new TypeError('The first argument must be a list of tasks')
 	}
-	for task in tasks {
+	for task in tasks.iter() {
 		if task.getClass() != Task {
 			throw new TypeError('The first argument must be a list of tasks')
 		}
 	}
 	let monitorChan = new Channel()
-	for task in tasks {
+	for task in tasks.iter() {
 		task.monitor(monitorChan)
 	}
 	for i in 0..tasks.len() {

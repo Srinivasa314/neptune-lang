@@ -66,6 +66,7 @@ class TaskHandle {
 
 public:
   TaskHandle(VM *vm, Task *task);
+  TaskHandle clone() const;
   void release();
   VMStatus resume(EFuncCallback *callback, Data *data);
 };
@@ -145,7 +146,9 @@ public:
   std::string report_error(Value error);
   void kill(Task *task, Value uncaught_exception);
   rust::String kill_main_task(StringSlice error, StringSlice message) const;
-  TaskHandle get_current_task()const {return TaskHandle(const_cast<VM*>(this),current_task);}
+  TaskHandle get_current_task() const {
+    return TaskHandle(const_cast<VM *>(this), current_task);
+  }
   VM(Data *user_data, FreeDataCallback *free_user_data);
   ~VM();
 };

@@ -1,6 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::{
+    future::Future,
+    path::{Path, PathBuf},
+};
+use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncError, ModuleLoader, Neptune};
+use neptune_lang::{EFuncContext, EFuncError, ModuleLoader, Neptune};
 use rustyline::{
     error::ReadlineError,
     validate::{self, Validator},
@@ -8,14 +12,24 @@ use rustyline::{
 };
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
-fn main() {
+fn sleep_millis(cx: &mut EFuncContext<'_>) -> impl Future<Output = Result<(), EFuncError>> {
+    let time = cx.as_int();
+    async move {
+        sleep(Duration::from_millis(time? as u64)).await;
+        Result::<(), EFuncError>::Ok(())
+    }
+}
+
+#[tokio::main]
+async fn main() {
     let n = Neptune::new(FileSystemModuleLoader);
     n.create_efunc("print", |cx| -> Result<(), EFuncError> {
         println!("{}", cx.as_string()?);
         Ok(())
     })
     .unwrap();
-    n.exec("<prelude>", include_str!("prelude.np")).unwrap();
+    n.exec_sync("<prelude>", include_str!("prelude.np"))
+        .unwrap();
 
     n.create_efunc("timeNow", |_| -> Result<f64, ()> {
         Ok(std::time::SystemTime::now()
@@ -24,22 +38,22 @@ fn main() {
             .as_secs_f64())
     })
     .unwrap();
-    n.exec("time", include_str!("time.np")).unwrap();
-    n.create_efunc_async("sleep", |cx|{
-        async{
-           Result::<i32,()>::Ok(1)
-        }
-    }).unwrap();
+    n.exec_sync("time", include_str!("time.np")).unwrap();
+
+    n.create_efunc_async("sleep", sleep_millis).unwrap();
 
     match std::env::args().nth(1) {
         Some(file) => match &std::fs::read_to_string(&file) {
-            Ok(s) => match n.exec(
-                std::fs::canonicalize(&file)
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-                s,
-            ) {
+            Ok(s) => match n
+                .exec(
+                    std::fs::canonicalize(&file)
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned(),
+                    s,
+                )
+                .await
+            {
                 Ok(()) => {}
                 Err(e) => eprintln!("{}", e),
             },
@@ -47,7 +61,7 @@ fn main() {
                 eprintln!("{}", e);
             }
         },
-        None => repl(&n),
+        None => repl(&n).await,
     }
 }
 
@@ -98,7 +112,7 @@ impl Validator for ReplValidator {
     }
 }
 
-fn repl(n: &Neptune) {
+async fn repl(n: &Neptune) {
     let mut rl = Editor::new();
     rl.set_helper(Some(ReplValidator {}));
     let histfile = dirs::cache_dir().map(|mut dir| {
@@ -110,7 +124,7 @@ fn repl(n: &Neptune) {
     loop {
         match rl.readline(">> ") {
             Ok(lines) => {
-                match n.exec("<repl>", &lines) {
+                match n.exec("<repl>", &lines).await {
                     Ok(()) => {}
                     Err(e) => eprintln!("{}", e),
                 };
@@ -219,9 +233,9 @@ pub fn are_brackets_balanced(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use neptune_lang::Neptune;
-    use crate::FileSystemModuleLoader;
     use super::are_brackets_balanced;
+    use crate::FileSystemModuleLoader;
+    use neptune_lang::Neptune;
 
     #[test]
     fn test_brackets_balanced() {
@@ -234,11 +248,12 @@ mod tests {
     }
 
     #[test]
-    fn test_import(){
-        let n=Neptune::new(FileSystemModuleLoader);
-        n.exec(
+    fn test_import() {
+        let n = Neptune::new(FileSystemModuleLoader);
+        n.exec_sync(
             concat!(env!("CARGO_MANIFEST_DIR"), "/test/test_import1.np"),
             include_str!("../test/test_import1.np"),
-        ).unwrap();
+        )
+        .unwrap();
     }
 }

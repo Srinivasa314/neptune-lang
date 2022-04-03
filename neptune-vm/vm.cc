@@ -241,7 +241,9 @@ ModuleVariable VM::get_module_variable(StringSlice module_name,
     throw std::runtime_error("No such module variable");
   return it->second;
 }
-std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data) { return std::unique_ptr<VM>{new VM(user_data,free_user_data)}; }
+std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data) {
+  return std::unique_ptr<VM>{new VM(user_data, free_user_data)};
+}
 
 FunctionInfoWriter VM::new_function_info(StringSlice module, StringSlice name,
                                          uint8_t arity) const {
@@ -1061,6 +1063,10 @@ TaskHandle::TaskHandle(VM *vm, Task *task) {
   this->vm = vm;
 }
 
+TaskHandle TaskHandle::clone() const {
+  return TaskHandle(this->vm, this->handle->object);
+}
+
 void TaskHandle::release() {
   vm->release(handle);
   handle = nullptr;
@@ -1071,7 +1077,9 @@ VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data) {
   if (!task->waiting_for_rust_future)
     return task->status;
   auto old_stack_top = task->stack_top;
+  vm->current_task = task;
   VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
+  vm->current_task = nullptr;
   auto accumulator = Value::null();
   if (task->stack_top != old_stack_top) {
     accumulator = *(task->stack_top - 1);

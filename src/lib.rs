@@ -3,6 +3,7 @@ use bytecode_compiler::Compiler;
 use cxx::UniquePtr;
 use futures::stream::FuturesUnordered;
 use futures::Future;
+use futures::StreamExt;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
@@ -72,12 +73,8 @@ impl Display for Error {
                 f.write_str("A function with the same name already exists")
             }
             Error::ModuleNotFound => f.write_str("The module cannot be found"),
-            Error::ModuleAlreadyExists => {
-                f.write_str("A module with the same name already exists")
-            }
-            Error::EFuncAlreadyExists => {
-                f.write_str("An EFunc with the same name already exists")
-            }
+            Error::ModuleAlreadyExists => f.write_str("A module with the same name already exists"),
+            Error::EFuncAlreadyExists => f.write_str("An EFunc with the same name already exists"),
         }
     }
 }
@@ -257,23 +254,68 @@ impl Neptune {
         )
         .unwrap();
 
-        n.exec("<prelude>", include_str!("prelude.np")).unwrap();
+        n.exec_sync("<prelude>", include_str!("prelude.np"))
+            .unwrap();
         n
     }
 
-    pub fn exec<S: Into<String>>(&self, module: S, source: &str) -> Result<(), InterpretError> {
+    pub async fn exec<S: Into<String>>(
+        &self,
+        module: S,
+        source: &str,
+    ) -> Result<(), InterpretError> {
+        match compile(&self.vm, module.into(), source, false) {
+            Ok((mut f, _)) => {
+                let mut result;
+                result = unsafe { f.run() };
+                loop {
+                    match result {
+                        VMStatus::Success => return Ok(()),
+                        VMStatus::Error => {
+                            return Err(InterpretError::UncaughtException(self.vm.get_result()))
+                        }
+                        VMStatus::Suspend => {
+                            if self.vm.get_user_data().futures.is_empty() {
+                                return Err(InterpretError::UncaughtException(
+                                    self.vm.kill_main_task(
+                                        "DeadlockError".into(),
+                                        "All tasks were asleep".into(),
+                                    ),
+                                ));
+                            } else {
+                                let (mut task, (value, success)) =
+                                    self.vm.get_user_data().futures.next().await.unwrap();
+                                result = task.resume_safe(move |_, mut ctx| {
+                                    value.to_neptune_value(&mut ctx);
+                                    success
+                                });
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            Err(e) => Err(InterpretError::CompileError(e)),
+        }
+    }
+
+    pub fn exec_sync<S: Into<String>>(
+        &self,
+        module: S,
+        source: &str,
+    ) -> Result<(), InterpretError> {
         match compile(&self.vm, module.into(), source, false) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
                 VMStatus::Suspend => {
                     if self.vm.get_user_data().futures.is_empty() {
-                        Err(InterpretError::UncaughtException(self.vm.kill_main_task(
+                        return Err(InterpretError::UncaughtException(self.vm.kill_main_task(
                             "DeadlockError".into(),
                             "All tasks were asleep".into(),
-                        )))
-                    } else {     
-                        todo!("Resume the required task(s)")
+                        )));
+                    } else {
+                        panic!("Waiting on future in exec_sync");
                     }
                 }
                 _ => unreachable!(),
@@ -314,16 +356,20 @@ impl Neptune {
         }
     }
 
-    pub fn create_efunc_async<'vm, F, Fut, T1, T2>(&'vm self, name: &str,callback:F)->Result<(),Error>
+    pub fn create_efunc_async<'vm, F, Fut, T1, T2>(
+        &'vm self,
+        name: &str,
+        callback: F,
+    ) -> Result<(), Error>
     where
         F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
         Fut: Future<Output = Result<T1, T2>> + 'vm,
         T1: ToNeptuneValue + 'static,
         T2: ToNeptuneValue + 'static,
     {
-        if self.vm.create_efunc_async(name, callback){
+        if self.vm.create_efunc_async(name, callback) {
             Ok(())
-        }else{
+        } else {
             Err(Error::EFuncAlreadyExists)
         }
     }
@@ -370,7 +416,8 @@ fn compile<'vm>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        EFuncError, EFuncErrorOr, NeptuneError, InterpretError, ModuleLoader, Neptune, ToNeptuneValue,
+        EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, Neptune, NeptuneError,
+        ToNeptuneValue,
     };
     use std::{
         env,
@@ -412,7 +459,7 @@ mod tests {
             Ok(())
         })
         .unwrap();
-        n.exec(
+        n.exec_sync(
             "<script>",
             r#"
         const {ecall} = import('vm')
@@ -425,14 +472,16 @@ mod tests {
     #[test]
     fn test_runtime() {
         let n = Neptune::new(TestModuleLoader);
-        if let InterpretError::UncaughtException(e) = n.exec("<script>", "throw 'abc'").unwrap_err()
+        if let InterpretError::UncaughtException(e) =
+            n.exec_sync("<script>", "throw 'abc'").unwrap_err()
         {
             assert_eq!(e, "'abc'");
         } else {
             panic!("Expected error");
         }
-        if let InterpretError::UncaughtException(e) =
-            n.exec("<script>", "throw new Error('abc')").unwrap_err()
+        if let InterpretError::UncaughtException(e) = n
+            .exec_sync("<script>", "throw new Error('abc')")
+            .unwrap_err()
         {
             assert_eq!(e, "In <Task> Error: abc\nat <script> (<script>:1)\n");
         } else {
@@ -444,23 +493,23 @@ mod tests {
             "test_many_registers_constants.np",
             "test_jumps.np",
         ] {
-            if let Err(e) = n.exec(test, &read(test).unwrap()) {
+            if let Err(e) = n.exec_sync(test, &read(test).unwrap()) {
                 panic!("Error in file {}, {:?}", test, e);
             }
         }
         if let InterpretError::UncaughtException(e) = n
-            .exec("test_deadlock.np", &read("test_deadlock.np").unwrap())
+            .exec_sync("test_deadlock.np", &read("test_deadlock.np").unwrap())
             .unwrap_err()
         {
             assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)\n")
         } else {
             panic!("Expected error")
         }
-        n.exec("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
+        n.exec_sync("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
             .unwrap();
-        //n.exec("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap())
+        //n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap())
         //    .unwrap();
-        //n.exec("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
+        //n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
         //    .unwrap();
     }
 
@@ -471,7 +520,7 @@ mod tests {
         for error in errors {
             let fname = format!("{}.np", error);
             let source = read(&fname).unwrap();
-            let res = n.exec(fname, &source).unwrap_err();
+            let res = n.exec_sync(fname, &source).unwrap_err();
             let result = serde_json::to_string_pretty(&res).unwrap();
             if env::var("NEPTUNE_GEN_ERRORS").is_ok() {
                 File::create(open(&format!("{}.json", error)))
@@ -566,13 +615,16 @@ mod tests {
             Ok(FirstRest { first, rest })
         })
         .unwrap();
-        n.create_efunc("test_sym", |ctx| -> Result<Bar, EFuncErrorOr<NeptuneError>> {
-            match ctx.as_symbol()? {
-                "abc" => Ok(Bar::Baz),
-                "def" => Ok(Bar::Ja),
-                _ => Err(EFuncErrorOr::Other(NeptuneError("invalid!!!".into()))),
-            }
-        })
+        n.create_efunc(
+            "test_sym",
+            |ctx| -> Result<Bar, EFuncErrorOr<NeptuneError>> {
+                match ctx.as_symbol()? {
+                    "abc" => Ok(Bar::Baz),
+                    "def" => Ok(Bar::Ja),
+                    _ => Err(EFuncErrorOr::Other(NeptuneError("invalid!!!".into()))),
+                }
+            },
+        )
         .unwrap();
         //test capturing too!
         let d = vec![(1, 2), (3, 4)];
@@ -593,7 +645,7 @@ mod tests {
             }
         })
         .unwrap();
-        if let Err(e) = n.exec("test_efunc.np", &read("test_efunc.np").unwrap()) {
+        if let Err(e) = n.exec_sync("test_efunc.np", &read("test_efunc.np").unwrap()) {
             panic!("{:?}", e);
         }
     }
