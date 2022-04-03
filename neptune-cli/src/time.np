@@ -3,3 +3,14 @@ const {ecall} = import('vm')
 export fun now() {
     return ecall(@timeNow, null)
 }
+
+export fun sleep(ms) {
+    if ms.getClass() !== Int {
+        throw new TypeError('The first argument must be a Int, not \(ms.getClass().name())')
+    }
+    if ms>0{
+        ecall(@sleep, ms)
+    }else{
+        throw new Error('The duration must be positive')
+    }
+}

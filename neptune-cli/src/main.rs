@@ -1,10 +1,7 @@
-use std::{
-    future::Future,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncContext, EFuncError, ModuleLoader, Neptune};
+use neptune_lang::{EFuncError, ModuleLoader, Neptune};
 use rustyline::{
     error::ReadlineError,
     validate::{self, Validator},
@@ -12,16 +9,7 @@ use rustyline::{
 };
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
-fn sleep_millis(cx: &mut EFuncContext<'_>) -> impl Future<Output = Result<(), EFuncError>> {
-    let time = cx.as_int();
-    async move {
-        sleep(Duration::from_millis(time? as u64)).await;
-        Result::<(), EFuncError>::Ok(())
-    }
-}
-
-#[tokio::main]
-async fn main() {
+fn main() {
     let n = Neptune::new(FileSystemModuleLoader);
     n.create_efunc("print", |cx| -> Result<(), EFuncError> {
         println!("{}", cx.as_string()?);
@@ -38,31 +26,44 @@ async fn main() {
             .as_secs_f64())
     })
     .unwrap();
+    n.create_efunc_async("sleep", |cx| {
+        let time = cx.as_int();
+        async move {
+            sleep(Duration::from_millis(time? as u64)).await;
+            Result::<(), EFuncError>::Ok(())
+        }
+    })
+    .unwrap();
     n.exec_sync("time", include_str!("time.np")).unwrap();
 
-    n.create_efunc_async("sleep", sleep_millis).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
 
-    match std::env::args().nth(1) {
-        Some(file) => match &std::fs::read_to_string(&file) {
-            Ok(s) => match n
-                .exec(
-                    std::fs::canonicalize(&file)
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned(),
-                    s,
-                )
-                .await
-            {
-                Ok(()) => {}
-                Err(e) => eprintln!("{}", e),
+    runtime.block_on(async move {
+        match std::env::args().nth(1) {
+            Some(file) => match &std::fs::read_to_string(&file) {
+                Ok(s) => match n
+                    .exec(
+                        std::fs::canonicalize(&file)
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned(),
+                        s,
+                    )
+                    .await
+                {
+                    Ok(()) => {}
+                    Err(e) => eprintln!("{}", e),
+                },
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
             },
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        },
-        None => repl(&n).await,
-    }
+            None => repl(&n).await,
+        }
+    });
 }
 
 #[derive(Clone, Copy)]

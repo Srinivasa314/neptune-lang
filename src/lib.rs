@@ -7,6 +7,7 @@ use futures::StreamExt;
 use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Display;
 use vm::free_data;
@@ -172,7 +173,7 @@ impl Neptune {
             vm: unsafe {
                 new_vm(
                     Box::into_raw(Box::new(UserData {
-                        futures: FuturesUnordered::new(),
+                        futures: RefCell::new(FuturesUnordered::new()),
                     })) as *mut Data,
                     free_data::<UserData> as *mut FreeDataCallback,
                 )
@@ -266,8 +267,7 @@ impl Neptune {
     ) -> Result<(), InterpretError> {
         match compile(&self.vm, module.into(), source, false) {
             Ok((mut f, _)) => {
-                let mut result;
-                result = unsafe { f.run() };
+                let mut result = unsafe { f.run() };
                 loop {
                     match result {
                         VMStatus::Success => return Ok(()),
@@ -275,7 +275,7 @@ impl Neptune {
                             return Err(InterpretError::UncaughtException(self.vm.get_result()))
                         }
                         VMStatus::Suspend => {
-                            if self.vm.get_user_data().futures.is_empty() {
+                            if self.vm.get_user_data().futures.borrow().is_empty() {
                                 return Err(InterpretError::UncaughtException(
                                     self.vm.kill_main_task(
                                         "DeadlockError".into(),
@@ -284,7 +284,7 @@ impl Neptune {
                                 ));
                             } else {
                                 let (mut task, (value, success)) =
-                                    self.vm.get_user_data().futures.next().await.unwrap();
+                                    self.vm.get_user_data().futures.borrow_mut().next().await.unwrap();
                                 result = task.resume_safe(move |_, mut ctx| {
                                     value.to_neptune_value(&mut ctx);
                                     success
@@ -309,11 +309,11 @@ impl Neptune {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
                 VMStatus::Suspend => {
-                    if self.vm.get_user_data().futures.is_empty() {
-                        return Err(InterpretError::UncaughtException(self.vm.kill_main_task(
+                    if self.vm.get_user_data().futures.borrow().is_empty() {
+                        Err(InterpretError::UncaughtException(self.vm.kill_main_task(
                             "DeadlockError".into(),
                             "All tasks were asleep".into(),
-                        )));
+                        )))
                     } else {
                         panic!("Waiting on future in exec_sync");
                     }
@@ -356,14 +356,14 @@ impl Neptune {
         }
     }
 
-    pub fn create_efunc_async<'vm, F, Fut, T1, T2>(
-        &'vm self,
+    pub fn create_efunc_async< F, Fut, T1, T2>(
+        &self,
         name: &str,
         callback: F,
     ) -> Result<(), Error>
     where
         F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
-        Fut: Future<Output = Result<T1, T2>> + 'vm,
+        Fut: Future<Output = Result<T1, T2>> + 'static,
         T1: ToNeptuneValue + 'static,
         T2: ToNeptuneValue + 'static,
     {
