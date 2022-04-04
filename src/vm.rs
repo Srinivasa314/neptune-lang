@@ -1,7 +1,6 @@
 use cxx::{type_id, ExternType};
 use futures::{stream::FuturesUnordered, Future};
 use std::cell::RefCell;
-use std::task::Poll;
 use std::{ffi::c_void, fmt::Display, marker::PhantomData, pin::Pin};
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -349,7 +348,6 @@ mod ffi {
         unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
         // This must only be called by drop
         unsafe fn release(self: &mut TaskHandle);
-        fn clone<'vm>(self: &TaskHandle<'vm>) -> TaskHandle<'vm>;
         fn get_current_task<'vm>(self: &'vm VM) -> TaskHandle<'vm>;
         /*callbacks should have correct type and must not exhibit undefined behaviour
         if data is passed to it*/
@@ -357,7 +355,7 @@ mod ffi {
             self: &mut TaskHandle,
             callback: *mut EFuncCallback,
             data: *mut Data,
-            free_data:*mut FreeDataCallback
+            free_data: *mut FreeDataCallback,
         ) -> VMStatus;
     }
 }
@@ -371,23 +369,8 @@ pub struct UserData<'vm> {
     pub futures: RefCell<FuturesUnordered<NeptuneFuture<'vm>>>,
 }
 
-pub struct NeptuneFuture<'vm> {
-    task: TaskHandle<'vm>,
-    fut: Pin<Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool)>>>,
-}
-
-impl<'vm> Future for NeptuneFuture<'vm> {
-    type Output = (TaskHandle<'vm>, (Box<dyn ToNeptuneValue + 'static>, bool));
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Self::Output> {
-        let task = self.task.clone();
-        let fut = &mut self.fut;
-        fut.as_mut().poll(cx).map(|b| (task, b))
-    }
-}
+type NeptuneFuture<'vm> =
+    Pin<Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool, TaskHandle<'vm>)> + 'vm>>;
 
 impl VM {
     pub fn get_user_data<'vm>(&'vm self) -> &UserData<'vm> {
@@ -436,7 +419,7 @@ impl<'vm> TaskHandle<'vm> {
             self.resume(
                 trampoline::<F> as *mut ffi::EFuncCallback,
                 Box::into_raw(Box::new(callback)) as *mut ffi::Data,
-                free_data::<F> as *mut FreeDataCallback
+                free_data::<F> as *mut FreeDataCallback,
             )
         }
     }
@@ -459,7 +442,7 @@ where
 }
 
 // data must contain a valid pointer to a callback of type F
-unsafe extern "C" fn async_trampoline< F, Fut, T1, T2>(
+unsafe extern "C" fn async_trampoline<F, Fut, T1, T2>(
     mut cx: EFuncContext,
     data: *mut c_void,
 ) -> VMStatus
@@ -471,26 +454,29 @@ where
 {
     let callback = &mut *(data as *mut F);
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // Here the VM can not be used to run code or resume a task so it must never
-        // be passed to the callback
         let vm = &*cx.0.vm;
-        let user_data = vm.get_user_data();
-        let task = vm.get_current_task();
         let fut = callback(&mut cx);
-        let fut = async {
-            let b: (Box<dyn ToNeptuneValue>, bool) = match fut.await {
-                Ok(x) => (Box::new(x), true),
-                Err(x) => (Box::new(x), false),
-            };
-            b
-        };
-        user_data.futures.borrow_mut().push(NeptuneFuture {
-            fut: Box::pin(fut),
-            task,
-        });
+        register_future(vm,fut);
     }))
     .unwrap_or_else(|_| std::process::abort());
     VMStatus::Suspend
+}
+
+fn register_future<T1, T2>(vm: &VM, fut: impl Future<Output = Result<T1, T2>> + 'static)
+where
+    T1: ToNeptuneValue + 'static,
+    T2: ToNeptuneValue + 'static,
+{
+    let user_data = vm.get_user_data();
+    let task = vm.get_current_task();
+    let fut = async move {
+        let b: (Box<dyn ToNeptuneValue>, bool, TaskHandle) = match fut.await {
+            Ok(x) => (Box::new(x), true, task),
+            Err(x) => (Box::new(x), false, task),
+        };
+        b
+    };
+    user_data.futures.borrow_mut().push(Box::pin(fut));
 }
 
 // data must contain a valid pointer to a boxed callback of type F and must only be called once

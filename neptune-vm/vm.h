@@ -66,7 +66,6 @@ class TaskHandle {
 
 public:
   TaskHandle(VM *vm, Task *task);
-  TaskHandle clone() const;
   void release();
   VMStatus resume(EFuncCallback *callback, Data *data,
                   FreeDataCallback *free_data);
@@ -87,12 +86,12 @@ private:
   HashSet<Symbol *, StringHasher, StringEquality, NullptrEmpty<Symbol>> symbols;
   Handle<Object> *handles;
   vector<Object *> greyobjects;
-  bool is_running;
   std::ostringstream throw_message;
   NativeFunction *last_native_function;
   template <typename O> O *manage(O *object);
 
 public:
+  bool is_running;
   Task *current_task;
   Task *main_task;
   BuiltinClasses builtin_classes;

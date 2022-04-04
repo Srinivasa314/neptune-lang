@@ -58,7 +58,7 @@ namespace neptune_vm {
 VM::VM(Data *user_data, FreeDataCallback *free_user_data)
     : user_data(user_data), free_user_data(free_user_data), bytes_allocated(0),
       first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
-      is_running(false), last_native_function(nullptr), current_task(nullptr),
+      last_native_function(nullptr), is_running(false), current_task(nullptr),
       return_value(Value::null()), rng(std::random_device()()) {
   builtin_symbols.construct = intern("construct");
   builtin_symbols.message = intern("message");
@@ -1063,10 +1063,6 @@ TaskHandle::TaskHandle(VM *vm, Task *task) {
   this->vm = vm;
 }
 
-TaskHandle TaskHandle::clone() const {
-  return TaskHandle(this->vm, this->handle->object);
-}
-
 void TaskHandle::release() {
   vm->release(handle);
   handle = nullptr;
@@ -1074,12 +1070,16 @@ void TaskHandle::release() {
 
 VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
                             FreeDataCallback *free_data) {
+  if (vm->is_running)
+    throw std::runtime_error("Cannot call run() while VM is already running");
   auto task = handle->object;
   if (!task->waiting_for_rust_future)
     return task->status;
   auto old_stack_top = task->stack_top;
   vm->current_task = task;
+  vm->is_running = true;
   VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
+  vm->is_running = false;
   free_data(data);
   vm->current_task = nullptr;
   auto accumulator = Value::null();
