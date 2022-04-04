@@ -29,6 +29,16 @@ for i in 0..10{
 ## Break and Continue
 They are used to exit a loop early. Break exits the loop while continue starts a new iteration of a loop.
 
+## Switch
+ 
+String,Symbol,Int,Float,Bool and Null literals or default can be used as cases of the switch
+
+```
+switch 1+1{
+    1 or 2:print('1 or 2')
+    default:print('other')
+}
+```
 ## Exception handling
 Exceptions are used to indicate errors. They are raised using `throw`. They can be caught using a try catch block.
 ```
