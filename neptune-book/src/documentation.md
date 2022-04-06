@@ -9,6 +9,8 @@
 - [Float](./documentation/float.md)
 - [Int](./documentation/int.md)
 - [Iterators](./documentation/iterators.md)
+- [Task](./documentation/task.md)
+- [Channel](./documentation/channel.md)
 - [Prelude](./documentation/prelude.md)
 - [Module 'math'](./documentation/math.md)
 - [Module 'random'](./documentation/random.md)
