@@ -63,6 +63,7 @@ struct EFuncContext {
   bool pop();
   Value pop_value();
   Value peek() const;
+  const VM& get_vm() const{return *vm;}
 };
 
 using Data = void; // Can be any type

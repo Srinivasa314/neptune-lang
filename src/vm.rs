@@ -344,6 +344,7 @@ mod ffi {
         fn pop(self: &mut EFuncContext) -> bool;
         fn push_empty_map(self: &mut EFuncContext);
         fn insert_in_map(self: &mut EFuncContext) -> EFuncStatus;
+        fn get_vm<'a>(self:&EFuncContext<'a>)->&'a VM;
         //Function must contain valid bytecode
         unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
         // This must only be called by drop
@@ -370,7 +371,7 @@ pub struct UserData<'vm> {
 }
 
 type NeptuneFuture<'vm> =
-    Pin<Box<dyn Future<Output = (Box<dyn ToNeptuneValue>, bool, TaskHandle<'vm>)> + 'vm>>;
+    Pin<Box<dyn Future<Output = (Box<dyn FnMut(EFuncContext) -> bool>, TaskHandle<'vm>)> + 'vm>>;
 
 impl VM {
     pub fn get_user_data<'vm>(&'vm self) -> &UserData<'vm> {
@@ -378,9 +379,9 @@ impl VM {
         unsafe { &**user_data_ptr }
     }
 
-    pub fn create_efunc_safe<'vm, F>(&'vm self, name: &str, callback: F) -> bool
+    pub fn create_efunc_safe<F>(&self, name: &str, callback: F) -> bool
     where
-        F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
+        F: FnMut(EFuncContext) -> bool + 'static,
     {
         unsafe {
             self.create_efunc(
@@ -413,7 +414,7 @@ impl VM {
 impl<'vm> TaskHandle<'vm> {
     pub fn resume_safe<F>(&mut self, callback: F) -> VMStatus
     where
-        F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
+        F: FnMut(EFuncContext) -> bool + 'static,
     {
         unsafe {
             self.resume(
@@ -426,13 +427,13 @@ impl<'vm> TaskHandle<'vm> {
 }
 
 // data must contain a valid pointer to a callback of type F
-unsafe extern "C" fn trampoline<'vm, F>(cx: EFuncContext, data: *mut c_void) -> VMStatus
+unsafe extern "C" fn trampoline<F>(cx: EFuncContext, data: *mut c_void) -> VMStatus
 where
-    F: FnMut(&'vm VM, EFuncContext) -> bool + 'static,
+    F: FnMut(EFuncContext) -> bool + 'static,
 {
     let callback = &mut *(data as *mut F);
     // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
-    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(&*cx.0.vm, cx)))
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(cx)))
         .unwrap_or_else(|_| std::process::abort())
     {
         VMStatus::Success
@@ -454,27 +455,33 @@ where
 {
     let callback = &mut *(data as *mut F);
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let vm = &*cx.0.vm;
         let fut = callback(&mut cx);
-        register_future(vm,fut);
+        register_future(&cx,fut);
     }))
     .unwrap_or_else(|_| std::process::abort());
     VMStatus::Suspend
 }
 
-fn register_future<T1, T2>(vm: &VM, fut: impl Future<Output = Result<T1, T2>> + 'static)
+fn register_future<T1, T2>(cx:&EFuncContext, fut: impl Future<Output = Result<T1, T2>> + 'static)
 where
     T1: ToNeptuneValue + 'static,
     T2: ToNeptuneValue + 'static,
 {
+    let vm=cx.vm();
     let user_data = vm.get_user_data();
     let task = vm.get_current_task();
     let fut = async move {
-        let b: (Box<dyn ToNeptuneValue>, bool, TaskHandle) = match fut.await {
-            Ok(x) => (Box::new(x), true, task),
-            Err(x) => (Box::new(x), false, task),
+        let closure:Box<dyn FnMut(EFuncContext) -> bool> =match fut.await {
+            Ok(value) => Box::new(move |mut ctx| {
+                value.to_neptune_value(&mut ctx);
+                true
+            }),
+            Err(value) => Box::new(move |mut ctx| {
+                value.to_neptune_value(&mut ctx);
+                false
+            }),
         };
-        b
+        (closure,task)
     };
     user_data.futures.borrow_mut().push(Box::pin(fut));
 }
@@ -683,6 +690,10 @@ impl<'a> EFuncContext<'a> {
     // Function must contain valid bytecode
     pub(crate) unsafe fn function(&mut self, fw: FunctionInfoWriter) {
         self.0.push_function(fw)
+    }
+
+    pub(crate) fn vm(&self)->&'a VM{
+        self.0.get_vm()
     }
 }
 

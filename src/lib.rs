@@ -180,8 +180,9 @@ impl Neptune {
             },
         };
 
-        n.vm.create_efunc_safe("compile", |vm, mut cx| -> bool {
+        n.vm.create_efunc_safe("compile", |mut cx| -> bool {
             let mut eval = false;
+            let vm=cx.vm();
             match || -> Result<Result<(FunctionInfoWriter, bool), Vec<CompileError>>, EFuncError> {
                 cx.get_property("source")?;
                 let source = cx.as_string()?.to_string();
@@ -283,12 +284,9 @@ impl Neptune {
                                     ),
                                 ));
                             } else {
-                                let (value, success,mut task) =
+                                let (closure,mut task) =
                                     self.vm.get_user_data().futures.borrow_mut().next().await.unwrap();
-                                result = task.resume_safe(move |_, mut ctx| {
-                                    value.to_neptune_value(&mut ctx);
-                                    success
-                                });
+                                result = task.resume_safe(closure);
                             }
                         }
                         _ => unreachable!(),
@@ -339,7 +337,7 @@ impl Neptune {
         T1: ToNeptuneValue,
         T2: ToNeptuneValue,
     {
-        let callback = move |_, mut cx: EFuncContext| match callback(&mut cx) {
+        let callback = move |mut cx: EFuncContext| match callback(&mut cx) {
             Ok(t1) => {
                 t1.to_neptune_value(&mut cx);
                 true
