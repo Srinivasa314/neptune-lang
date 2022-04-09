@@ -18,8 +18,7 @@ template <typename O> O *Object::as() {
 }
 
 String *VM::concat(String *s1, String *s2) {
-  String *p =
-      static_cast<String *>(mi_malloc(sizeof(String) + s1->len + s2->len));
+  String *p = static_cast<String *>(alloc(sizeof(String) + s1->len + s2->len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }

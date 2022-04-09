@@ -1,7 +1,6 @@
 #include "checked_arithmetic.cc"
 #include "neptune-vm.h"
 #include <cstring>
-#include <mimalloc.h>
 
 #if defined(__GNUC__) || defined(__clang__)
 #define COMPUTED_GOTO
@@ -96,7 +95,7 @@ VMStatus VM::run() {
       continue;
     run(entry);
     if (main_task->status == VMStatus::Error) {
-      return_value=main_task->uncaught_exception;
+      return_value = main_task->uncaught_exception;
       main_task = nullptr;
       is_running = false;
       return VMStatus::Error;
@@ -258,7 +257,7 @@ template <typename O, typename... Args> O *VM::allocate(Args... args) {
 }
 
 template <> String *VM::allocate<String, StringSlice>(StringSlice s) {
-  String *p = static_cast<String *>(mi_malloc(sizeof(String) + s.len));
+  String *p = static_cast<String *>(alloc(sizeof(String) + s.len));
   if (p == nullptr) {
     throw std::bad_alloc();
   }
@@ -317,7 +316,7 @@ template <typename O> void VM::release(Handle<O> *handle) {
 Symbol *VM::intern(StringSlice s) {
   auto reused_sym = symbols.find(s);
   if (reused_sym == symbols.end()) {
-    Symbol *sym = static_cast<Symbol *>(mi_malloc(sizeof(Symbol) + s.len));
+    Symbol *sym = static_cast<Symbol *>(alloc(sizeof(Symbol) + s.len));
     if (sym == nullptr) {
       throw std::bad_alloc();
     }
@@ -338,11 +337,11 @@ void VM::release(Object *o) {
   // todo change this when more types are added
   switch (o->type) {
   case Type::String:
-    mi_free(o);
+    dealloc(o);
     break;
   case Type::Symbol:
     symbols.erase(o->as<Symbol>());
-    mi_free(o);
+    dealloc(o);
     break;
   case Type::Array:
     delete o->as<Array>();
@@ -354,7 +353,7 @@ void VM::release(Object *o) {
     delete o->as<FunctionInfo>();
     break;
   case Type::Function:
-    mi_free(o);
+    dealloc(o);
     break;
   case Type::UpValue:
     delete o->as<UpValue>();
@@ -762,7 +761,7 @@ bool VM::declare_native_function(std::string module, std::string name,
 }
 
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
-  auto function = static_cast<Function *>(mi_malloc(
+  auto function = static_cast<Function *>(alloc(
       sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size()));
   function->function_info = function_info;
   function->super_class = nullptr;

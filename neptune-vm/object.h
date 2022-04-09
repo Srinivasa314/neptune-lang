@@ -1,10 +1,10 @@
 #pragma once
 #include "hash_table.h"
 #include "rust/cxx.h"
+#include "util.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <mimalloc.h>
 #include <ostream>
 #include <vector>
 
@@ -56,8 +56,8 @@ public:
   template <typename O> O *as();
   const char *type_string() const;
   friend std::ostream &operator<<(std::ostream &os, Object &o);
-  void *operator new(size_t size) { return mi_malloc(size); }
-  void operator delete(void *p) { mi_free(p); }
+  void *operator new(size_t size) { return alloc(size); }
+  void operator delete(void *p) { dealloc(p); }
 };
 
 class VM;
