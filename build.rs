@@ -13,7 +13,7 @@ fn main() {
         _ => {}
     };
 
-    if cfg!(feature="mimalloc"){
+    if cfg!(feature = "mimalloc") {
         build.file("vendor/github.com/microsoft/mimalloc/src/static.c");
         build.define("MI_MALLOC", "1");
     }

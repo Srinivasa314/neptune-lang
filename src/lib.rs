@@ -8,6 +8,7 @@ use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
 use vm::free_data;
@@ -181,6 +182,7 @@ impl Neptune {
                 new_vm(
                     Box::into_raw(Box::new(UserData {
                         futures: RefCell::new(FuturesUnordered::new()),
+                        resources: RefCell::new(HashMap::new()),
                     })) as *mut Data,
                     free_data::<UserData> as *mut FreeDataCallback,
                 )
@@ -190,7 +192,7 @@ impl Neptune {
         n.vm.create_efunc_safe("compile", |mut cx| -> bool {
             let mut eval = false;
             let vm = cx.vm();
-            let mut module=None;
+            let mut module = None;
             match || -> Result<Result<(FunctionInfoWriter, bool), Vec<CompileError>>, EFuncError> {
                 cx.get_property("source")?;
                 let source = cx.as_string()?.to_string();
@@ -217,12 +219,33 @@ impl Neptune {
                         }
                     }
                     Err(errors) => {
-                        CompileErrorList{module:module.unwrap(),errors}.to_neptune_value(&mut cx);
+                        CompileErrorList {
+                            module: module.unwrap(),
+                            errors,
+                        }
+                        .to_neptune_value(&mut cx);
                         false
                     }
                 },
             }
         });
+
+        n.create_efunc("close", |cx| -> Result<(), EFuncErrorOr<NeptuneError>> {
+            let rid = cx.as_int()?;
+            if rid < 0 {
+                Err(EFuncErrorOr::Other(NeptuneError(
+                    "Resource id cannot be negative".into(),
+                )))
+            } else if cx.resources().borrow_mut().remove(&(rid as u32)).is_none() {
+                Err(EFuncErrorOr::Other(NeptuneError(format!(
+                    "Resource with id {} does not exist",
+                    rid
+                ))))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap();
 
         n.create_efunc("resolveModule", {
             let module_loader = module_loader.clone();
@@ -313,7 +336,7 @@ impl Neptune {
         module: S,
         source: &str,
     ) -> Result<(), InterpretError> {
-        let module=module.into();
+        let module = module.into();
         match compile(&self.vm, module.clone(), source, false) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
@@ -330,7 +353,10 @@ impl Neptune {
                 }
                 _ => unreachable!(),
             },
-            Err(errors) => Err(InterpretError::CompileError(CompileErrorList{errors,module})),
+            Err(errors) => Err(InterpretError::CompileError(CompileErrorList {
+                errors,
+                module,
+            })),
         }
     }
 
@@ -513,13 +539,25 @@ mod tests {
         }
         n.exec_sync("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
             .unwrap();
-        if let InterpretError::UncaughtException(s)=n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap()).unwrap_err(){
-            assert_eq!(s,"In <Task> Error: main task killed\nat <closure> (test_kill_main_task.np:3)\n");
-        }else{
+        if let InterpretError::UncaughtException(s) = n
+            .exec_sync(
+                "test_kill_main_task.np",
+                &read("test_kill_main_task.np").unwrap(),
+            )
+            .unwrap_err()
+        {
+            assert_eq!(
+                s,
+                "In <Task> Error: main task killed\nat <closure> (test_kill_main_task.np:3)\n"
+            );
+        } else {
             panic!("Expected UncaughtException");
         }
-        n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
-            .unwrap();
+        n.exec_sync(
+            "test_kill_main_task.np",
+            &read("test_kill_main_task_post.np").unwrap(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -538,7 +576,7 @@ mod tests {
                     .unwrap();
             } else {
                 let mut expected_result = String::new();
-                println!("{}",error);
+                println!("{}", error);
                 File::open(open(&format!("{}.json", error)))
                     .unwrap()
                     .read_to_string(&mut expected_result)

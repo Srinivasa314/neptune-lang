@@ -1,6 +1,8 @@
 use cxx::{type_id, ExternType};
 use futures::{stream::FuturesUnordered, Future};
+use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::{ffi::c_void, fmt::Display, marker::PhantomData, pin::Pin};
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -368,6 +370,7 @@ use crate::{CompileError, CompileErrorList};
 
 pub struct UserData<'vm> {
     pub futures: RefCell<FuturesUnordered<NeptuneFuture<'vm>>>,
+    pub resources: RefCell<HashMap<u32, Box<dyn Any>>>,
 }
 
 type NeptuneFuture<'vm> =
@@ -694,6 +697,16 @@ impl<'a> EFuncContext<'a> {
 
     pub(crate) fn vm(&self) -> &'a VM {
         self.0.get_vm()
+    }
+
+    pub fn resources(&self) -> &RefCell<HashMap<u32, Box<dyn Any>>> {
+        &self.vm().get_user_data().resources
+    }
+
+    pub fn add_resource<R: 'static>(&self, r: R) {
+        let resources = &self.vm().get_user_data().resources;
+        let len = resources.borrow().len() as u32;
+        resources.borrow_mut().insert(len, Box::new(r));
     }
 }
 
