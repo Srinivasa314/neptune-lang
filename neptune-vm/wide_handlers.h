@@ -307,12 +307,12 @@ handler(LoadSubscript, {
           THROW("IndexError", "Array index out of range");
         }
         if (start > end) {
-          auto new_arr = allocate<Array>(0);
+          auto new_arr = allocate<Array>(0U);
           accumulator = Value(new_arr);
         } else {
-          auto new_arr = allocate<Array>(end - start);
+          auto new_arr = allocate<Array>(static_cast<uint32_t>(end - start));
           for (int32_t i = start; i < end; i++) {
-            new_arr->inner[i - start] = a->inner[i];
+            new_arr->inner[static_cast<uint32_t>(i - start)] = a->inner[static_cast<uint32_t>(i)];
           }
           accumulator = Value(new_arr);
         }
@@ -343,7 +343,7 @@ handler(LoadSubscript, {
           if (int8_t(str->data[r.start]) >= -0x40 &&
               (size_t(r.end) == str->len ||
                int8_t(str->data[r.end]) >= -0x40)) {
-            auto bytes = StringSlice(str->data + r.start, r.end - r.start);
+            auto bytes = StringSlice(str->data + r.start, static_cast<uint32_t>(r.end - r.start));
             auto new_str = allocate<String>(bytes);
             accumulator = Value(new_str);
           } else

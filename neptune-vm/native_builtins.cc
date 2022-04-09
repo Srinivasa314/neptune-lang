@@ -166,7 +166,8 @@ static VMStatus array_construct(VM *vm, Value *args) {
   if (args[1].is_int()) {
     if (args[1].as_int() < 0)
       THROW("Error", "The array size must be non negative");
-    vm->return_value = Value(vm->allocate<Array>(args[1].as_int(), args[2]));
+    vm->return_value = Value(
+        vm->allocate<Array>(static_cast<uint32_t>(args[1].as_int()), args[2]));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
@@ -299,7 +300,7 @@ static VMStatus stringiterator_next(VM *vm, Value *args) {
     do {
       si->position++;
     } while (si->position < str.len &&
-             ((uint8_t)str.data[si->position] & 0xc0) == 0x80);
+             (static_cast<uint8_t>(str.data[si->position]) & 0xc0) == 0x80);
     vm->return_value = Value(vm->allocate<String>(
         StringSlice(str.data + old_pos, si->position - old_pos)));
   } else {
@@ -309,7 +310,7 @@ static VMStatus stringiterator_next(VM *vm, Value *args) {
 }
 
 #define FN(x)                                                                  \
-  VMStatus x(VM *vm, Value *args) {                                            \
+  static VMStatus x(VM *vm, Value *args) {                                     \
     auto num = args[0];                                                        \
     if (num.is_int()) {                                                        \
       vm->return_value = Value(std::x(num.as_int()));                          \
@@ -325,7 +326,7 @@ static VMStatus stringiterator_next(VM *vm, Value *args) {
 MATH_FNS
 #undef FN
 
-VMStatus pow(VM *vm, Value *args) {
+static VMStatus pow(VM *vm, Value *args) {
   if (args[0].is_float() && args[1].is_float()) {
     vm->return_value = Value(std::pow(args[0].as_float(), args[1].as_float()));
     return VMStatus::Success;
@@ -444,8 +445,10 @@ static VMStatus ecall(VM *vm, Value *args) {
 
 static VMStatus generateStackTrace(VM *vm, Value *args) {
   if (args[0].is_int()) {
-    vm->return_value = Value(vm->allocate<String>(
-        vm->generate_stack_trace(false, args[0].as_int())));
+    if (args[0].as_int() < 0)
+      THROW("Error", "The first argument must not be negative");
+    vm->return_value = Value(vm->allocate<String>(vm->generate_stack_trace(
+        false, static_cast<uint32_t>(args[0].as_int()))));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
@@ -527,7 +530,7 @@ static VMStatus map_clear(VM *vm, Value *args) {
 
 static VMStatus map_len(VM *vm, Value *args) {
   vm->return_value =
-      Value((int32_t)args[0].as_object()->as<Map>()->inner.size());
+      Value(static_cast<int32_t>(args[0].as_object()->as<Map>()->inner.size()));
   return VMStatus::Success;
 }
 
@@ -752,8 +755,9 @@ void VM::declare_native_builtins() {
     auto method_sym = intern(StringSlice(#method));                            \
     temp_roots.push_back(Value(method_sym));                                   \
     builtin_classes.class->methods.insert(                                     \
-        {method_sym, allocate<NativeFunction>(native_builtins::fn, #method,    \
-                                              "<prelude>", arity)});           \
+        {method_sym,                                                           \
+         allocate<NativeFunction>(native_builtins::fn, #method, "<prelude>",   \
+                                  static_cast<uint8_t>(arity))});              \
     temp_roots.pop_back();                                                     \
   } while (0)
 
@@ -856,8 +860,8 @@ void VM::declare_native_builtins() {
   add_module_variable("math", name, false, true);                              \
   module_variables[module_variables.size() - 1] = Value(value);
 
-  DEF_MATH_CONSTANT("NaN", NAN)
-  DEF_MATH_CONSTANT("Infinity", INFINITY)
+  DEF_MATH_CONSTANT("NaN", std::numeric_limits<double>::quiet_NaN())
+  DEF_MATH_CONSTANT("Infinity", std::numeric_limits<double>::infinity())
   DEF_MATH_CONSTANT("E", M_E)
   DEF_MATH_CONSTANT("LN2", M_LN2)
   DEF_MATH_CONSTANT("LOG2E", M_LOG2E)

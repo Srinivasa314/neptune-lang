@@ -113,7 +113,7 @@ public:
   }
 
   void erase(iterator it) {
-    uint32_t bucket = it.inner - entries;
+    uint32_t bucket = static_cast<uint32_t>(it.inner - entries);
     for (uint32_t i = (bucket + 1) & (capacity - 1);;
          i = (i + 1) & (capacity - 1)) {
       if (Empty{}.is_empty(entries[i])) {

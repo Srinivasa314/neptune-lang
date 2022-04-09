@@ -70,7 +70,7 @@ const char *Object::type_string() const {
   case Type::Task:
     return "Task";
   case Type::Instance:
-    return ((Object *)this)->as<Instance>()->class_->name.c_str();
+    return const_cast<Object *>(this)->as<Instance>()->class_->name.c_str();
   case Type::FunctionInfo:
     return "<internal type FunctionInfo>";
   case Type::UpValue:
@@ -269,7 +269,7 @@ Object *Class::find_method(Symbol *method) {
   }
   return nullptr;
 }
-Instance::Instance(size_t size) : properties(size) {}
+Instance::Instance(size_t size) : properties(static_cast<uint32_t>(size)) {}
 
 std::ostream &operator<<(std::ostream &os, StringSlice s) {
   os.write(s.data, std::streamsize(s.len));
@@ -305,12 +305,12 @@ size_t String::find(String *haystack, String *needle, size_t start) {
     skip[i] = needle->len;
 
   for (size_t i = 0; i < needle->len - 1; i++)
-    skip[(uint8_t)needle->data[i]] = needle->len - 1 - i;
+    skip[static_cast<uint8_t>(needle->data[i])] = needle->len - 1 - i;
 
   char last = needle->data[needle->len - 1], c;
 
   for (size_t i = start; i <= haystack->len - needle->len;
-       i += skip[(uint8_t)c]) {
+       i += skip[static_cast<uint8_t>(c)]) {
     c = haystack->data[i + needle->len - 1];
     if (last == c &&
         memcmp(haystack->data + i, needle->data, needle->len - 1) == 0) {
@@ -333,7 +333,7 @@ String *String::replace(VM *vm, String *from, String *to) {
       break;
     offset = pos + from->len;
     result.insert(result.end(), to->data, to->data + to->len);
-  };
+  }
   return vm->allocate<String>(result);
 }
 

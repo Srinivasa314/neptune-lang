@@ -288,7 +288,8 @@ uint32_t ValueHasher::operator()(Value v) const {
     else if (o->is<String>())
       return StringHasher{}(*o->as<String>());
     else if (o->is<Range>())
-      return intHash(o->as<Range>()->start) ^ intHash(o->as<Range>()->end);
+      return intHash(static_cast<uint32_t>(o->as<Range>()->start)) ^
+             intHash(static_cast<uint32_t>(o->as<Range>()->end));
     else
       return intHash(v.inner);
   } else {
@@ -312,8 +313,8 @@ uint32_t ValueHasher::operator()(Value v) const {
     else if (o->is<String>())
       return StringHasher{}(static_cast<StringSlice>(*o->as<String>()));
     else if (o->is<Range>())
-      return intHash((uint32_t)o->as<Range>()->start) ^
-             intHash((uint32_t)o->as<Range>()->end);
+      return intHash(static_cast<uint32_t>(o->as<Range>()->start)) ^
+             intHash(static_cast<uint32_t>(o->as<Range>()->end));
     else
       return intHash(reinterpret_cast<uintptr_t>(o));
   }

@@ -58,7 +58,8 @@ VM::VM(Data *user_data, FreeDataCallback *free_user_data)
     : user_data(user_data), free_user_data(free_user_data), bytes_allocated(0),
       first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
       last_native_function(nullptr), is_running(false), current_task(nullptr),
-      return_value(Value::null()), rng(std::random_device()()) {
+      main_task(nullptr), return_value(Value::null()),
+      rng(std::random_device()()) {
   builtin_symbols.construct = intern("construct");
   builtin_symbols.message = intern("message");
   builtin_symbols.stack = intern("stack");
@@ -495,6 +496,8 @@ void VM::collect() {
     mark(builtin_symbols.message);
     mark(builtin_symbols.stack);
     mark(builtin_symbols.task);
+    mark(builtin_symbols.finished);
+    mark(builtin_symbols.running);
     mark(builtin_symbols.killed);
   }
 
@@ -580,6 +583,12 @@ void VM::trace(Object *o) {
     for (auto constant : o->as<FunctionInfo>()->constants) {
       if (constant.is_object())
         mark(constant.as_object());
+    }
+    for (auto &jump_table : o->as<FunctionInfo>()->jump_tables) {
+      for (auto pair : jump_table) {
+        if (pair.first.is_object())
+          mark(pair.first.as_object());
+      }
     }
     bytes_allocated += sizeof(FunctionInfo);
     break;
