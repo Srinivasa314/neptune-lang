@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Only string literals can be used at token \\",
-      "line": 2
-    },
-    {
-      "message": "Expect expression at token }",
-      "line": 3
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_switch2.np",
+    "errors": [
+      {
+        "message": "Only string literals can be used at token \\",
+        "line": 2
+      },
+      {
+        "message": "Expect expression at token }",
+        "line": 3
+      }
+    ]
+  }
 }

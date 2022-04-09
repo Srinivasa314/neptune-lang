@@ -3,7 +3,6 @@ use crate::{
     CompileError, CompileResult,
 };
 use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 pub struct Parser<'src, Tokens: Iterator<Item = Token<'src>>> {
@@ -105,12 +104,12 @@ fn get_precedence(token_type: &TokenType) -> Precedence {
         TokenType::In => Precedence::None,
     }
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub enum Substring {
     String(String),
     Expr(Expr),
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         line: u32,
@@ -187,7 +186,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum ClosureBody {
     Block(Vec<Statement>),
     Expr(Box<Expr>),
@@ -216,7 +215,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub line: u32,
     pub last_line: u32,
@@ -225,7 +224,7 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Int(i32),
     Float(f64),
@@ -237,7 +236,7 @@ pub enum Literal {
     Default,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Expr(Expr),
     VarDeclaration {

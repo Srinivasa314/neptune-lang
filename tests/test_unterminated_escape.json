@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unterminated \\",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_unterminated_escape.np",
+    "errors": [
+      {
+        "message": "Unterminated \\",
+        "line": 1
+      }
+    ]
+  }
 }

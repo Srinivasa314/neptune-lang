@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unexpected character '😃'",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_character.np",
+    "errors": [
+      {
+        "message": "Unexpected character '😃'",
+        "line": 1
+      }
+    ]
+  }
 }

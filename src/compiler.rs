@@ -35,8 +35,8 @@ impl<'vm> Compiler<'vm> {
         self.register_module_variables(&ast);
         let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
         b.compile_statments(&ast);
-        b.bytecode.write_u8(Op::Return.repr);
-        let bytecode = b.bytecode;
+        b.bc_writer.write_u8(Op::Return.repr);
+        let bytecode = b.bc_writer;
         if self.errors.is_empty() {
             Ok(bytecode)
         } else {
@@ -71,10 +71,10 @@ impl<'vm> Compiler<'vm> {
             }
             Err(e) => b.error(e),
         }
-        b.bytecode.shrink();
-        b.bytecode.set_max_registers(b.max_registers);
-        b.bytecode.write_u8(Op::Return.repr);
-        let bytecode = b.bytecode;
+        b.bc_writer.shrink();
+        b.bc_writer.set_max_registers(b.max_registers);
+        b.bc_writer.write_u8(Op::Return.repr);
+        let bytecode = b.bc_writer;
         if self.errors.is_empty() {
             Ok(bytecode)
         } else {
@@ -144,7 +144,7 @@ impl<'vm> Compiler<'vm> {
 struct BytecodeCompiler<'c, 'vm> {
     compiler: Option<&'c mut Compiler<'vm>>,
     parent: Option<Box<BytecodeCompiler<'c, 'vm>>>,
-    bytecode: FunctionInfoWriter<'vm>,
+    bc_writer: FunctionInfoWriter<'vm>,
     locals: Vec<HashMap<String, Local>>,
     regcount: u32,
     max_registers: u32,
@@ -191,7 +191,7 @@ struct UpValue {
 impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     fn new(c: &'c mut Compiler<'vm>, name: &str, bctype: BytecodeType, arity: u8) -> Self {
         Self {
-            bytecode: c
+            bc_writer: c
                 .vm
                 .new_function_info(c.module_name.as_str().into(), name.into(), arity),
             locals: if bctype == BytecodeType::Script {
@@ -240,37 +240,37 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
     }
 
     fn write0(&mut self, op: Op, line: u32) {
-        let pos = self.bytecode.write_op(op, line);
+        let pos = self.bc_writer.write_op(op, line);
         self.op_positions.push(pos);
     }
 
     fn write1(&mut self, op: Op, u: u32, line: u32) {
         if let Ok(u) = u8::try_from(u) {
             self.write0(op, line);
-            self.bytecode.write_u8(u);
+            self.bc_writer.write_u8(u);
         } else if let Ok(u) = u16::try_from(u) {
             self.write0(Op::Wide, line);
-            self.bytecode.write_u8(op.repr);
-            self.bytecode.write_u16(u);
+            self.bc_writer.write_u8(op.repr);
+            self.bc_writer.write_u16(u);
         } else {
             self.write0(Op::ExtraWide, line);
-            self.bytecode.write_u8(op.repr);
-            self.bytecode.write_u32(u);
+            self.bc_writer.write_u8(op.repr);
+            self.bc_writer.write_u32(u);
         }
     }
 
     fn write1_signed(&mut self, op: Op, i: i32, line: u32) {
         if let Ok(i) = i8::try_from(i) {
             self.write0(op, line);
-            self.bytecode.write_u8(i as u8);
+            self.bc_writer.write_u8(i as u8);
         } else if let Ok(i) = i16::try_from(i) {
             self.write0(Op::Wide, line);
-            self.bytecode.write_u8(op.repr);
-            self.bytecode.write_u16(i as u16);
+            self.bc_writer.write_u8(op.repr);
+            self.bc_writer.write_u16(i as u16);
         } else {
             self.write0(Op::ExtraWide, line);
-            self.bytecode.write_u8(op.repr);
-            self.bytecode.write_u32(i as u32);
+            self.bc_writer.write_u8(op.repr);
+            self.bc_writer.write_u32(i as u32);
         }
     }
 
@@ -278,21 +278,21 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match (u8::try_from(u1), u8::try_from(u2)) {
             (Ok(u1), Ok(u2)) => {
                 self.write0(op, line);
-                self.bytecode.write_u8(u1);
-                self.bytecode.write_u8(u2)
+                self.bc_writer.write_u8(u1);
+                self.bc_writer.write_u8(u2)
             }
             _ => match (u16::try_from(u1), u16::try_from(u2)) {
                 (Ok(u1), Ok(u2)) => {
                     self.write0(Op::Wide, line);
-                    self.bytecode.write_u8(op.repr);
-                    self.bytecode.write_u16(u1);
-                    self.bytecode.write_u16(u2)
+                    self.bc_writer.write_u8(op.repr);
+                    self.bc_writer.write_u16(u1);
+                    self.bc_writer.write_u16(u2)
                 }
                 _ => {
                     self.write0(Op::ExtraWide, line);
-                    self.bytecode.write_u8(op.repr);
-                    self.bytecode.write_u32(u1);
-                    self.bytecode.write_u32(u2)
+                    self.bc_writer.write_u8(op.repr);
+                    self.bc_writer.write_u32(u1);
+                    self.bc_writer.write_u32(u2)
                 }
             },
         }
@@ -302,24 +302,24 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match (u8::try_from(u1), u8::try_from(u2), u8::try_from(u3)) {
             (Ok(u1), Ok(u2), Ok(u3)) => {
                 self.write0(op, line);
-                self.bytecode.write_u8(u1);
-                self.bytecode.write_u8(u2);
-                self.bytecode.write_u8(u3)
+                self.bc_writer.write_u8(u1);
+                self.bc_writer.write_u8(u2);
+                self.bc_writer.write_u8(u3)
             }
             _ => match (u16::try_from(u1), u16::try_from(u2), u16::try_from(u3)) {
                 (Ok(u1), Ok(u2), Ok(u3)) => {
                     self.write0(Op::Wide, line);
-                    self.bytecode.write_u8(op.repr);
-                    self.bytecode.write_u16(u1);
-                    self.bytecode.write_u16(u2);
-                    self.bytecode.write_u16(u3)
+                    self.bc_writer.write_u8(op.repr);
+                    self.bc_writer.write_u16(u1);
+                    self.bc_writer.write_u16(u2);
+                    self.bc_writer.write_u16(u3)
                 }
                 _ => {
                     self.write0(Op::ExtraWide, line);
-                    self.bytecode.write_u8(op.repr);
-                    self.bytecode.write_u32(u1);
-                    self.bytecode.write_u32(u2);
-                    self.bytecode.write_u32(u3)
+                    self.bc_writer.write_u8(op.repr);
+                    self.bc_writer.write_u32(u1);
+                    self.bc_writer.write_u32(u2);
+                    self.bc_writer.write_u32(u3)
                 }
             },
         }
@@ -327,7 +327,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn pop_last_op(&mut self) {
         let pos = self.op_positions.pop().unwrap();
-        self.bytecode.pop_last_op(pos);
+        self.bc_writer.pop_last_op(pos);
     }
 }
 
@@ -404,7 +404,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         match i8::try_from(i) {
             Ok(i) => self.write1(Op::LoadSmallInt, i as u8 as u32, line),
             _ => {
-                let c = self.bytecode.int_constant(i);
+                let c = self.bc_writer.int_constant(i);
                 self.write1(Op::LoadConstant, c, line);
             }
         }
@@ -607,7 +607,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             is_local,
             mutable,
         });
-        self.bytecode.add_upvalue(index, is_local);
+        self.bc_writer.add_upvalue(index, is_local);
         (self.upvalues.len() - 1) as u32
     }
 
@@ -615,8 +615,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
         for statement in statements {
             self.compile_statement(statement)
         }
-        self.bytecode.shrink();
-        self.bytecode.set_max_registers(self.max_registers);
+        self.bc_writer.shrink();
+        self.bc_writer.set_max_registers(self.max_registers);
     }
 
     fn var_declaration(
@@ -783,7 +783,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         self.store_in_register(object_res, *line)
                     };
                     for name in names {
-                        let property = self.bytecode.symbol_constant(name.as_str().into());
+                        let property = self.bc_writer.symbol_constant(name.as_str().into());
                         self.write2(Op::LoadProperty, reg, property, *line);
                         self.create_variable_and_store_accumulator(name, *mutable, *line)?;
                     }
@@ -826,23 +826,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             self.store_in_accumulator(res, line);
                         }
                     }
-                    let c = self.bytecode.reserve_constant();
-                    let cond_check = self.bytecode.size();
+                    let c = self.bc_writer.reserve_constant();
+                    let cond_check = self.bc_writer.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c, line);
                     self.block(block, *if_end);
-                    let if_end_pos = self.bytecode.size();
+                    let if_end_pos = self.bc_writer.size();
                     if let Some(else_stmt) = else_stmt {
-                        let c = self.bytecode.reserve_constant();
+                        let c = self.bc_writer.reserve_constant();
                         self.write1(Op::JumpConstant, c, *if_end);
-                        let jump_end = self.bytecode.size();
-                        self.bytecode
+                        let jump_end = self.bc_writer.size();
+                        self.bc_writer
                             .patch_jump(cond_check, (jump_end - cond_check) as u32);
                         self.compile_statement(else_stmt);
-                        let else_end = self.bytecode.size();
-                        self.bytecode
+                        let else_end = self.bc_writer.size();
+                        self.bc_writer
                             .patch_jump(if_end_pos, (else_end - if_end_pos) as u32);
                     } else {
-                        self.bytecode
+                        self.bc_writer
                             .patch_jump(cond_check, (if_end_pos - cond_check) as u32);
                     }
                 }
@@ -851,7 +851,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     block,
                     end_line,
                 } => {
-                    let loop_start = self.bytecode.size();
+                    let loop_start = self.bc_writer.size();
                     self.loops.push(Loop::While {
                         start_reg: self.regcount,
                         loop_start,
@@ -864,23 +864,23 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         }
                     }
 
-                    let c = self.bytecode.reserve_constant();
-                    let loop_cond_check = self.bytecode.size();
+                    let c = self.bc_writer.reserve_constant();
+                    let loop_cond_check = self.bc_writer.size();
                     self.write1(Op::JumpIfFalseOrNullConstant, c as u32, condition.line());
                     self.block(block, *end_line);
-                    let almost_loop_end = self.bytecode.size();
+                    let almost_loop_end = self.bc_writer.size();
                     self.write1(
                         Op::JumpBack,
                         (almost_loop_end - loop_start) as u32,
                         *end_line,
                     );
-                    let loop_end = self.bytecode.size();
-                    self.bytecode
+                    let loop_end = self.bc_writer.size();
+                    self.bc_writer
                         .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
                     match self.loops.last().unwrap() {
                         Loop::While { breaks, .. } => {
                             for b in breaks.iter() {
-                                self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                self.bc_writer.patch_jump(*b, (loop_end - b) as u32);
                             }
                         }
                         _ => unreachable!(),
@@ -917,10 +917,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         if let Ok(end) = end {
                             self.store_in_specific_register(end, end_reg, expr.line());
                         }
-                        let c = self.bytecode.reserve_constant();
-                        let before_loop_prep = self.bytecode.size();
+                        let c = self.bc_writer.reserve_constant();
+                        let before_loop_prep = self.bc_writer.size();
                         self.write2(Op::BeginForLoopConstant, c as u32, iter_reg, expr.line());
-                        let loop_start = self.bytecode.size();
+                        let loop_start = self.bc_writer.size();
                         self.loops.push(Loop::For {
                             start_reg: iter_reg,
                             breaks: vec![],
@@ -933,25 +933,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         if last_block.values().any(|l| l.is_captured) {
                             self.write1(Op::Close, (iter_reg) as u32, *end_line);
                         }
-                        let loop_almost_end = self.bytecode.size();
+                        let loop_almost_end = self.bc_writer.size();
                         self.write2(
                             Op::ForLoop,
                             (loop_almost_end - loop_start) as u32,
                             iter_reg,
                             *end_line,
                         );
-                        let loop_end = self.bytecode.size();
-                        self.bytecode
+                        let loop_end = self.bc_writer.size();
+                        self.bc_writer
                             .patch_jump(before_loop_prep, (loop_end - before_loop_prep) as u32);
                         match self.loops.last().unwrap() {
                             Loop::For {
                                 continues, breaks, ..
                             } => {
                                 for b in breaks.iter() {
-                                    self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                    self.bc_writer.patch_jump(*b, (loop_end - b) as u32);
                                 }
                                 for c in continues.iter() {
-                                    self.bytecode.patch_jump(*c, (loop_almost_end - c) as u32);
+                                    self.bc_writer.patch_jump(*c, (loop_almost_end - c) as u32);
                                 }
                             }
                             _ => unreachable!(),
@@ -974,8 +974,8 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             expr.line(),
                         );
 
-                        let loop_start = self.bytecode.size();
-                        let hasnext_property = self.bytecode.symbol_constant("hasNext".into());
+                        let loop_start = self.bc_writer.size();
+                        let hasnext_property = self.bc_writer.symbol_constant("hasNext".into());
                         let start = self.regcount;
                         self.push_register();
                         self.write3(
@@ -985,19 +985,19 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             start,
                             expr.line(),
                         );
-                        self.bytecode.write_u8(0);
+                        self.bc_writer.write_u8(0);
                         self.pop_register();
 
-                        let c = self.bytecode.reserve_constant();
-                        let loop_cond_check = self.bytecode.size();
+                        let c = self.bc_writer.reserve_constant();
+                        let loop_cond_check = self.bc_writer.size();
                         self.write1(Op::JumpIfFalseOrNullConstant, c as u32, expr.line());
 
                         let iter_reg = self.new_local(iter.into(), false);
-                        let next_property = self.bytecode.symbol_constant("next".into());
+                        let next_property = self.bc_writer.symbol_constant("next".into());
                         let start = self.regcount;
                         self.push_register();
                         self.write3(Op::CallMethod, iterator, next_property, start, expr.line());
-                        self.bytecode.write_u8(0);
+                        self.bc_writer.write_u8(0);
                         self.pop_register();
                         self.store_in_specific_register(
                             ExprResult::Accumulator,
@@ -1016,19 +1016,19 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         if last_block.values().any(|l| l.is_captured) {
                             self.write1(Op::Close, (iter_reg) as u32, *end_line);
                         }
-                        let almost_loop_end = self.bytecode.size();
+                        let almost_loop_end = self.bc_writer.size();
                         self.write1(
                             Op::JumpBack,
                             (almost_loop_end - loop_start) as u32,
                             *end_line,
                         );
-                        let loop_end = self.bytecode.size();
-                        self.bytecode
+                        let loop_end = self.bc_writer.size();
+                        self.bc_writer
                             .patch_jump(loop_cond_check, (loop_end - loop_cond_check) as u32);
                         match self.loops.last().unwrap() {
                             Loop::While { breaks, .. } => {
                                 for b in breaks.iter() {
-                                    self.bytecode.patch_jump(*b, (loop_end - b) as u32);
+                                    self.bc_writer.patch_jump(*b, (loop_end - b) as u32);
                                 }
                             }
                             _ => unreachable!(),
@@ -1068,7 +1068,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         BytecodeType::Function,
                         *last_line,
                     )?;
-                    let c = self.bytecode.fun_constant(bytecode);
+                    let c = self.bc_writer.fun_constant(bytecode);
                     self.write1(Op::MakeFunction, c, *last_line);
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
@@ -1107,11 +1107,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     catch_block,
                     catch_end,
                 } => {
-                    let try_start_pos = self.bytecode.size();
+                    let try_start_pos = self.bc_writer.size();
                     self.block(try_block, *try_end);
-                    let try_end_pos = self.bytecode.size();
-                    let c = self.bytecode.reserve_constant();
-                    let jump_pos = self.bytecode.size();
+                    let try_end_pos = self.bc_writer.size();
+                    let c = self.bc_writer.reserve_constant();
+                    let jump_pos = self.bc_writer.size();
                     self.write1(Op::JumpConstant, c, *try_end);
                     self.locals.push(HashMap::default());
                     let error_reg = self.push_register();
@@ -1123,7 +1123,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             is_captured: false,
                         },
                     );
-                    let catch_start_pos = self.bytecode.size();
+                    let catch_start_pos = self.bc_writer.size();
                     for stmt in catch_block {
                         self.compile_statement(stmt);
                     }
@@ -1132,10 +1132,10 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     if last_block.values().any(|l| l.is_captured) {
                         self.write1(Op::Close, self.regcount as u32, *catch_end);
                     }
-                    let catch_end_pos = self.bytecode.size();
-                    self.bytecode
+                    let catch_end_pos = self.bc_writer.size();
+                    self.bc_writer
                         .patch_jump(jump_pos, (catch_end_pos - jump_pos) as u32);
-                    self.bytecode.add_exception_handler(
+                    self.bc_writer.add_exception_handler(
                         try_start_pos as u32,
                         try_end_pos as u32,
                         error_reg,
@@ -1156,7 +1156,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             line: *line,
                         });
                     }
-                    let class = self.bytecode.class_constant(name.as_str().into());
+                    let class = self.bc_writer.class_constant(name.as_str().into());
                     if let Some(parent) = parent {
                         let res = self.evaluate_expr(parent);
                         if let Ok(res) = res {
@@ -1186,7 +1186,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         );
 
                         match bytecode {
-                            Ok(bytecode) => self.bytecode.add_method(
+                            Ok(bytecode) => self.bc_writer.add_method(
                                 class,
                                 method.name.as_str().into(),
                                 bytecode,
@@ -1198,44 +1198,44 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.create_variable_and_store_accumulator(name, false, *line)?;
                 }
                 Statement::Switch { line, expr, cases } => {
-                    let jump_table = self.bytecode.jump_table();
+                    let jump_table = self.bc_writer.jump_table();
                     match self.evaluate_expr(expr) {
                         Ok(res) => self.store_in_accumulator(res, *line),
                         Err(e) => self.error(e),
                     }
                     self.write1(Op::Switch, jump_table, *line);
-                    let switch_start = self.bytecode.size();
-                    let c = self.bytecode.reserve_constant();
+                    let switch_start = self.bc_writer.size();
+                    let c = self.bc_writer.reserve_constant();
                     self.write1(Op::JumpConstant, c, *line);
                     let mut case_positions = vec![];
                     let mut default_statement = None;
                     for case in cases.iter() {
-                        let case_start = self.bytecode.size();
+                        let case_start = self.bc_writer.size();
                         self.compile_statement(&case.1);
-                        let c = self.bytecode.reserve_constant();
-                        case_positions.push(self.bytecode.size());
+                        let c = self.bc_writer.reserve_constant();
+                        case_positions.push(self.bc_writer.size());
                         self.write1(Op::JumpConstant, c, case.2);
                         if case.0.contains(&Literal::Default) {
                             default_statement = Some(case_start);
                         } else {
                             for literal in &case.0 {
-                                self.bytecode.reuse_constants = false;
+                                self.bc_writer.reuse_constants = false;
                                 match literal {
-                                    Literal::Int(i) => self.bytecode.int_constant(*i),
-                                    Literal::Float(f) => self.bytecode.float_constant(*f),
+                                    Literal::Int(i) => self.bc_writer.int_constant(*i),
+                                    Literal::Float(f) => self.bc_writer.float_constant(*f),
                                     Literal::String(s) => {
-                                        self.bytecode.string_constant(s.as_str().into())
+                                        self.bc_writer.string_constant(s.as_str().into())
                                     }
                                     Literal::Symbol(sym) => {
-                                        self.bytecode.symbol_constant(sym.as_str().into())
+                                        self.bc_writer.symbol_constant(sym.as_str().into())
                                     }
-                                    Literal::Null => self.bytecode.null_constant(),
-                                    Literal::True => self.bytecode.bool_constant(true),
-                                    Literal::False => self.bytecode.bool_constant(false),
+                                    Literal::Null => self.bc_writer.null_constant(),
+                                    Literal::True => self.bc_writer.bool_constant(true),
+                                    Literal::False => self.bc_writer.bool_constant(false),
                                     Literal::Default => unreachable!(),
                                 };
-                                self.bytecode.reuse_constants = true;
-                                if !self.bytecode.insert_in_jump_table(
+                                self.bc_writer.reuse_constants = true;
+                                if !self.bc_writer.insert_in_jump_table(
                                     jump_table,
                                     (case_start - switch_start) as u32,
                                 ) {
@@ -1247,16 +1247,16 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             }
                         }
                     }
-                    let end_pos = self.bytecode.size();
+                    let end_pos = self.bc_writer.size();
                     if let Some(pos) = default_statement {
-                        self.bytecode
+                        self.bc_writer
                             .patch_jump(switch_start, (pos - switch_start) as u32);
                     } else {
-                        self.bytecode
+                        self.bc_writer
                             .patch_jump(switch_start, (end_pos - switch_start) as u32);
                     }
                     for pos in case_positions {
-                        self.bytecode.patch_jump(pos, (end_pos - pos) as u32);
+                        self.bc_writer.patch_jump(pos, (end_pos - pos) as u32);
                     }
                 }
             };
@@ -1285,7 +1285,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 line,
             });
         } else {
-            let break_pos = self.bytecode.size();
+            let break_pos = self.bc_writer.size();
             let start;
             match self.loops.last_mut().unwrap() {
                 Loop::While {
@@ -1320,7 +1320,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             if self.locals.last().unwrap().values().any(|l| l.is_captured) {
                 self.write1(Op::Close, start as u32, line);
             }
-            let c = self.bytecode.reserve_constant();
+            let c = self.bc_writer.reserve_constant();
             self.write1(Op::JumpConstant, c, line);
         }
         Ok(())
@@ -1344,7 +1344,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
                         self.write1(Op::Close, start_reg as u32, line);
                     }
-                    let continue_pos = self.bytecode.size();
+                    let continue_pos = self.bc_writer.size();
                     self.write1(Op::JumpBack, (continue_pos - loop_start) as u32, line);
                 }
                 Loop::For {
@@ -1353,7 +1353,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     ..
                 } => {
                     let start_reg = *start_reg;
-                    let continue_pos = self.bytecode.size();
+                    let continue_pos = self.bc_writer.size();
                     if self.locals.last().unwrap().values().any(|l| l.is_captured) {
                         if u8::try_from(start_reg).is_ok() {
                             continues.push(continue_pos + 2);
@@ -1364,7 +1364,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     } else {
                         continues.push(continue_pos);
                     }
-                    let c = self.bytecode.reserve_constant();
+                    let c = self.bc_writer.reserve_constant();
                     self.write1(Op::JumpConstant, c, line);
                 }
             }
@@ -1394,7 +1394,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                 }
                 TokenType::FloatLiteral(f) => Ok({
-                    let c = self.bytecode.float_constant(*f);
+                    let c = self.bc_writer.float_constant(*f);
                     self.write1(Op::LoadConstant, c, *line);
                     ExprResult::Accumulator
                 }),
@@ -1411,7 +1411,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::Symbol(sym) => {
-                    let sym = self.bytecode.symbol_constant(sym.as_str().into());
+                    let sym = self.bc_writer.symbol_constant(sym.as_str().into());
                     self.write1(Op::LoadConstant, sym, *line);
                     Ok(ExprResult::Accumulator)
                 }
@@ -1468,25 +1468,25 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 TokenType::And => {
                     let left = self.evaluate_expr(left)?;
                     self.store_in_accumulator(left, *line);
-                    let jump_pos = self.bytecode.size();
-                    let c = self.bytecode.reserve_constant();
+                    let jump_pos = self.bc_writer.size();
+                    let c = self.bc_writer.reserve_constant();
                     self.write1(Op::JumpIfFalseOrNullConstant, c as u32, *line);
                     let right = self.evaluate_expr(right)?;
                     self.store_in_accumulator(right, *line);
-                    let end = self.bytecode.size();
-                    self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
+                    let end = self.bc_writer.size();
+                    self.bc_writer.patch_jump(jump_pos, (end - jump_pos) as u32);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::Or => {
                     let left = self.evaluate_expr(left)?;
                     self.store_in_accumulator(left, *line);
-                    let jump_pos = self.bytecode.size();
-                    let c = self.bytecode.reserve_constant();
+                    let jump_pos = self.bc_writer.size();
+                    let c = self.bc_writer.reserve_constant();
                     self.write1(Op::JumpIfNotFalseOrNullConstant, c as u32, *line);
                     let right = self.evaluate_expr(right)?;
                     self.store_in_accumulator(right, *line);
-                    let end = self.bytecode.size();
-                    self.bytecode.patch_jump(jump_pos, (end - jump_pos) as u32);
+                    let end = self.bc_writer.size();
+                    self.bc_writer.patch_jump(jump_pos, (end - jump_pos) as u32);
                     Ok(ExprResult::Accumulator)
                 }
                 TokenType::DotDot => {
@@ -1526,12 +1526,12 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             },
             Expr::String { inner, line } => {
                 if inner.is_empty() {
-                    let str = self.bytecode.string_constant("".into());
+                    let str = self.bc_writer.string_constant("".into());
                     self.write1(Op::LoadConstant, str, *line);
                 } else {
                     match &inner[0] {
                         Substring::String(s) => {
-                            let str = self.bytecode.string_constant(s.as_str().into());
+                            let str = self.bc_writer.string_constant(s.as_str().into());
                             self.write1(Op::LoadConstant, str, *line);
                         }
                         Substring::Expr(e) => {
@@ -1546,7 +1546,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                             match i {
                                 Substring::String(s) => {
                                     if !s.is_empty() {
-                                        let str = self.bytecode.string_constant(s.as_str().into());
+                                        let str = self.bc_writer.string_constant(s.as_str().into());
                                         self.write1(Op::LoadConstant, str, *line);
                                     } else {
                                         continue;
@@ -1647,7 +1647,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let expr = self.evaluate_expr(function)?;
                 self.store_in_accumulator(expr, *line);
                 self.write1(Op::Call, start as u32, *line);
-                self.bytecode.write_u8(arguments.len() as u8);
+                self.bc_writer.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
@@ -1667,7 +1667,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     BytecodeType::Function,
                     *last_line,
                 )?;
-                let c = self.bytecode.fun_constant(bytecode);
+                let c = self.bc_writer.fun_constant(bytecode);
                 self.write1(Op::MakeFunction, c, *last_line);
                 Ok(ExprResult::Accumulator)
             }
@@ -1675,7 +1675,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
                 let reg = self.store_in_register(object_res, line);
-                let property = self.bytecode.symbol_constant(property.as_str().into());
+                let property = self.bc_writer.symbol_constant(property.as_str().into());
                 self.write2(Op::LoadProperty, reg, property, line);
                 if !matches!(object_res, ExprResult::Register(_)) {
                     self.pop_register();
@@ -1689,7 +1689,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 };
                 self.write2(Op::NewObject, inner.len() as u32, obj_reg, *line);
                 for (key, val) in inner.iter() {
-                    let sym = self.bytecode.symbol_constant(key.as_str().into());
+                    let sym = self.bc_writer.symbol_constant(key.as_str().into());
                     let val_res = if let Some(val) = val {
                         self.evaluate_expr(val)?
                     } else {
@@ -1735,7 +1735,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let expr = self.evaluate_expr(class)?;
                 self.store_in_accumulator(expr, *line);
                 self.write1(Op::Construct, start as u32, *line);
-                self.bytecode.write_u8(arguments.len() as u8);
+                self.bc_writer.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
@@ -1760,7 +1760,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                 let line = object.line();
                 let object_res = self.evaluate_expr(object)?;
                 let reg = self.store_in_register(object_res, line);
-                let property = self.bytecode.symbol_constant(property.as_str().into());
+                let property = self.bc_writer.symbol_constant(property.as_str().into());
                 let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
@@ -1775,7 +1775,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.store_in_specific_register(expr, reg, line);
                 }
                 self.write3(Op::CallMethod, reg, property, start, line);
-                self.bytecode.write_u8(arguments.len() as u8);
+                self.bc_writer.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
@@ -1798,7 +1798,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                         line: *line,
                     });
                 }
-                let property = self.bytecode.symbol_constant(method.as_str().into());
+                let property = self.bc_writer.symbol_constant(method.as_str().into());
                 let start = self.regcount;
                 if arguments.len() >= 25 {
                     return Err(CompileError {
@@ -1813,7 +1813,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     self.store_in_specific_register(expr, reg, *line);
                 }
                 self.write2(Op::SuperCall, property, start, *line);
-                self.bytecode.write_u8(arguments.len() as u8);
+                self.bc_writer.write_u8(arguments.len() as u8);
                 for _ in 0..arguments.len() {
                     self.pop_register();
                 }
@@ -1871,15 +1871,15 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
                     }
                     Err(e) => self.error(e),
                 }
-                self.bytecode.shrink();
-                self.bytecode.set_max_registers(self.max_registers);
+                self.bc_writer.shrink();
+                self.bc_writer.set_max_registers(self.max_registers);
                 self.write0(Op::Return, last_line);
             }
         }
         let parent = *self.parent.take().unwrap();
         let mut bc = std::mem::replace(self, parent);
         self.compiler = bc.compiler.take();
-        Ok(bc.bytecode)
+        Ok(bc.bc_writer)
     }
 
     fn negate(&mut self, right: &Expr, line: u32) -> CompileResult<ExprResult> {
@@ -1888,7 +1888,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             line,
         } = right
         {
-            let c = self.bytecode.float_constant(-f);
+            let c = self.bc_writer.float_constant(-f);
             self.write1(Op::LoadConstant, c, *line);
             return Ok(ExprResult::Accumulator);
         }
@@ -1916,11 +1916,11 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
 
     fn expr_to_string(&mut self, expr_res: ExprResult, line: u32) {
         let reg = self.store_in_register(expr_res, line);
-        let property = self.bytecode.symbol_constant("toString".into());
+        let property = self.bc_writer.symbol_constant("toString".into());
         let start = self.regcount;
         self.push_register();
         self.write3(Op::CallMethod, reg, property, start, line);
-        self.bytecode.write_u8(0);
+        self.bc_writer.write_u8(0);
         self.pop_register();
         if !matches!(expr_res, ExprResult::Register(_)) {
             self.pop_register();
@@ -2032,7 +2032,7 @@ impl<'c, 'vm> BytecodeCompiler<'c, 'vm> {
             Expr::Member { object, property } => {
                 let res = self.evaluate_expr(object)?;
                 let object = self.store_in_register(res, line);
-                let sym = self.bytecode.symbol_constant(property.as_str().into());
+                let sym = self.bc_writer.symbol_constant(property.as_str().into());
                 let right = self.evaluate_expr(right)?;
                 self.store_in_accumulator(right, line);
                 self.write2(Op::StoreProperty, object, sym, line);

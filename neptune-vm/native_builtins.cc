@@ -608,10 +608,7 @@ static VMStatus spawn_link(VM *vm, Value *args) {
 static VMStatus task_kill(VM *vm, Value *args) {
   vm->kill(args[0].as_object()->as<Task>(), args[1]);
   if (vm->current_task->status == VMStatus::Error) {
-    vm->current_task->status = VMStatus::Suspend;
-    vm->return_value = vm->current_task->uncaught_exception;
-    vm->current_task->uncaught_exception = Value::null();
-    return VMStatus::Error;
+    return VMStatus::Suspend;
   }
   return VMStatus::Success;
 }

@@ -96,6 +96,7 @@ VMStatus VM::run() {
       continue;
     run(entry);
     if (main_task->status == VMStatus::Error) {
+      return_value=main_task->uncaught_exception;
       main_task = nullptr;
       is_running = false;
       return VMStatus::Error;
@@ -192,7 +193,7 @@ void VM::run(TaskQueueEntry entry) {
 #endif
   }
 throw_end:
-  kill(current_task, accumulator);
+  kill(current_task, return_value);
   if (current_task != main_task)
     return_value = Value::null();
   current_task = nullptr;

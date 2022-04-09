@@ -150,7 +150,6 @@ callop : {
       } else if (status == VMStatus::Suspend) {
         task->frames.back().ip = ip;
         last_native_function = nullptr;
-        task->status = VMStatus::Suspend;
         current_task = nullptr;
         return;
       } else {

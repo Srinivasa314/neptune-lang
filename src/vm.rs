@@ -344,7 +344,7 @@ mod ffi {
         fn pop(self: &mut EFuncContext) -> bool;
         fn push_empty_map(self: &mut EFuncContext);
         fn insert_in_map(self: &mut EFuncContext) -> EFuncStatus;
-        fn get_vm<'a>(self:&EFuncContext<'a>)->&'a VM;
+        fn get_vm<'a>(self: &EFuncContext<'a>) -> &'a VM;
         //Function must contain valid bytecode
         unsafe fn push_function(self: &mut EFuncContext, fw: FunctionInfoWriter);
         // This must only be called by drop
@@ -364,7 +364,7 @@ mod ffi {
 use ffi::EFuncStatus;
 pub use ffi::{new_vm, Data, FreeDataCallback, Op, VMStatus, VM};
 
-use crate::CompileError;
+use crate::{CompileError, CompileErrorList};
 
 pub struct UserData<'vm> {
     pub futures: RefCell<FuturesUnordered<NeptuneFuture<'vm>>>,
@@ -456,22 +456,22 @@ where
     let callback = &mut *(data as *mut F);
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let fut = callback(&mut cx);
-        register_future(&cx,fut);
+        register_future(&cx, fut);
     }))
     .unwrap_or_else(|_| std::process::abort());
     VMStatus::Suspend
 }
 
-fn register_future<T1, T2>(cx:&EFuncContext, fut: impl Future<Output = Result<T1, T2>> + 'static)
+fn register_future<T1, T2>(cx: &EFuncContext, fut: impl Future<Output = Result<T1, T2>> + 'static)
 where
     T1: ToNeptuneValue + 'static,
     T2: ToNeptuneValue + 'static,
 {
-    let vm=cx.vm();
+    let vm = cx.vm();
     let user_data = vm.get_user_data();
     let task = vm.get_current_task();
     let fut = async move {
-        let closure:Box<dyn FnMut(EFuncContext) -> bool> =match fut.await {
+        let closure: Box<dyn FnMut(EFuncContext) -> bool> = match fut.await {
             Ok(value) => Box::new(move |mut ctx| {
                 value.to_neptune_value(&mut ctx);
                 true
@@ -481,7 +481,7 @@ where
                 false
             }),
         };
-        (closure,task)
+        (closure, task)
     };
     user_data.futures.borrow_mut().push(Box::pin(fut));
 }
@@ -692,7 +692,7 @@ impl<'a> EFuncContext<'a> {
         self.0.push_function(fw)
     }
 
-    pub(crate) fn vm(&self)->&'a VM{
+    pub(crate) fn vm(&self) -> &'a VM {
         self.0.get_vm()
     }
 }
@@ -779,5 +779,20 @@ impl ToNeptuneValue for CompileError {
         cx.set_object_property("line").unwrap();
         cx.string(&self.message);
         cx.set_object_property("message").unwrap();
+    }
+}
+
+impl ToNeptuneValue for CompileErrorList {
+    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+        use std::fmt::Write;
+        let mut message = "".to_owned();
+        writeln!(message, "In module {}", &self.module).unwrap();
+        for c in &self.errors {
+            writeln!(message, "{}", c).unwrap();
+        }
+        cx.error("<prelude>", "CompileError", &message).unwrap();
+        self.errors.to_neptune_value(cx);
+        cx.set_object_property("errors").unwrap();
+        cx.string(&self.module);
     }
 }

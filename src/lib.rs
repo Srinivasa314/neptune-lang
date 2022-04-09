@@ -1,5 +1,5 @@
 use crate::vm::VMStatus;
-use bytecode_compiler::Compiler;
+use compiler::Compiler;
 use cxx::UniquePtr;
 use futures::stream::FuturesUnordered;
 use futures::Future;
@@ -16,7 +16,7 @@ use vm::FreeDataCallback;
 use vm::UserData;
 use vm::{new_vm, FunctionInfoWriter, VM};
 pub use vm::{EFuncContext, EFuncError, ToNeptuneValue};
-mod bytecode_compiler;
+mod compiler;
 mod parser;
 mod scanner;
 mod vm;
@@ -28,8 +28,14 @@ pub struct CompileError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CompileErrorList {
+    module: String,
+    errors: Vec<CompileError>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum InterpretError {
-    CompileError(Vec<CompileError>),
+    CompileError(CompileErrorList),
     UncaughtException(String),
 }
 
@@ -43,7 +49,8 @@ impl Display for InterpretError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InterpretError::CompileError(c) => {
-                for error in c {
+                writeln!(f, "In module {}", c.module)?;
+                for error in &c.errors {
                     writeln!(f, "{}", error)?;
                 }
             }
@@ -182,16 +189,17 @@ impl Neptune {
 
         n.vm.create_efunc_safe("compile", |mut cx| -> bool {
             let mut eval = false;
-            let vm=cx.vm();
+            let vm = cx.vm();
+            let mut module=None;
             match || -> Result<Result<(FunctionInfoWriter, bool), Vec<CompileError>>, EFuncError> {
                 cx.get_property("source")?;
                 let source = cx.as_string()?.to_string();
                 cx.get_property("eval")?;
                 eval = cx.as_bool()?;
                 cx.get_property("moduleName")?;
-                let module = cx.as_string()?.to_string();
+                module = Some(cx.as_string()?.to_string());
                 cx.pop().unwrap();
-                Ok(compile(vm, module, &source, eval))
+                Ok(compile(vm, module.as_ref().unwrap().clone(), &source, eval))
             }() {
                 Err(e) => {
                     e.to_neptune_value(&mut cx);
@@ -208,15 +216,8 @@ impl Neptune {
                             true
                         }
                     }
-                    Err(e) => {
-                        let mut message = "".to_owned();
-                        use std::fmt::Write;
-                        for c in &e {
-                            writeln!(message, "{}", c).unwrap();
-                        }
-                        cx.error("<prelude>", "CompileError", &message).unwrap();
-                        e.to_neptune_value(&mut cx);
-                        cx.set_object_property("errors").unwrap();
+                    Err(errors) => {
+                        CompileErrorList{module:module.unwrap(),errors}.to_neptune_value(&mut cx);
                         false
                     }
                 },
@@ -266,7 +267,8 @@ impl Neptune {
         module: S,
         source: &str,
     ) -> Result<(), InterpretError> {
-        match compile(&self.vm, module.into(), source, false) {
+        let module = module.into();
+        match compile(&self.vm, module.clone(), source, false) {
             Ok((mut f, _)) => {
                 let mut result = unsafe { f.run() };
                 loop {
@@ -284,8 +286,14 @@ impl Neptune {
                                     ),
                                 ));
                             } else {
-                                let (closure,mut task) =
-                                    self.vm.get_user_data().futures.borrow_mut().next().await.unwrap();
+                                let (closure, mut task) = self
+                                    .vm
+                                    .get_user_data()
+                                    .futures
+                                    .borrow_mut()
+                                    .next()
+                                    .await
+                                    .unwrap();
                                 result = task.resume_safe(closure);
                             }
                         }
@@ -293,7 +301,10 @@ impl Neptune {
                     }
                 }
             }
-            Err(e) => Err(InterpretError::CompileError(e)),
+            Err(errors) => Err(InterpretError::CompileError(CompileErrorList {
+                errors,
+                module,
+            })),
         }
     }
 
@@ -302,7 +313,8 @@ impl Neptune {
         module: S,
         source: &str,
     ) -> Result<(), InterpretError> {
-        match compile(&self.vm, module.into(), source, false) {
+        let module=module.into();
+        match compile(&self.vm, module.clone(), source, false) {
             Ok((mut f, _)) => match unsafe { f.run() } {
                 VMStatus::Success => Ok(()),
                 VMStatus::Error => Err(InterpretError::UncaughtException(self.vm.get_result())),
@@ -318,7 +330,7 @@ impl Neptune {
                 }
                 _ => unreachable!(),
             },
-            Err(e) => Err(InterpretError::CompileError(e)),
+            Err(errors) => Err(InterpretError::CompileError(CompileErrorList{errors,module})),
         }
     }
 
@@ -354,11 +366,7 @@ impl Neptune {
         }
     }
 
-    pub fn create_efunc_async< F, Fut, T1, T2>(
-        &self,
-        name: &str,
-        callback: F,
-    ) -> Result<(), Error>
+    pub fn create_efunc_async<F, Fut, T1, T2>(&self, name: &str, callback: F) -> Result<(), Error>
     where
         F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
         Fut: Future<Output = Result<T1, T2>> + 'static,
@@ -505,10 +513,13 @@ mod tests {
         }
         n.exec_sync("test_deadlock.np", &read("test_deadlock_post.np").unwrap())
             .unwrap();
-        //n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap())
-        //    .unwrap();
-        //n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
-        //    .unwrap();
+        if let InterpretError::UncaughtException(s)=n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task.np").unwrap()).unwrap_err(){
+            assert_eq!(s,"In <Task> Error: main task killed\nat <closure> (test_kill_main_task.np:3)\n");
+        }else{
+            panic!("Expected UncaughtException");
+        }
+        n.exec_sync("test_kill_main_task.np", &read("test_kill_main_task_post.np").unwrap())
+            .unwrap();
     }
 
     #[test]
@@ -527,6 +538,7 @@ mod tests {
                     .unwrap();
             } else {
                 let mut expected_result = String::new();
+                println!("{}",error);
                 File::open(open(&format!("{}.json", error)))
                     .unwrap()
                     .read_to_string(&mut expected_result)

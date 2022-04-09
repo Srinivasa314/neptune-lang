@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Can only perform concat operation on strings. Consider using interpolation",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_concat_int.np",
+    "errors": [
+      {
+        "message": "Can only perform concat operation on strings. Consider using interpolation",
+        "line": 1
+      }
+    ]
+  }
 }

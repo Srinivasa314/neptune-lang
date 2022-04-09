@@ -1,16 +1,19 @@
 {
-  "CompileError": [
-    {
-      "message": "Cannot repeat cases in switch statement",
-      "line": 3
-    },
-    {
-      "message": "Expect : or or at token ,",
-      "line": 6
-    },
-    {
-      "message": "Expect expression at token }",
-      "line": 7
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_switch5.np",
+    "errors": [
+      {
+        "message": "Cannot repeat cases in switch statement",
+        "line": 3
+      },
+      {
+        "message": "Expect : or or at token ,",
+        "line": 6
+      },
+      {
+        "message": "Expect expression at token }",
+        "line": 7
+      }
+    ]
+  }
 }

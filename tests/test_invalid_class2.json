@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect expression at end",
-      "line": 2
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_class2.np",
+    "errors": [
+      {
+        "message": "Expect expression at end",
+        "line": 2
+      }
+    ]
+  }
 }

@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Cannot use return outside a function or method",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_return_outside_function.np",
+    "errors": [
+      {
+        "message": "Cannot use return outside a function or method",
+        "line": 1
+      }
+    ]
+  }
 }

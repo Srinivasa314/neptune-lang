@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Cannot return expression from a constructor",
-      "line": 3
-    }
-  ]
+  "CompileError": {
+    "module": "test_return_constructor.np",
+    "errors": [
+      {
+        "message": "Cannot return expression from a constructor",
+        "line": 3
+      }
+    ]
+  }
 }

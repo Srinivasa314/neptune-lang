@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unexpected end of file after @",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_at.np",
+    "errors": [
+      {
+        "message": "Unexpected end of file after @",
+        "line": 1
+      }
+    ]
+  }
 }

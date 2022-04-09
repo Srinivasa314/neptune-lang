@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect } after class",
-      "line": 0
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_class3.np",
+    "errors": [
+      {
+        "message": "Expect } after class",
+        "line": 0
+      }
+    ]
+  }
 }

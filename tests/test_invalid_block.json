@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect } after block",
-      "line": 0
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_block.np",
+    "errors": [
+      {
+        "message": "Expect } after block",
+        "line": 0
+      }
+    ]
+  }
 }

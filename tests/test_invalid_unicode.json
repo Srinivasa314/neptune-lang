@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Cannot parse err in unicode escape sequence",
-      "line": 1
-    },
-    {
-      "message": "Cannot convert 110000 to a unicode character",
-      "line": 2
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_unicode.np",
+    "errors": [
+      {
+        "message": "Cannot parse err in unicode escape sequence",
+        "line": 1
+      },
+      {
+        "message": "Cannot convert 110000 to a unicode character",
+        "line": 2
+      }
+    ]
+  }
 }

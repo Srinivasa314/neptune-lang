@@ -1,260 +1,263 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "Maximum depth exceeded",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_parser_overflow2.np",
+    "errors": [
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "Maximum depth exceeded",
+        "line": 1
+      }
+    ]
+  }
 }

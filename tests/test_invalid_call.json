@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect comma after argument at token 2",
-      "line": 2
-    },
-    {
-      "message": "Expect comma after argument at token 3",
-      "line": 3
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_call.np",
+    "errors": [
+      {
+        "message": "Expect comma after argument at token 2",
+        "line": 2
+      },
+      {
+        "message": "Expect comma after argument at token 3",
+        "line": 3
+      }
+    ]
+  }
 }
