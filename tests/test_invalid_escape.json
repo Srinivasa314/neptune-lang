@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Invalid escape sequence \\a",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_escape.np",
+    "errors": [
+      {
+        "message": "Invalid escape sequence \\a",
+        "line": 1
+      }
+    ]
+  }
 }

@@ -527,6 +527,8 @@ assert_eq(t.status(),@finished)
 
 t=spawn(||{})
 assert_eq(t.status(),@running)
+import('vm').currentTask().setName('main')
+t.setName('t');
 t.kill(new Error('abc'))
 assert_eq(t.status(),@killed)
 assert_eq(t.getUncaughtException().message,'abc')

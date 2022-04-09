@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect { after name in class at end",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_class1.np",
+    "errors": [
+      {
+        "message": "Expect { after name in class at end",
+        "line": 1
+      }
+    ]
+  }
 }

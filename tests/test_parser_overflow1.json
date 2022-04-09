@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Maximum depth exceeded",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_parser_overflow1.np",
+    "errors": [
+      {
+        "message": "Maximum depth exceeded",
+        "line": 1
+      }
+    ]
+  }
 }

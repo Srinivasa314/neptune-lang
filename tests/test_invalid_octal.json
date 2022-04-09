@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Use 0o for octal for 012",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_octal.np",
+    "errors": [
+      {
+        "message": "Use 0o for octal for 012",
+        "line": 1
+      }
+    ]
+  }
 }

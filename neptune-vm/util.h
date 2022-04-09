@@ -1,7 +1,12 @@
 #pragma once
 #include <cstring>
 #include <iostream>
+#ifdef MI_MALLOC
 #include <mimalloc.h>
+#else
+#include <memory>
+#include <stdlib.h>
+#endif
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -89,6 +94,19 @@ template <typename T> static T power_of_two_ceil(T n) {
 #define IF_CLANG(x)
 #endif
 
+#ifdef MI_MALLOC
+#define alloc mi_malloc
+#define dealloc mi_free
+#else
+#define alloc malloc
+#define dealloc free
+#endif
+
 namespace neptune_vm {
-template <typename T> using vector = std::vector<T, mi_stl_allocator<T>>;
-}
+#ifdef MI_MALLOC
+template <typename T> using allocator = mi_stl_allocator<T>;
+#else
+template <typename T> using allocator = std::allocator<T>;
+#endif
+template <typename T> using vector = std::vector<T, allocator<T>>;
+} // namespace neptune_vm

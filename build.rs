@@ -13,11 +13,15 @@ fn main() {
         _ => {}
     };
 
+    if cfg!(feature="mimalloc"){
+        build.file("vendor/github.com/microsoft/mimalloc/src/static.c");
+        build.define("MI_MALLOC", "1");
+    }
+
     build
         .include("vendor/github.com/dcleblanc")
         .include("vendor/github.com/microsoft/mimalloc/src")
         .include("vendor/github.com/microsoft/mimalloc/include")
         .file("neptune-vm/neptune-vm.cc")
-        .file("vendor/github.com/microsoft/mimalloc/src/static.c")
         .compile("neptune-vm");
 }

@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unterminated multiline comment",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_unterminated_comment.np",
+    "errors": [
+      {
+        "message": "Unterminated multiline comment",
+        "line": 1
+      }
+    ]
+  }
 }

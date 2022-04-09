@@ -1,6 +1,5 @@
 // This file contains the scanner which does lexing and automatic statement separator insertion
 use phf::phf_map;
-use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub struct Scanner<'src> {
@@ -13,7 +12,7 @@ pub struct Scanner<'src> {
     delims: Vec<u8>,          //string delimiters
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -126,7 +125,7 @@ fn get_keyword(s: &str) -> Option<TokenType> {
     KEYWORDS.get(s).cloned()
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Token<'src> {
     pub token_type: TokenType,
     pub inner: &'src str,

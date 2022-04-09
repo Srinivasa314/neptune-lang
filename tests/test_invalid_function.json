@@ -1,24 +1,27 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect { to begin function body at token \n",
-      "line": 1
-    },
-    {
-      "message": "Expect argument name at token 1",
-      "line": 2
-    },
-    {
-      "message": "Expect comma after argument at token b",
-      "line": 3
-    },
-    {
-      "message": "Expect ( to begin argument list at token \n",
-      "line": 4
-    },
-    {
-      "message": "Expect identifier for function name at end",
-      "line": 5
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_function.np",
+    "errors": [
+      {
+        "message": "Expect { to begin function body at token \n",
+        "line": 1
+      },
+      {
+        "message": "Expect argument name at token 1",
+        "line": 2
+      },
+      {
+        "message": "Expect comma after argument at token b",
+        "line": 3
+      },
+      {
+        "message": "Expect ( to begin argument list at token \n",
+        "line": 4
+      },
+      {
+        "message": "Expect identifier for function name at end",
+        "line": 5
+      }
+    ]
+  }
 }

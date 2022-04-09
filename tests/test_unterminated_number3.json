@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect number after e for 1.2",
-      "line": 1
-    },
-    {
-      "message": "Expect newline or semicolon at token e",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_unterminated_number3.np",
+    "errors": [
+      {
+        "message": "Expect number after e for 1.2",
+        "line": 1
+      },
+      {
+        "message": "Expect newline or semicolon at token e",
+        "line": 1
+      }
+    ]
+  }
 }

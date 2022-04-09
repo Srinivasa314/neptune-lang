@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect identifier for variable name at token 1",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_let.np",
+    "errors": [
+      {
+        "message": "Expect identifier for variable name at token 1",
+        "line": 1
+      }
+    ]
+  }
 }

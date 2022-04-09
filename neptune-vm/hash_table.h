@@ -1,6 +1,5 @@
 #include "util.h"
 #include <cstdint>
-#include <mimalloc.h>
 #include <vector>
 #pragma once
 
@@ -229,7 +228,7 @@ public:
 };
 
 template <typename T, typename Hash, typename Equal, typename Empty,
-          typename Allocator = mi_stl_allocator<T>>
+          typename Allocator = allocator<T>>
 using HashSet = HashTable<T, Hash, Equal, Empty, Allocator>;
 
 template <typename Hash, typename K, typename V> class HashMapHash {
@@ -258,7 +257,7 @@ public:
 };
 
 template <typename K, typename V, typename Hash, typename Equal, typename Empty,
-          typename Allocator = mi_stl_allocator<std::pair<K, V>>>
+          typename Allocator = allocator<std::pair<K, V>>>
 using HashMap =
     HashTable<std::pair<K, V>, HashMapHash<Hash, K, V>,
               HashMapEqual<Equal, K, V>, HashMapEmpty<Empty, K, V>, Allocator>;

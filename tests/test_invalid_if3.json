@@ -1,16 +1,19 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect } after block",
-      "line": 0
-    },
-    {
-      "message": "x is not defined",
-      "line": 1
-    },
-    {
-      "message": "y is not defined",
-      "line": 2
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_if3.np",
+    "errors": [
+      {
+        "message": "Expect } after block",
+        "line": 0
+      },
+      {
+        "message": "x is not defined",
+        "line": 1
+      },
+      {
+        "message": "y is not defined",
+        "line": 2
+      }
+    ]
+  }
 }

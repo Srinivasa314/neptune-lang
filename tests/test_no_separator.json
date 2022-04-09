@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect newline or semicolon at token 2",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_no_separator.np",
+    "errors": [
+      {
+        "message": "Expect newline or semicolon at token 2",
+        "line": 1
+      }
+    ]
+  }
 }

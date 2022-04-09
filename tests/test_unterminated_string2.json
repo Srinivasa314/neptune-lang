@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unicode character not given",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_unterminated_string2.np",
+    "errors": [
+      {
+        "message": "Unicode character not given",
+        "line": 1
+      }
+    ]
+  }
 }

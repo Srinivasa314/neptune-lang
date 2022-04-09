@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect literal or default at token [",
-      "line": 2
-    },
-    {
-      "message": "Expect expression at token }",
-      "line": 3
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_switch4.np",
+    "errors": [
+      {
+        "message": "Expect literal or default at token [",
+        "line": 2
+      },
+      {
+        "message": "Expect expression at token }",
+        "line": 3
+      }
+    ]
+  }
 }

@@ -15,3 +15,7 @@ unicode-segmentation = "1.8.0"
 
 [build-dependencies]
 cxx-build = "1.0.64"
+
+[features]
+default = ["mimalloc"]
+mimalloc = []

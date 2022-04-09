@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Unterminated unicode escape sequence",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_unterminated_unicode.np",
+    "errors": [
+      {
+        "message": "Unterminated unicode escape sequence",
+        "line": 1
+      }
+    ]
+  }
 }

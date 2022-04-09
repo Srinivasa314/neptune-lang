@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Invalid character + after @ in symbol",
-      "line": 1
-    },
-    {
-      "message": "Expect expression at end",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_symbol.np",
+    "errors": [
+      {
+        "message": "Invalid character + after @ in symbol",
+        "line": 1
+      },
+      {
+        "message": "Expect expression at end",
+        "line": 1
+      }
+    ]
+  }
 }

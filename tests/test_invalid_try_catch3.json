@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect block after catch at end",
-      "line": 3
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_try_catch3.np",
+    "errors": [
+      {
+        "message": "Expect block after catch at end",
+        "line": 3
+      }
+    ]
+  }
 }

@@ -1,12 +1,15 @@
 {
-  "CompileError": [
-    {
-      "message": "Cannot modify constant i",
-      "line": 2
-    },
-    {
-      "message": "Cannot modify constant a",
-      "line": 7
-    }
-  ]
+  "CompileError": {
+    "module": "test_modify_constant.np",
+    "errors": [
+      {
+        "message": "Cannot modify constant i",
+        "line": 2
+      },
+      {
+        "message": "Cannot modify constant a",
+        "line": 7
+      }
+    ]
+  }
 }

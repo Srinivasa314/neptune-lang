@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Nul character in file",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_null.np",
+    "errors": [
+      {
+        "message": "Nul character in file",
+        "line": 1
+      }
+    ]
+  }
 }

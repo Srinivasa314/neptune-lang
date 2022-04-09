@@ -1,6 +1,5 @@
-let main_task=import('vm').currentTask()
-let suspendCurrentTask=import('vm').suspendCurrentTask
-let task2=spawn(||{main_task.kill(new Error('killing main task'))
+let {suspendCurrentTask,currentTask} = import('vm')
+let main_task=currentTask()
+let task2=spawn(||{main_task.kill(new Error('main task killed'))
 })
 suspendCurrentTask()
-throw 'unreachable'

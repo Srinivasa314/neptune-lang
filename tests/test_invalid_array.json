@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect comma after array element at token 2",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_array.np",
+    "errors": [
+      {
+        "message": "Expect comma after array element at token 2",
+        "line": 1
+      }
+    ]
+  }
 }

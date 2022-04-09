@@ -1,8 +1,11 @@
 {
-  "CompileError": [
-    {
-      "message": "Expect identifier after class at end",
-      "line": 1
-    }
-  ]
+  "CompileError": {
+    "module": "test_invalid_class4.np",
+    "errors": [
+      {
+        "message": "Expect identifier after class at end",
+        "line": 1
+      }
+    ]
+  }
 }
