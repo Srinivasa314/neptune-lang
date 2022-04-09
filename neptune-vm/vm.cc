@@ -31,7 +31,6 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 #define WIDE_HANDLER(x) case WIDE(Op::x)
 #define EXTRAWIDE_HANDLER(x) case EXTRAWIDE(Op::x)
 #define INTERPRET_LOOP                                                         \
-  uint32_t __op;                                                               \
   DISPATCH();                                                                  \
   loop:                                                                        \
   switch (__op)
@@ -129,6 +128,9 @@ void VM::run(TaskQueueEntry entry) {
   };
 #endif
 
+#ifndef COMPUTED_GOTO
+  uint32_t __op;
+#endif
   Value accumulator = entry.accumulator;
   Task *task = entry.task;
   current_task = task;

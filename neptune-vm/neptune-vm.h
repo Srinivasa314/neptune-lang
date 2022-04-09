@@ -6,7 +6,7 @@ using std::size_t;
 
 #include "function.h"
 #include "handle.h"
-#include "hashtable.h"
+#include "hash_table.h"
 #include "native_function.h"
 #include "object.h"
 #include "op.h"

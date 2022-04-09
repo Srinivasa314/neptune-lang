@@ -1,6 +1,7 @@
 #include "neptune-vm.h"
 #include <algorithm>
-#include <cmath>
+#define _USE_MATH_DEFINES
+#include <math.h>
 #define MATH_FNS                                                               \
   FN(acos)                                                                     \
   FN(asin)                                                                     \
