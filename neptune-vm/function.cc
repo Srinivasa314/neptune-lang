@@ -170,7 +170,7 @@ void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
 }
 
 uint32_t FunctionInfoWriter::jump_table() {
-  uint32_t size = hf->object->jump_tables.size();
+  uint32_t size = static_cast<uint32_t>(hf->object->jump_tables.size());
   hf->object->jump_tables.push_back({});
   return size;
 }

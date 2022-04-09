@@ -72,9 +72,11 @@ public:
 };
 
 class VM {
-private:
+public:
   Data *user_data;
   FreeDataCallback *free_user_data;
+
+private:
   HashMap<String *, Module *, StringHasher, StringEquality,
           NullptrEmpty<String>>
       modules;
