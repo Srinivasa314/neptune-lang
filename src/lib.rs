@@ -30,8 +30,8 @@ pub struct CompileError {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileErrorList {
-    module: String,
-    errors: Vec<CompileError>,
+    pub module: String,
+    pub errors: Vec<CompileError>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -65,7 +65,7 @@ impl Display for InterpretError {
 
 impl std::error::Error for InterpretError {}
 
-pub type CompileResult<T> = Result<T, CompileError>;
+pub(crate) type CompileResult<T> = Result<T, CompileError>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -90,6 +90,8 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
+/// This enum can be used to represent errors that can either be an EFuncError or another error type.
+/// `EFuncError`s can be converted to EFuncErrorOr using the ? operator.
 pub enum EFuncErrorOr<T: ToNeptuneValue> {
     EFuncError(EFuncError),
     Other(T),
@@ -130,7 +132,8 @@ impl<T: ToNeptuneValue> From<EFuncError> for EFuncErrorOr<T> {
     }
 }
 
-pub struct NeptuneError(String);
+/// This type represents the `Error` class of Neptune lang.
+pub struct NeptuneError(pub String);
 
 impl ToNeptuneValue for NeptuneError {
     fn to_neptune_value(&self, cx: &mut EFuncContext) {
@@ -153,12 +156,18 @@ impl ToNeptuneValue for ModuleNotFound {
     }
 }
 
+/// Instance of a Neptune VM
 pub struct Neptune {
     vm: UniquePtr<VM>,
 }
 
+/// The embedder needs to implement this trait to specify how to resolve import paths
 pub trait ModuleLoader: Clone {
+    /// Returns the name of the module where
+    /// * `caller_module` is the module calling import
+    /// * `module` is  the argument passed to `import`
     fn resolve(&self, caller_module: &str, module: &str) -> Option<String>;
+    /// Returns the source of the module
     fn load(&self, module: &str) -> Option<String>;
 }
 
@@ -288,6 +297,7 @@ impl Neptune {
         n
     }
 
+    /// Executes source with module `module`
     pub async fn exec<S: Into<String>>(
         &self,
         module: S,
@@ -334,6 +344,8 @@ impl Neptune {
         }
     }
 
+    /// Executes source with module `module`.
+    /// It panics if a asynchronous efunc is executed
     pub fn exec_sync<S: Into<String>>(
         &self,
         module: S,
@@ -363,6 +375,8 @@ impl Neptune {
         }
     }
 
+    /// Creates a module named  `name`.
+    /// It returns `Err(ModuleAlreadyExists)` if an existing module is named `name`
     pub fn create_module(&self, name: &str) -> Result<(), Error> {
         if self.vm.module_exists(name.into()) {
             Err(Error::ModuleAlreadyExists)
@@ -372,6 +386,8 @@ impl Neptune {
         }
     }
 
+    /// Creates an synchronous efunc.
+    /// Returns Err(EFuncAlreadyExists) if an existing efunc is named `name`
     pub fn create_efunc<F, T1, T2>(&self, name: &str, mut callback: F) -> Result<(), Error>
     where
         F: FnMut(&mut EFuncContext) -> Result<T1, T2> + 'static,
@@ -395,6 +411,8 @@ impl Neptune {
         }
     }
 
+    /// Creates an asynchronous efunc.
+    /// Returns Err(EFuncAlreadyExists) if an existing efunc is named `name`
     pub fn create_efunc_async<F, Fut, T1, T2>(&self, name: &str, callback: F) -> Result<(), Error>
     where
         F: (FnMut(&mut EFuncContext) -> Fut) + 'static,
@@ -536,7 +554,10 @@ mod tests {
             .exec_sync("test_deadlock.np", &read("test_deadlock.np").unwrap())
             .unwrap_err()
         {
-            assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)")
+            assert_eq!(
+                e,
+                "In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)"
+            )
         } else {
             panic!("Expected error")
         }

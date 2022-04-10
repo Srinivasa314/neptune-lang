@@ -514,34 +514,42 @@ impl std::error::Error for EFuncError {}
 pub struct EFuncContext<'a>(EFuncContextInner<'a>);
 
 impl<'a> EFuncContext<'a> {
+    /// Pushes an int to the stack
     pub fn int(&mut self, i: i32) {
         self.0.push_int(i)
     }
 
+    /// Pushes a float to the stack
     pub fn float(&mut self, f: f64) {
         self.0.push_float(f)
     }
 
+    /// Pushes a bool to the stack
     pub fn bool(&mut self, b: bool) {
         self.0.push_bool(b)
     }
 
+    /// Pushes null to the stack
     pub fn null(&mut self) {
         self.0.push_null()
     }
 
+    /// Pushes a string to the stack
     pub fn string(&mut self, s: &str) {
         self.0.push_string(s.into())
     }
 
+    /// Pushes a symbol to the stack
     pub fn symbol(&mut self, s: &str) {
         self.0.push_symbol(s.into())
     }
 
+    /// Pushes an empty array to the stack
     pub fn array(&mut self) {
         self.0.push_empty_array()
     }
 
+    /// Pops a value from the stack and pushes it to the array at the top of the stack
     pub fn push_to_array(&mut self) -> Result<(), EFuncError> {
         match self.0.push_to_array() {
             EFuncStatus::Ok => Ok(()),
@@ -551,10 +559,12 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pushes an empty object instance to the stack
     pub fn object(&mut self) {
         self.0.push_empty_object()
     }
 
+    /// Pops a value from the stack and sets the property prop for the object instance at the top of the stack as the popped value
     pub fn set_object_property(&mut self, prop: &str) -> Result<(), EFuncError> {
         match self.0.set_object_property(prop.into()) {
             EFuncStatus::Ok => Ok(()),
@@ -564,6 +574,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops an int from the stack
     pub fn as_int(&mut self) -> Result<i32, EFuncError> {
         let mut i = 0;
         match self.0.as_int(&mut i) {
@@ -574,6 +585,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops a float from the stack
     pub fn as_float(&mut self) -> Result<f64, EFuncError> {
         let mut f = 0.0;
         match self.0.as_float(&mut f) {
@@ -584,6 +596,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops a bool from the stack
     pub fn as_bool(&mut self) -> Result<bool, EFuncError> {
         let mut b = false;
         match self.0.as_bool(&mut b) {
@@ -594,6 +607,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops a value from the stack and checks if it is null
     pub fn is_null(&mut self) -> Result<bool, EFuncError> {
         match self.0.is_null() {
             EFuncStatus::Ok => Ok(true),
@@ -603,6 +617,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops a string from the top of the stack
     pub fn as_string(&mut self) -> Result<&str, EFuncError> {
         let mut s = StringSlice::from("");
         match self.0.as_string(&mut s) {
@@ -613,6 +628,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops a symbol from the top of the stack
     pub fn as_symbol(&mut self) -> Result<&str, EFuncError> {
         let mut s = StringSlice::from("");
         match self.0.as_symbol(&mut s) {
@@ -623,6 +639,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Gets the length of the array at the top of the stack
     pub fn array_length(&mut self) -> Result<usize, EFuncError> {
         let mut size = 0;
         match self.0.get_array_length(&mut size) {
@@ -633,6 +650,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pushes the value at `index` of the array at the top of the stack
     pub fn get_element(&mut self, index: usize) -> Result<(), EFuncError> {
         match self.0.get_array_element(index) {
             EFuncStatus::Ok => Ok(()),
@@ -643,6 +661,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pushes the value of property prop of the object at the top of the stack
     pub fn get_property(&mut self, prop: &str) -> Result<(), EFuncError> {
         match self.0.get_object_property(prop.into()) {
             EFuncStatus::Ok => Ok(()),
@@ -653,6 +672,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pops the top of the stack
     pub fn pop(&mut self) -> Result<(), EFuncError> {
         if self.0.pop() {
             Ok(())
@@ -661,10 +681,13 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pushes an empty map to the stack
     pub fn map(&mut self) {
         self.0.push_empty_map()
     }
 
+    /// Pops the value and then key from the stack and inserts it in the map
+    /// at the top of the stack
     pub fn insert_in_map(&mut self) -> Result<(), EFuncError> {
         match self.0.insert_in_map() {
             EFuncStatus::Ok => Ok(()),
@@ -674,6 +697,7 @@ impl<'a> EFuncContext<'a> {
         }
     }
 
+    /// Pushes an error with class `error_class` within module `module` and with message `message`
     pub fn error(
         &mut self,
         module: &str,
@@ -699,10 +723,12 @@ impl<'a> EFuncContext<'a> {
         self.0.get_vm()
     }
 
+    // Get the resource table
     pub fn resources(&self) -> &RefCell<HashMap<u32, Box<dyn Any>>> {
         &self.vm().get_user_data().resources
     }
 
+    // Add a resource `r` to the resource table
     pub fn add_resource<R: 'static>(&self, r: R) -> u32 {
         let resources = &self.vm().get_user_data().resources;
         let len = resources.borrow().len() as u32;
@@ -711,7 +737,9 @@ impl<'a> EFuncContext<'a> {
     }
 }
 
+/// Types that can be converted to Neptune values implement this trait 
 pub trait ToNeptuneValue {
+    /// Pushes the value on the stack
     fn to_neptune_value(&self, cx: &mut EFuncContext);
 }
 
