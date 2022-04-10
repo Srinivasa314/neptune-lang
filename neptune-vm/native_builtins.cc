@@ -77,8 +77,8 @@ static VMStatus array_len(VM *vm, Value *args) {
 }
 
 static VMStatus array_insert(VM *vm, Value *args) {
-  auto &arr = args[0].as_object()->as<Array>()->inner;
   if (args[1].is_int()) {
+    auto &arr = args[0].as_object()->as<Array>()->inner;
     auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) > arr.size())
       THROW("IndexError", "Array index out of range");
@@ -91,8 +91,8 @@ static VMStatus array_insert(VM *vm, Value *args) {
 }
 
 static VMStatus array_remove(VM *vm, Value *args) {
-  auto &arr = args[0].as_object()->as<Array>()->inner;
   if (args[1].is_int()) {
+    auto &arr = args[0].as_object()->as<Array>()->inner;
     auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) >= arr.size())
       THROW("IndexError", "Array index out of range");

@@ -213,7 +213,7 @@ class ArrayIterator : public Object {
 public:
   Array *array;
   size_t position;
-  ArrayIterator(Array *array) : array(array), position(0) {}
+  explicit ArrayIterator(Array *array) : array(array), position(0) {}
   static constexpr Type type = Type::ArrayIterator;
 };
 
@@ -221,7 +221,7 @@ class MapIterator : public Object {
 public:
   Map *map;
   Value last_key;
-  MapIterator(Map *map);
+  explicit MapIterator(Map *map);
   static constexpr Type type = Type::MapIterator;
 };
 
@@ -229,7 +229,7 @@ class StringIterator : public Object {
 public:
   String *string;
   size_t position;
-  StringIterator(String *string) : string(string), position(0) {}
+  explicit StringIterator(String *string) : string(string), position(0) {}
   static constexpr Type type = Type::StringIterator;
 };
 

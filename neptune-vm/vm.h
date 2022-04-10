@@ -51,7 +51,7 @@ public:
   static constexpr Type type = Type::Task;
   void close(Value *last);
   Value *grow_stack(Value *bp, size_t extra_needed);
-  Task(Function *f);
+  explicit Task(Function *f);
 };
 
 struct TaskQueueEntry {

@@ -777,10 +777,10 @@ bool VM::declare_native_function(std::string module, std::string name,
 Function *VM::make_function(Value *bp, FunctionInfo *function_info) {
   auto function = static_cast<Function *>(alloc(
       sizeof(Function) + sizeof(UpValue *) * function_info->upvalues.size()));
-  function->function_info = function_info;
-  function->super_class = nullptr;
   if (function == nullptr)
     throw std::bad_alloc();
+  function->function_info = function_info;
+  function->super_class = nullptr;
   function->num_upvalues = 0;
   temp_roots.push_back(Value(manage(function)));
   for (auto upvalue : function_info->upvalues) {
