@@ -4,17 +4,17 @@ name = "neptune-lang"
 version = "0.1.0"
 
 [dependencies]
-cxx = "1.0.64"
+cxx = "1.0.66"
 futures = "0.3.21"
-num_enum = "0.5.6"
+num_enum = "0.5.7"
 parse_int = "0.6.0"
 phf = { version = "0.10.1", features = ["macros"] }
 serde = { version = "1.0.136", features = ["derive"] }
-serde_json = "1.0.78"
-unicode-segmentation = "1.8.0"
+serde_json = "1.0.79"
+unicode-segmentation = "1.9.0"
 
 [build-dependencies]
-cxx-build = "1.0.64"
+cxx-build = "1.0.66"
 
 [features]
 default = ["mimalloc"]

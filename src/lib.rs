@@ -518,7 +518,7 @@ mod tests {
             .exec_sync("<script>", "throw new Error('abc')")
             .unwrap_err()
         {
-            assert_eq!(e, "In <Task> Error: abc\nat <script> (<script>:1)\n");
+            assert_eq!(e, "In <Task> Error: abc\nat <script> (<script>:1)");
         } else {
             panic!("Expected error");
         }
@@ -536,7 +536,7 @@ mod tests {
             .exec_sync("test_deadlock.np", &read("test_deadlock.np").unwrap())
             .unwrap_err()
         {
-            assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)\n")
+            assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)")
         } else {
             panic!("Expected error")
         }
@@ -551,7 +551,7 @@ mod tests {
         {
             assert_eq!(
                 s,
-                "In <Task> Error: main task killed\nat <closure> (test_kill_main_task.np:3)\n"
+                "In <Task> Error: main task killed\nat <closure> (test_kill_main_task.np:3)"
             );
         } else {
             panic!("Expected UncaughtException");

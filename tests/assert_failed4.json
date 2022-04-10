@@ -1,3 +1,3 @@
 {
-  "UncaughtException": "In <Task> Error: Assertion failed: Expected it to throw\nat assert_failed (assert.np:30)\nat <script> (assert_failed4.np:3)\n"
+  "UncaughtException": "In <Task> Error: Assertion failed: Expected it to throw\nat assert_failed (assert.np:30)\nat <script> (assert_failed4.np:3)"
 }

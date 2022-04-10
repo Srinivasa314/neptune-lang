@@ -35,5 +35,4 @@ try {
 assert_eq(stack_trace,'at ef1 (test_lines.np:16)
 at ef2 (test_lines.np:20)
 at ef3 (test_lines.np:24)
-at <script> (test_lines.np:30)
-')
+at <script> (test_lines.np:30)')

@@ -1,3 +1,3 @@
 {
-  "UncaughtException": "In <Task> TypeError: Cannot get property from type String\nat assert_failed (assert.np:25)\nat <script> (assert_failed2.np:3)\n"
+  "UncaughtException": "In <Task> TypeError: Cannot get property from type String\nat assert_failed (assert.np:25)\nat <script> (assert_failed2.np:3)"
 }

@@ -19,3 +19,7 @@
 * ```currentTask()```
 
     Returns the current task
+
+* ```suspendCurrentTask()```
+
+    Suspends the current task and adds it to the back of the queue.

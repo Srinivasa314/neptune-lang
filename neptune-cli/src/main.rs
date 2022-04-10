@@ -4,7 +4,7 @@ use std::{
 };
 use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncError, ModuleLoader, Neptune, ToNeptuneValue};
+use neptune_lang::{EFuncError, InterpretError, ModuleLoader, Neptune, ToNeptuneValue};
 use rustyline::{
     validate::{self, Validator},
     Editor,
@@ -12,6 +12,13 @@ use rustyline::{
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
+    if let Err(e) = _main() {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+fn _main() -> Result<(), Box<dyn std::error::Error>> {
     let n = Neptune::new(FileSystemModuleLoader);
     n.create_efunc("print", |cx| -> Result<(), EFuncError> {
         println!("{}", cx.as_string()?);
@@ -45,27 +52,19 @@ fn main() {
 
     runtime.block_on(async move {
         match std::env::args().nth(1) {
-            Some(file) => match &std::fs::read_to_string(&file) {
-                Ok(s) => match n
-                    .exec(
-                        std::fs::canonicalize(&file)
-                            .unwrap()
-                            .to_string_lossy()
-                            .into_owned(),
-                        s,
-                    )
-                    .await
-                {
-                    Ok(()) => {}
-                    Err(e) => eprintln!("{}", e),
-                },
-                Err(e) => {
-                    eprintln!("{}", e);
-                }
-            },
-            None => repl(&n).await,
+            Some(file) => {
+                n.exec(
+                    std::fs::canonicalize(&file)?.to_string_lossy().into_owned(),
+                    &std::fs::read_to_string(&file)?,
+                )
+                .await?;
+            }
+            None => {
+                repl(&n).await?;
+            }
         }
-    });
+        Ok(())
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -115,7 +114,7 @@ impl Validator for ReplValidator {
     }
 }
 
-async fn repl(n: &Neptune) {
+async fn repl(n: &Neptune) -> Result<(), InterpretError> {
     let mut rl = Editor::new();
     rl.set_helper(Some(ReplValidator {}));
     let histfile = dirs::cache_dir().map(|mut dir| {
@@ -146,12 +145,15 @@ async fn repl(n: &Neptune) {
         }
     })
     .unwrap();
-    n.exec("<repl>", include_str!("repl.np")).await.unwrap();
+    if let Err(e) = n.exec("<repl>", include_str!("repl.np")).await {
+        return Err(e);
+    }
     if let Some(file) = histfile {
         if let Err(e) = rl.lock().unwrap().save_history(&file) {
             eprintln!("Error in saving REPL history: {}", e)
         }
     }
+    Ok(())
 }
 
 struct ReadlineError(rustyline::error::ReadlineError);

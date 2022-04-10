@@ -7,7 +7,7 @@ All variables from this module are automatically in all modules
 
 * ```eval(source)```
 
-    Evaluates expression ```source``` in the context of the current module and returns it. Throws ```TypeError``` if ```source``` is not a string and ```CompileError``` if ```source``` is not an expression or could not be compiled
+    Evaluates expression ```source``` in the context of the current module and returns it. Throws ```TypeError``` if ```source``` is not a string and ```CompileError``` if there is a compile error.
 
     Example: ```eval('1+1') //2```
 
