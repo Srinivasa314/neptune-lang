@@ -23,7 +23,7 @@ public:
                                                 Allocator, default_size>;
 
   HashTable() : HashTable(default_size) {}
-  HashTable(uint32_t size) : alloc(Allocator{}), size_(0) {
+  explicit HashTable(uint32_t size) : alloc(Allocator{}), size_(0) {
     capacity = power_of_two_ceil(2 * size);
     if (capacity < default_size)
       capacity = power_of_two_ceil(2 * default_size);
