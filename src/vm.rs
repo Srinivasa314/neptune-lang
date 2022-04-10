@@ -703,10 +703,11 @@ impl<'a> EFuncContext<'a> {
         &self.vm().get_user_data().resources
     }
 
-    pub fn add_resource<R: 'static>(&self, r: R) {
+    pub fn add_resource<R: 'static>(&self, r: R) -> u32 {
         let resources = &self.vm().get_user_data().resources;
         let len = resources.borrow().len() as u32;
         resources.borrow_mut().insert(len, Box::new(r));
+        len
     }
 }
 
@@ -803,9 +804,11 @@ impl ToNeptuneValue for CompileErrorList {
         for c in &self.errors {
             writeln!(message, "{}", c).unwrap();
         }
+        message.pop();
         cx.error("<prelude>", "CompileError", &message).unwrap();
         self.errors.to_neptune_value(cx);
         cx.set_object_property("errors").unwrap();
         cx.string(&self.module);
+        cx.set_object_property("module").unwrap();
     }
 }

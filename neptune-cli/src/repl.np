@@ -1,0 +1,27 @@
+const {ecall} = import('vm')
+
+while true {
+    try {
+        let source = ecall(@replReadline,null)
+        try {
+            let {function,isExpr} = ecall(@compile, {moduleName: "<script>", eval: true, source})
+            try {
+                if isExpr {
+                    print(function())
+                } else {
+                    function()
+                }
+            } catch e {
+                print("Uncaught exception:\n\(e)")
+            }
+        }catch e{
+            print(e.message)
+        }
+    } catch e {
+        switch e {
+            @utf8:throw new Error("REPL input must be valid utf-8")
+            @interrupted:{}
+            @eof:break
+        }
+    }
+}

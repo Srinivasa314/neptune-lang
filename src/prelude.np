@@ -107,7 +107,13 @@ export fun eval(source) {
     if source.getClass() !== String {
         throw new TypeError('The first argument must be a String, not \(source.getClass().name())')
     }
-    return ecall(@compile, {moduleName: _getCallerModule(), eval: true, source})()
+    let {function,isExpr} = ecall(@compile, {moduleName: _getCallerModule(), eval: true, source})
+    if(isExpr){
+        return function()
+    }else{
+        function()
+        return null
+    }
 }
 
 export fun exec(source) {

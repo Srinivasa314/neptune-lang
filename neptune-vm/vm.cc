@@ -725,7 +725,10 @@ std::string VM::generate_stack_trace(bool include_native_function,
        << frame->f->function_info->module << ':'
        << get_line_number(frame->f->function_info, frame->ip - 1) << ")\n";
   }
-  return os.str();
+  auto s = os.str();
+  if (s.back() == '\n')
+    s.pop_back();
+  return s;
 }
 
 const uint8_t *VM::throw_(const uint8_t *ip, const char *type) {
@@ -1086,7 +1089,7 @@ VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
   auto task = handle->object;
   if (!task->waiting_for_rust_future)
     return task->status;
-  auto old_stack_top = task->stack_top;
+  auto old_stack_top = task->stack_top - task->stack.get();
   vm->current_task = task;
   vm->is_running = true;
   VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
@@ -1094,7 +1097,7 @@ VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
   free_data(data);
   vm->current_task = nullptr;
   auto accumulator = Value::null();
-  if (task->stack_top != old_stack_top) {
+  if (task->stack_top - task->stack.get() != old_stack_top) {
     accumulator = *(task->stack_top - 1);
   }
   auto frame = task->frames.back();

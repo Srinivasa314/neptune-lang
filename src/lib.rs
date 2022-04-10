@@ -209,10 +209,13 @@ impl Neptune {
                 }
                 Ok(res) => match res {
                     Ok((fw, is_expr)) => {
-                        if !is_expr && eval {
-                            cx.error("<prelude>", "CompileError", "Expect expression")
-                                .unwrap();
-                            false
+                        if eval {
+                            cx.object();
+                            unsafe { cx.function(fw) };
+                            cx.set_object_property("function").unwrap();
+                            cx.bool(is_expr);
+                            cx.set_object_property("isExpr").unwrap();
+                            true
                         } else {
                             unsafe { cx.function(fw) };
                             true

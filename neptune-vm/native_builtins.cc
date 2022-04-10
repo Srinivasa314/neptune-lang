@@ -422,7 +422,6 @@ static VMStatus ecall(VM *vm, Value *args) {
     } else {
       auto task = vm->current_task;
       auto efunc = efunc_iter->second;
-      auto old_stack_top = task->stack_top;
       task->stack_top = args + 2;
       VMStatus result = efunc.callback(
           EFuncContext(vm, args + 1, vm->current_task), efunc.data);
@@ -435,7 +434,8 @@ static VMStatus ecall(VM *vm, Value *args) {
       else {
         vm->return_value = *(task->stack_top - 1);
       }
-      task->stack_top = old_stack_top;
+      auto frame = task->frames.back();
+      task->stack_top = frame.bp + frame.f->function_info->max_registers;
       return result;
     }
   } else {

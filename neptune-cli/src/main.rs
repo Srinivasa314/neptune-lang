@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncError, ModuleLoader, Neptune};
+use neptune_lang::{EFuncError, ModuleLoader, Neptune, ToNeptuneValue};
 use rustyline::{
-    error::ReadlineError,
     validate::{self, Validator},
     Editor,
 };
@@ -122,25 +124,45 @@ async fn repl(n: &Neptune) {
         dir
     });
     println!("Welcome to the Neptune Programming Language!");
-    loop {
-        match rl.readline(">> ") {
-            Ok(lines) => {
-                match n.exec("<repl>", &lines).await {
-                    Ok(()) => {}
-                    Err(e) => eprintln!("{}", e),
-                };
-                rl.add_history_entry(lines);
+    let rl = Arc::new(Mutex::new(rl));
+    n.create_efunc_async("replReadline", {
+        let rl = rl.clone();
+        move |_| {
+            let rl = rl.clone();
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut rl = rl.lock().unwrap();
+                    match rl.readline(">> ") {
+                        Ok(s) => {
+                            rl.add_history_entry(&s);
+                            Ok(s)
+                        }
+                        Err(e) => Err(ReadlineError(e)),
+                    }
+                })
+                .await
+                .unwrap()
             }
-            Err(e) => match e {
-                ReadlineError::Eof => break,
-                ReadlineError::Interrupted => {}
-                e => panic!("{}", e),
-            },
+        }
+    })
+    .unwrap();
+    n.exec("<repl>", include_str!("repl.np")).await.unwrap();
+    if let Some(file) = histfile {
+        if let Err(e) = rl.lock().unwrap().save_history(&file) {
+            eprintln!("Error in saving REPL history: {}", e)
         }
     }
-    if let Some(file) = histfile {
-        if let Err(e) = rl.save_history(&file) {
-            eprintln!("Error in saving REPL history: {}", e)
+}
+
+struct ReadlineError(rustyline::error::ReadlineError);
+
+impl ToNeptuneValue for ReadlineError {
+    fn to_neptune_value(&self, cx: &mut neptune_lang::EFuncContext) {
+        match &self.0 {
+            rustyline::error::ReadlineError::Eof => cx.symbol("eof"),
+            rustyline::error::ReadlineError::Interrupted => cx.symbol("interrupted"),
+            rustyline::error::ReadlineError::Utf8Error => cx.symbol("utf8"),
+            e => panic!("{}", e),
         }
     }
 }
