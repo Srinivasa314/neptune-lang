@@ -368,9 +368,16 @@ pub use ffi::{new_vm, Data, FreeDataCallback, Op, VMStatus, VM};
 
 use crate::{CompileError, CompileErrorList};
 
+pub struct ResourceTable {
+    /// A table that maps resource ids to resources
+    pub table: HashMap<u32, Box<dyn Any + 'static>>,
+    /// The id that will be given to the resource that is added next
+    pub next_rid: u32,
+}
+
 pub struct UserData<'vm> {
     pub futures: RefCell<FuturesUnordered<NeptuneFuture<'vm>>>,
-    pub resources: RefCell<HashMap<u32, Box<dyn Any>>>,
+    pub resources: RefCell<ResourceTable>,
 }
 
 type NeptuneFuture<'vm> =
@@ -699,15 +706,16 @@ impl<'a> EFuncContext<'a> {
         self.0.get_vm()
     }
 
-    pub fn resources(&self) -> &RefCell<HashMap<u32, Box<dyn Any>>> {
+    pub fn resources(&self) -> &RefCell<ResourceTable> {
         &self.vm().get_user_data().resources
     }
 
     pub fn add_resource<R: 'static>(&self, r: R) -> u32 {
-        let resources = &self.vm().get_user_data().resources;
-        let len = resources.borrow().len() as u32;
-        resources.borrow_mut().insert(len, Box::new(r));
-        len
+        let resources = &mut self.vm().get_user_data().resources.borrow_mut();
+        let rid = resources.next_rid;
+        resources.table.insert(rid, Box::new(r));
+        resources.next_rid += 1;
+        rid
     }
 }
 

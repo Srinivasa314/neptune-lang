@@ -1,0 +1,19 @@
+const {ecall} = import('vm')
+
+let s = ''
+
+fun sleep_append(x) {
+    spawn(||{
+        ecall(@sleep,x)
+        s='\(s):\(x)'
+    })
+}
+
+sleep_append(500)
+sleep_append(100)
+sleep_append(200)
+
+ecall(@sleep,600)
+if s!=':100:200:500' {
+    throw new Error("Expect s to be ':100:200:500',got '\(s)' instead")
+}

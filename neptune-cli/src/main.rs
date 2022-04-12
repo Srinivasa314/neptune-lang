@@ -258,9 +258,12 @@ pub fn are_brackets_balanced(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::are_brackets_balanced;
     use crate::FileSystemModuleLoader;
-    use neptune_lang::Neptune;
+    use neptune_lang::{EFuncError, Neptune};
+    use tokio::time::sleep;
 
     #[test]
     fn test_brackets_balanced() {
@@ -280,5 +283,28 @@ mod tests {
             include_str!("../test/test_import1.np"),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn test_sleep() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let n = Neptune::new(FileSystemModuleLoader);
+        n.create_efunc_async("sleep", |cx| {
+            let time = cx.as_int();
+            async move {
+                sleep(Duration::from_millis(time? as u64)).await;
+                Result::<(), EFuncError>::Ok(())
+            }
+        })
+        .unwrap();
+        runtime
+            .block_on(n.exec(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/test/test_sleep.np"),
+                include_str!("../test/test_sleep.np"),
+            ))
+            .unwrap();
     }
 }

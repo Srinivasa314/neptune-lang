@@ -16,7 +16,7 @@ use vm::Data;
 use vm::FreeDataCallback;
 use vm::UserData;
 use vm::{new_vm, FunctionInfoWriter, VM};
-pub use vm::{EFuncContext, EFuncError, ToNeptuneValue};
+pub use vm::{EFuncContext, EFuncError, ResourceTable, ToNeptuneValue};
 mod compiler;
 mod parser;
 mod scanner;
@@ -182,7 +182,10 @@ impl Neptune {
                 new_vm(
                     Box::into_raw(Box::new(UserData {
                         futures: RefCell::new(FuturesUnordered::new()),
-                        resources: RefCell::new(HashMap::new()),
+                        resources: RefCell::new(ResourceTable {
+                            table: HashMap::new(),
+                            next_rid: 0,
+                        }),
                     })) as *mut Data,
                     free_data::<UserData> as *mut FreeDataCallback,
                 )
@@ -239,7 +242,13 @@ impl Neptune {
                 Err(EFuncErrorOr::Other(NeptuneError(
                     "Resource id cannot be negative".into(),
                 )))
-            } else if cx.resources().borrow_mut().remove(&(rid as u32)).is_none() {
+            } else if cx
+                .resources()
+                .borrow_mut()
+                .table
+                .remove(&(rid as u32))
+                .is_none()
+            {
                 Err(EFuncErrorOr::Other(NeptuneError(format!(
                     "Resource with id {} does not exist",
                     rid
@@ -536,7 +545,10 @@ mod tests {
             .exec_sync("test_deadlock.np", &read("test_deadlock.np").unwrap())
             .unwrap_err()
         {
-            assert_eq!(e,"In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)")
+            assert_eq!(
+                e,
+                "In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)"
+            )
         } else {
             panic!("Expected error")
         }
@@ -696,7 +708,43 @@ mod tests {
             }
         })
         .unwrap();
-        if let Err(e) = n.exec_sync("test_efunc.np", &read("test_efunc.np").unwrap()) {
+        n.create_efunc_async("test_async", |cx| {
+            let result = cx.is_null().unwrap();
+            async move {
+                if result {
+                    Ok(1.0)
+                } else {
+                    Err(NeptuneError("AAA!".into()))
+                }
+            }
+        })
+        .unwrap();
+        n.create_efunc("create_hello", move |ctx| -> Result<i32, ()> {
+            let rid = ctx.add_resource("hello".to_string());
+            Ok(rid as i32)
+        })
+        .unwrap();
+        n.create_efunc(
+            "test_resource",
+            move |ctx| -> Result<String, NeptuneError> {
+                let rid = ctx.as_int().unwrap();
+                if rid < 0 {
+                    panic!("rid is negative");
+                } else {
+                    match ctx.resources().borrow().table.get(&(rid as u32)) {
+                        Some(s) => Ok(s.downcast_ref::<String>().unwrap().clone()),
+                        None => Err(NeptuneError(format!(
+                            "Resource with id {} does not exist",
+                            rid
+                        ))),
+                    }
+                }
+            },
+        )
+        .unwrap();
+        if let Err(e) =
+            futures::executor::block_on(n.exec("test_efunc.np", &read("test_efunc.np").unwrap()))
+        {
             panic!("{:?}", e);
         }
     }
