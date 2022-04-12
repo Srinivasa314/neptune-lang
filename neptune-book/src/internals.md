@@ -7,7 +7,7 @@ The bytecode generated for a function can be viewed by the disassemble function 
 
 ## Value representation
 On x86_64 and aarch64 the following scheme is used to represent values.
-
+```
 Empty   0x0000 0000 0000 0000 (nullptr)
 Null    0x0000 0000 0000 0001
 True    0x0000 0000 0000 0002
@@ -20,6 +20,7 @@ Float   0x0002 0000 0000 0000
 
 Doubles lie from 0x0000000000000000 to 0xFFF8000000000000. On adding 2<<48
 they lie in the range listed above.
+```
 
 ## ForLoop op
 Many for loops are of the form
