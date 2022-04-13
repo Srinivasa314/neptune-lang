@@ -1,4 +1,5 @@
 
+# Neptune Lang
 Neptune is a dynamically typed scripting language
 
 [Documentation](https://docs.rs/neptune-lang/)
@@ -8,7 +9,7 @@ TODO: link to book
 
 ## Goals
 1. Embeddability: It can be embedded in any rust application. Synchronous or asynchronous rust functions can be used by a neptune script.
-2. Performance: It performs better than most JIT-less scripting languages
+2. Performance: It performs better than most interpreted scripting languages. See [Benchmarks](BENCHMARKS.md) for a comparison with lua, nodejs and ruby.
 3. Security: It is impossible to do any kind of undefined behaviour(including integer overflow) 
 4. Concurrency
     * It is trivial to write asynchronous code
