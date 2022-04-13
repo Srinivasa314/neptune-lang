@@ -53,9 +53,9 @@ constexpr uint32_t EXTRAWIDE_OFFSET = 2 * WIDE_OFFSET;
 
 namespace neptune_vm {
 
-VM::VM(Data *user_data, FreeDataCallback *free_user_data)
-    : user_data(user_data), free_user_data(free_user_data), bytes_allocated(0),
-      first_obj(nullptr), threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
+VM::VM(rust::Box<UserData> user_data)
+    : user_data(std::move(user_data)), bytes_allocated(0), first_obj(nullptr),
+      threshhold(INITIAL_HEAP_SIZE), handles(nullptr),
       last_native_function(nullptr), is_running(false), current_task(nullptr),
       main_task(nullptr), return_value(Value::null()),
       rng(std::random_device()()) {
@@ -244,8 +244,8 @@ ModuleVariable VM::get_module_variable(StringSlice module_name,
     throw std::runtime_error("No such module variable");
   return it->second;
 }
-std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data) {
-  return std::unique_ptr<VM>{new VM(user_data, free_user_data)};
+std::unique_ptr<VM> new_vm(rust::Box<UserData> user_data) {
+  return std::unique_ptr<VM>{new VM(std::move(user_data))};
 }
 
 FunctionInfoWriter VM::new_function_info(StringSlice module, StringSlice name,
@@ -401,6 +401,11 @@ void VM::release(Object *o) {
     delete o->as<Channel>();
     break;
   }
+  case Type::Resource: {
+    o->as<Resource>()->close();
+    delete o->as<Resource>();
+    break;
+  }
   default:
     unreachable();
   }
@@ -494,6 +499,7 @@ void VM::collect() {
     mark(builtin_classes.MapIterator);
     mark(builtin_classes.StringIterator);
     mark(builtin_classes.Channel);
+    mark(builtin_classes.Resource);
     mark(builtin_symbols.construct);
     mark(builtin_symbols.message);
     mark(builtin_symbols.stack);
@@ -685,6 +691,9 @@ void VM::trace(Object *o) {
         mark(val.as_object());
     for (auto waiter : o->as<Channel>()->wait_list)
       mark(waiter);
+    break;
+  case Type::Resource:
+    bytes_allocated += sizeof(Resource);
     break;
   default:
     unreachable();
@@ -888,10 +897,12 @@ Class *VM::get_class(Value v) const {
       return builtin_classes.MapIterator;
     case Type::StringIterator:
       return builtin_classes.StringIterator;
-    case Type::Instance:
-      return o->as<Instance>()->class_;
     case Type::Channel:
       return builtin_classes.Channel;
+    case Type::Resource:
+      return builtin_classes.Resource;
+    case Type::Instance:
+      return o->as<Instance>()->class_;
     default:
       unreachable();
     }
@@ -1082,8 +1093,7 @@ void TaskHandle::release() {
   handle = nullptr;
 }
 
-VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
-                            FreeDataCallback *free_data) {
+VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data) {
   if (vm->is_running)
     throw std::runtime_error("Cannot call run() while VM is already running");
   auto task = handle->object;
@@ -1094,7 +1104,6 @@ VMStatus TaskHandle::resume(EFuncCallback *callback, Data *data,
   vm->is_running = true;
   VMStatus status = callback(EFuncContext(vm, task->stack_top, task), data);
   vm->is_running = false;
-  free_data(data);
   vm->current_task = nullptr;
   auto accumulator = Value::null();
   if (task->stack_top - task->stack.get() != old_stack_top) {

@@ -711,6 +711,11 @@ static VMStatus task_get_uncaught_exception(VM *vm, Value *args) {
     vm->return_value = Value::null();
   return VMStatus::Success;
 }
+
+static VMStatus resource_close(VM *, Value *args) {
+  args[0].as_object()->as<Resource>()->close();
+  return VMStatus::Success;
+}
 #undef THROW
 } // namespace native_builtins
 
@@ -748,6 +753,7 @@ void VM::declare_native_builtins() {
   DEFCLASS(MapIterator)
   DEFCLASS(StringIterator)
   DEFCLASS(Channel)
+  DEFCLASS(Resource)
 
 #undef DEFCLASS
 
@@ -817,6 +823,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Task, status, 0, task_status);
   DECL_NATIVE_METHOD(Task, getUncaughtException, 0,
                      task_get_uncaught_exception);
+  DECL_NATIVE_METHOD(Resource, close, 0, resource_close);
 
   create_module("vm");
   create_module("math");

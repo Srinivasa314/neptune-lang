@@ -23,9 +23,9 @@ All variables from this module are automatically in all modules
 
 * ```spawn_link(fn)```
 
-    Spawns a new task linked with the current task with the function ```fn``` and returns the created task. If the current task is killed, the task is killed and if the task is killed, the current task is killed.
+    Spawns a new task with the function ```fn``` which is linked with the current task and returns the created task. 
 
 * ```join(tasks)```
 
-    Waits for each task in ```tasks``` to complete. If any one task is killed, all tasks in ```tasks``` are killed
+    Waits for each task in ```tasks``` to complete. If any one task is killed, all tasks in ```tasks``` are killed and the error with which that task was killed is thrown.
 

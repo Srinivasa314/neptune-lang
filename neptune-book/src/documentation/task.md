@@ -14,7 +14,7 @@
 
 * ```monitor(chan)```
 
-    Sends the task to chan when the task has completed or is killed
+    When the task is completed or killed it sends the task to the channel `chan`.
 
 * ```link(task2)```
 
@@ -26,4 +26,4 @@
 
 * ```getUncaughtException()```
 
-    Returns the uncaught exception of the task or null if there is no uncaught exception
+    Returns the uncaught exception that killed the task or null if there is no uncaught exception

@@ -30,6 +30,10 @@ enum class EFuncStatus : uint8_t {
 
 class Task;
 class TaskHandle;
+
+using Data = void; // Can be any type
+using FreeDataCallback = void(Data *data);
+
 struct EFuncContext {
   VM *vm;
   Task *task;
@@ -64,15 +68,14 @@ struct EFuncContext {
   Value pop_value();
   Value peek() const;
   const VM &get_vm() const { return *vm; }
+  void push_resource(Data* data,FreeDataCallback* free_data);
+  Data* as_resource(EFuncStatus& status);
 };
 
-using Data = void; // Can be any type
 using EFuncCallback = VMStatus(EFuncContext cx, Data *data);
-using FreeDataCallback = void(Data *data);
 struct EFunc {
   EFuncCallback *callback;
   Data *data;
   FreeDataCallback *free_data;
 };
-
 }; // namespace neptune_vm

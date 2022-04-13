@@ -1,8 +1,7 @@
 use cxx::{type_id, ExternType};
 use futures::{stream::FuturesUnordered, Future};
-use std::any::Any;
+use std::any::TypeId;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::{ffi::c_void, fmt::Display, marker::PhantomData, pin::Pin};
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -225,6 +224,10 @@ mod ffi {
         PropertyError,
     }
 
+    extern "Rust" {
+        type UserData<'a>;
+    }
+
     unsafe extern "C++" {
         include!("neptune-lang/neptune-vm/neptune-vm.h");
         type StringSlice<'a> = super::StringSlice<'a>;
@@ -282,9 +285,8 @@ mod ffi {
             name: StringSlice,
             arity: u8,
         ) -> FunctionInfoWriter<'vm>;
-        /*free_data should have correct type and must
-        not exhibit undefined behaviour if user_data is passed to it*/
-        unsafe fn new_vm(data: *mut Data, free_user_data: *mut FreeDataCallback) -> UniquePtr<VM>;
+        fn new_vm(user_data: Box<UserData<'static>>) -> UniquePtr<VM>;
+        fn get_user_data<'vm>(self: &'vm VM) -> &'vm UserData;
         // This must only be called by drop
         unsafe fn release(self: &mut FunctionInfoWriter);
         fn patch_jump(self: &mut FunctionInfoWriter, op_position: usize, jump_offset: u32);
@@ -308,7 +310,7 @@ mod ffi {
         fn create_module_with_prelude(self: &VM, module_name: StringSlice);
         fn module_exists(self: &VM, module_name: StringSlice) -> bool;
         /*functions of the correct type should be passed and the functions must
-        not exhibit undefined behaviour if correct data is passed to them*/
+        not exhibit undefined behaviour if data is passed to them*/
         unsafe fn create_efunc(
             self: &VM,
             name: StringSlice,
@@ -358,8 +360,15 @@ mod ffi {
             self: &mut TaskHandle,
             callback: *mut EFuncCallback,
             data: *mut Data,
-            free_data: *mut FreeDataCallback,
         ) -> VMStatus;
+        /*callback should have correct type and must not exhibit undefined behaviour
+        if data is passed to it*/
+        unsafe fn push_resource(
+            self: &mut EFuncContext,
+            data: *mut Data,
+            free_data: *mut FreeDataCallback,
+        );
+        fn as_resource(self: &mut EFuncContext, status: &mut EFuncStatus) -> *mut Data;
     }
 }
 
@@ -368,27 +377,14 @@ pub use ffi::{new_vm, Data, FreeDataCallback, Op, VMStatus, VM};
 
 use crate::{CompileError, CompileErrorList};
 
-pub struct ResourceTable {
-    /// A table that maps resource ids to resources
-    pub table: HashMap<u32, Box<dyn Any + 'static>>,
-    /// The id that will be given to the resource that is added next
-    pub next_rid: u32,
-}
-
 pub struct UserData<'vm> {
     pub futures: RefCell<FuturesUnordered<NeptuneFuture<'vm>>>,
-    pub resources: RefCell<ResourceTable>,
 }
 
 type NeptuneFuture<'vm> =
-    Pin<Box<dyn Future<Output = (Box<dyn FnMut(EFuncContext) -> bool>, TaskHandle<'vm>)> + 'vm>>;
+    Pin<Box<dyn Future<Output = (Box<dyn FnOnce(EFuncContext) -> bool>, TaskHandle<'vm>)> + 'vm>>;
 
 impl VM {
-    pub fn get_user_data<'vm>(&'vm self) -> &UserData<'vm> {
-        let user_data_ptr = self as *const VM as *const *const UserData;
-        unsafe { &**user_data_ptr }
-    }
-
     pub fn create_efunc_safe<F>(&self, name: &str, callback: F) -> bool
     where
         F: FnMut(EFuncContext) -> bool + 'static,
@@ -424,13 +420,12 @@ impl VM {
 impl<'vm> TaskHandle<'vm> {
     pub fn resume_safe<F>(&mut self, callback: F) -> VMStatus
     where
-        F: FnMut(EFuncContext) -> bool + 'static,
+        F: FnOnce(EFuncContext) -> bool + 'static,
     {
         unsafe {
             self.resume(
-                trampoline::<F> as *mut ffi::EFuncCallback,
+                resume_trampoline::<F> as *mut ffi::EFuncCallback,
                 Box::into_raw(Box::new(callback)) as *mut ffi::Data,
-                free_data::<F> as *mut FreeDataCallback,
             )
         }
     }
@@ -442,6 +437,22 @@ where
     F: FnMut(EFuncContext) -> bool + 'static,
 {
     let callback = &mut *(data as *mut F);
+    // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(cx)))
+        .unwrap_or_else(|_| std::process::abort())
+    {
+        VMStatus::Success
+    } else {
+        VMStatus::Error
+    }
+}
+
+// data must contain a valid pointer to a callback of type F
+unsafe extern "C" fn resume_trampoline<F>(cx: EFuncContext, data: *mut c_void) -> VMStatus
+where
+    F: FnOnce(EFuncContext) -> bool + 'static,
+{
+    let callback = Box::from_raw(data as *mut F);
     // https://github.com/rust-lang/rust/issues/52652#issuecomment-695034481
     if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(cx)))
         .unwrap_or_else(|_| std::process::abort())
@@ -481,7 +492,7 @@ where
     let user_data = vm.get_user_data();
     let task = vm.get_current_task();
     let fut = async move {
-        let closure: Box<dyn FnMut(EFuncContext) -> bool> = match fut.await {
+        let closure: Box<dyn FnOnce(EFuncContext) -> bool> = match fut.await {
             Ok(value) => Box::new(move |mut ctx| {
                 value.to_neptune_value(&mut ctx);
                 true
@@ -507,6 +518,7 @@ pub enum EFuncError {
     PropertyError,
     OutOfBoundsError,
     Underflow,
+    ResourceClosed,
 }
 
 impl std::fmt::Display for EFuncError {
@@ -519,6 +531,12 @@ impl std::error::Error for EFuncError {}
 
 #[repr(transparent)]
 pub struct EFuncContext<'a>(EFuncContextInner<'a>);
+
+#[repr(C)]
+struct ThinAny<T: 'static> {
+    type_id: TypeId,
+    data: T,
+}
 
 impl<'a> EFuncContext<'a> {
     /// Pushes an int to the stack
@@ -730,53 +748,75 @@ impl<'a> EFuncContext<'a> {
         self.0.get_vm()
     }
 
-    // Get the resource table
-    pub fn resources(&self) -> &RefCell<ResourceTable> {
-        &self.vm().get_user_data().resources
+    pub fn resource<T: 'static>(&mut self, t: T) {
+        let data = Box::into_raw(Box::new(ThinAny {
+            type_id: TypeId::of::<T>(),
+            data: t,
+        }));
+        unsafe {
+            self.0.push_resource(
+                data as *mut Data,
+                free_data::<ThinAny<T>> as *mut FreeDataCallback,
+            );
+        }
     }
 
-    // Add a resource `r` to the resource table
-    pub fn add_resource<R: 'static>(&self, r: R) -> u32 {
-        let resources = &mut self.vm().get_user_data().resources.borrow_mut();
-        let rid = resources.next_rid;
-        resources.table.insert(rid, Box::new(r));
-        resources.next_rid += 1;
-        rid
+    pub fn as_resource<T: 'static>(&mut self) -> Result<&mut T, EFuncError> {
+        let mut status = EFuncStatus::Ok;
+        let data = self.0.as_resource(&mut status);
+        match status {
+            EFuncStatus::Ok => {
+                if data.is_null() {
+                    Err(EFuncError::ResourceClosed)
+                } else {
+                    unsafe {
+                        if *(data as *mut TypeId) == TypeId::of::<T>() {
+                            Ok(&mut (*(data as *mut ThinAny<T>)).data)
+                        } else {
+                            Err(EFuncError::TypeError)
+                        }
+                    }
+                }
+            }
+            EFuncStatus::Underflow => Err(EFuncError::Underflow),
+            EFuncStatus::TypeError => Err(EFuncError::TypeError),
+            _ => unreachable!(),
+        }
     }
 }
 
-/// Types that can be converted to Neptune values implement this trait 
+/// Types that can be converted to Neptune values implement this trait
 pub trait ToNeptuneValue {
     /// Pushes the value on the stack
-    fn to_neptune_value(&self, cx: &mut EFuncContext);
+    fn to_neptune_value(self, cx: &mut EFuncContext);
 }
 
 impl ToNeptuneValue for i32 {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.int(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.int(self)
     }
 }
 
 impl ToNeptuneValue for f64 {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.float(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.float(self)
     }
 }
 
 impl ToNeptuneValue for bool {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.bool(*self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.bool(self)
     }
 }
 
 impl ToNeptuneValue for () {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.null()
     }
 }
 
 impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         match self {
             Some(t) => t.to_neptune_value(cx),
             None => cx.null(),
@@ -784,20 +824,20 @@ impl<T: ToNeptuneValue> ToNeptuneValue for Option<T> {
     }
 }
 
-impl ToNeptuneValue for str {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+impl ToNeptuneValue for &str {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.string(self)
     }
 }
 
 impl ToNeptuneValue for String {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.string(self)
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.string(&self)
     }
 }
 
 impl ToNeptuneValue for EFuncError {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.error(
             "<prelude>",
             "EFuncError",
@@ -806,24 +846,15 @@ impl ToNeptuneValue for EFuncError {
                 EFuncError::PropertyError => "PropertyError",
                 EFuncError::OutOfBoundsError => "OutOfBoundsError",
                 EFuncError::Underflow => "Underflow",
+                EFuncError::ResourceClosed => "ResourceClosed",
             },
         )
         .unwrap();
     }
 }
 
-impl<T: ToNeptuneValue> ToNeptuneValue for [T] {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
-        cx.array();
-        for elem in self {
-            elem.to_neptune_value(cx);
-            cx.push_to_array().unwrap();
-        }
-    }
-}
-
 impl ToNeptuneValue for CompileError {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.object();
         cx.int(self.line as i32);
         cx.set_object_property("line").unwrap();
@@ -833,7 +864,7 @@ impl ToNeptuneValue for CompileError {
 }
 
 impl ToNeptuneValue for CompileErrorList {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         use std::fmt::Write;
         let mut message = "".to_owned();
         writeln!(message, "In module {}", &self.module).unwrap();
@@ -846,5 +877,24 @@ impl ToNeptuneValue for CompileErrorList {
         cx.set_object_property("errors").unwrap();
         cx.string(&self.module);
         cx.set_object_property("module").unwrap();
+    }
+}
+
+/// Represents a resource. It can be used efuncs that return resources
+pub struct Resource<T: 'static>(pub T);
+
+impl<T: 'static> ToNeptuneValue for Resource<T> {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.resource(self.0)
+    }
+}
+
+impl<T: ToNeptuneValue> ToNeptuneValue for Vec<T> {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
+        cx.array();
+        for elem in self {
+            elem.to_neptune_value(cx);
+            cx.push_to_array().unwrap();
+        }
     }
 }

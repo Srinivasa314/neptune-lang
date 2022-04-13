@@ -1,7 +1,6 @@
 #pragma once
 #include "hash_table.h"
 #include "native_function.h"
-#include "rust/cxx.h"
 #include "util.h"
 #include <deque>
 #include <functional>
@@ -67,16 +66,29 @@ class TaskHandle {
 public:
   TaskHandle(VM *vm, Task *task);
   void release();
-  VMStatus resume(EFuncCallback *callback, Data *data,
-                  FreeDataCallback *free_data);
+  VMStatus resume(EFuncCallback *callback, Data *data);
+};
+
+class Resource : public Object {
+  Data *data;
+  FreeDataCallback *free_data;
+
+public:
+  Resource(Data *data, FreeDataCallback *free_data)
+      : data(data), free_data(free_data) {}
+  void close() {
+    if (data != nullptr) {
+      free_data(data);
+      data = nullptr;
+    }
+  }
+  static constexpr Type type = Type::Resource;
+  friend class EFuncContext;
 };
 
 class VM {
-public:
-  Data *user_data;
-  FreeDataCallback *free_user_data;
-
 private:
+  rust::Box<UserData> user_data;
   HashMap<String *, Module *, StringHasher, StringEquality,
           NullptrEmpty<String>>
       modules;
@@ -151,11 +163,12 @@ public:
   TaskHandle get_current_task() const {
     return TaskHandle(const_cast<VM *>(this), current_task);
   }
-  VM(Data *user_data, FreeDataCallback *free_user_data);
+  const UserData &get_user_data() const { return *user_data; }
+  VM(rust::Box<UserData> user_data);
   ~VM();
 };
 
-std::unique_ptr<VM> new_vm(Data *user_data, FreeDataCallback *free_user_data);
+std::unique_ptr<VM> new_vm(rust::Box<UserData> user_data);
 template <> String *VM::allocate<String, StringSlice>(StringSlice s);
 
 template <> String *VM::allocate<String, std::string>(std::string s);

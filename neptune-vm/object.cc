@@ -85,6 +85,8 @@ const char *Object::type_string() const {
     return "StringIterator";
   case Type::Channel:
     return "Channel";
+  case Type::Resource:
+    return "Resource";
   default:
     unreachable();
   }
@@ -248,6 +250,9 @@ void operator<<(ValueFormatter vf, Object *obj) {
     break;
   case Type::Channel:
     vf.os << "<Channel>";
+    break;
+  case Type::Resource:
+    vf.os<<"<Resource>";
     break;
   default:
     unreachable();

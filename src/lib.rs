@@ -8,15 +8,11 @@ use parser::Parser;
 use scanner::Scanner;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
-use vm::free_data;
-use vm::Data;
-use vm::FreeDataCallback;
 use vm::UserData;
 use vm::{new_vm, FunctionInfoWriter, VM};
-pub use vm::{EFuncContext, EFuncError, ResourceTable, ToNeptuneValue};
+pub use vm::{EFuncContext, EFuncError, Resource, ToNeptuneValue};
 mod compiler;
 mod parser;
 mod scanner;
@@ -118,7 +114,7 @@ impl<T: Debug + ToNeptuneValue> Debug for EFuncErrorOr<T> {
 impl<T: std::error::Error + ToNeptuneValue> std::error::Error for EFuncErrorOr<T> {}
 
 impl<T: ToNeptuneValue> ToNeptuneValue for EFuncErrorOr<T> {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         match self {
             EFuncErrorOr::EFuncError(e) => e.to_neptune_value(cx),
             EFuncErrorOr::Other(e) => e.to_neptune_value(cx),
@@ -136,7 +132,7 @@ impl<T: ToNeptuneValue> From<EFuncError> for EFuncErrorOr<T> {
 pub struct NeptuneError(pub String);
 
 impl ToNeptuneValue for NeptuneError {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.error("<prelude>", "Error", &self.0).unwrap();
     }
 }
@@ -146,7 +142,7 @@ struct ModuleNotFound {
 }
 
 impl ToNeptuneValue for ModuleNotFound {
-    fn to_neptune_value(&self, cx: &mut EFuncContext) {
+    fn to_neptune_value(self, cx: &mut EFuncContext) {
         cx.error(
             "<prelude>",
             "ModuleNotFoundError",
@@ -187,18 +183,9 @@ impl ModuleLoader for NoopModuleLoader {
 impl Neptune {
     pub fn new<M: ModuleLoader + 'static>(module_loader: M) -> Self {
         let n = Self {
-            vm: unsafe {
-                new_vm(
-                    Box::into_raw(Box::new(UserData {
-                        futures: RefCell::new(FuturesUnordered::new()),
-                        resources: RefCell::new(ResourceTable {
-                            table: HashMap::new(),
-                            next_rid: 0,
-                        }),
-                    })) as *mut Data,
-                    free_data::<UserData> as *mut FreeDataCallback,
-                )
-            },
+            vm: new_vm(Box::new(UserData {
+                futures: RefCell::new(FuturesUnordered::new()),
+            })),
         };
 
         n.vm.create_efunc_safe("compile", |mut cx| -> bool {
@@ -244,29 +231,6 @@ impl Neptune {
                 },
             }
         });
-
-        n.create_efunc("close", |cx| -> Result<(), EFuncErrorOr<NeptuneError>> {
-            let rid = cx.as_int()?;
-            if rid < 0 {
-                Err(EFuncErrorOr::Other(NeptuneError(
-                    "Resource id cannot be negative".into(),
-                )))
-            } else if cx
-                .resources()
-                .borrow_mut()
-                .table
-                .remove(&(rid as u32))
-                .is_none()
-            {
-                Err(EFuncErrorOr::Other(NeptuneError(format!(
-                    "Resource with id {} does not exist",
-                    rid
-                ))))
-            } else {
-                Ok(())
-            }
-        })
-        .unwrap();
 
         n.create_efunc("resolveModule", {
             let module_loader = module_loader.clone();
@@ -479,7 +443,7 @@ fn compile<'vm>(
 mod tests {
     use crate::{
         EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, Neptune, NeptuneError,
-        ToNeptuneValue,
+        ToNeptuneValue, Resource,
     };
     use std::{
         env,
@@ -630,7 +594,7 @@ mod tests {
     }
 
     impl ToNeptuneValue for Bar {
-        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+        fn to_neptune_value(self, cx: &mut crate::EFuncContext) {
             match self {
                 Bar::Baz => cx.symbol("baz"),
                 Bar::Ja => cx.symbol("ja"),
@@ -645,7 +609,7 @@ mod tests {
     }
 
     impl ToNeptuneValue for Foo {
-        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+        fn to_neptune_value(self, cx: &mut crate::EFuncContext) {
             cx.array();
             cx.bool(self.a);
             cx.push_to_array().unwrap();
@@ -662,7 +626,7 @@ mod tests {
     }
 
     impl ToNeptuneValue for FirstRest {
-        fn to_neptune_value(&self, cx: &mut crate::EFuncContext) {
+        fn to_neptune_value(self, cx: &mut crate::EFuncContext) {
             cx.object();
             self.first.to_neptune_value(cx);
             cx.set_object_property("first").unwrap();
@@ -737,29 +701,16 @@ mod tests {
             }
         })
         .unwrap();
-        n.create_efunc("create_hello", move |ctx| -> Result<i32, ()> {
-            let rid = ctx.add_resource("hello".to_string());
-            Ok(rid as i32)
+        n.create_efunc("create_string_resource", |_| {
+            Result::<_, ()>::Ok(Resource("hello".to_owned()))
         })
         .unwrap();
-        n.create_efunc(
-            "test_resource",
-            move |ctx| -> Result<String, NeptuneError> {
-                let rid = ctx.as_int().unwrap();
-                if rid < 0 {
-                    panic!("rid is negative");
-                } else {
-                    match ctx.resources().borrow().table.get(&(rid as u32)) {
-                        Some(s) => Ok(s.downcast_ref::<String>().unwrap().clone()),
-                        None => Err(NeptuneError(format!(
-                            "Resource with id {} does not exist",
-                            rid
-                        ))),
-                    }
-                }
-            },
-        )
-        .unwrap();
+        n.create_efunc("create_int_resource", |_|{
+            Result::<_, ()>::Ok(Resource(1))
+        }).unwrap();
+        n.create_efunc("string_resource_inner", |cx|->Result<String, EFuncError>{
+            Ok(cx.as_resource::<String>()?.clone())
+        }).unwrap();
         if let Err(e) =
             futures::executor::block_on(n.exec("test_efunc.np", &read("test_efunc.np").unwrap()))
         {

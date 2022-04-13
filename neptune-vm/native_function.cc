@@ -217,4 +217,23 @@ EFuncStatus EFuncContext::get_object_property(StringSlice prop) {
   } else
     return EFuncStatus::TypeError;
 }
+
+void EFuncContext::push_resource(Data *data, FreeDataCallback *free_data) {
+  push(Value(vm->allocate<Resource>(data, free_data)));
+}
+
+Data* EFuncContext::as_resource(EFuncStatus &status) {
+  if(task->stack_top==arg){
+    status=EFuncStatus::Underflow;
+    return nullptr;
+  }
+  Value v = pop_value();
+  if (v.is_object()&&v.as_object()->is<Resource>()) {
+    status=EFuncStatus::Ok;
+    return v.as_object()->as<Resource>()->data;
+  } else{
+    status=EFuncStatus::TypeError;
+    return nullptr;
+  }
+}
 }; // namespace neptune_vm

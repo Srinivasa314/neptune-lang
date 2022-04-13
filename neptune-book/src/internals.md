@@ -40,5 +40,3 @@ To reduce bytecode size Neptune lang uses the strategy that V8 does. An op can h
 |    Wide   | |   AddInt  | |         300          |
 | Extrawide | |   AddInt  | |                10_000                      |
 ```
-
-## Maybe something related to tasks,channels or async?

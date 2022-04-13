@@ -1,6 +1,5 @@
 #pragma once
 #include "hash_table.h"
-#include "rust/cxx.h"
 #include "util.h"
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +41,8 @@ enum class Type : uint8_t {
   ArrayIterator,
   MapIterator,
   StringIterator,
-  Channel
+  Channel,
+  Resource
 };
 class Class;
 class Object {
@@ -236,11 +236,11 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator,
-      *StringIterator, *Channel;
+      *StringIterator, *Channel,*Resource;
   BuiltinClasses() {
     Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
         Map = Function = Module = Task = Range = ArrayIterator = MapIterator =
-            StringIterator = Channel = nullptr;
+            StringIterator = Channel =Resource= nullptr;
   }
 };
 struct BuiltinSymbols {
