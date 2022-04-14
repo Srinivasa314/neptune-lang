@@ -26,5 +26,5 @@ for benchmark in benchmarks:
     plt.tight_layout()
     ax.set_title(benchmark)
     plt.ylabel('Time in milliseconds')
-    plt.savefig(f'{benchmark}.png')
+    plt.savefig(f'{benchmark}.png', bbox_inches="tight")
     pass
