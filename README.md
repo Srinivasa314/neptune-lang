@@ -25,7 +25,7 @@ Neptune is a dynamically typed scripting language
 * and much more...
 
 ## Getting Started
-The CLI be installed by the command given below. You must have the rust compiler and a C++ compiler.
+The CLI be installed by the command given below. You must have the rust compiler and a C++ compiler. The C++ compiler can be set using the CXX environment variable. Clang is recommended for best performance.
 ```
 cargo install neptune-cli
 ```
@@ -39,9 +39,6 @@ At the moment the CLI has a few basic functions and a REPL. The REPL supports mu
 | Down arrow  | Next history entry       |
 
 To embed it in rust you can use the library from crates.io.
-
-
-The C++ compiler can be set using the CXX environment variable. Clang is recommended for best performance.
 
 ### Todo
 * CLI - Standard library, external modules 
