@@ -534,7 +534,7 @@ mod tests {
             .exec_sync("<script>", "throw new Error('abc')")
             .unwrap_err()
         {
-            assert_eq!(e, "In <Task> Error: abc\nat <script> (<script>:1)");
+            assert_eq!(e, "In <Task> Error: abc\nat <main> (<script>:1)");
         } else {
             panic!("Expected error");
         }
@@ -554,7 +554,7 @@ mod tests {
         {
             assert_eq!(
                 e,
-                "In <Task> DeadlockError: All tasks were asleep\nat <script> (test_deadlock.np:7)"
+                "In <Task> DeadlockError: All tasks were asleep\nat <main> (test_deadlock.np:7)"
             )
         } else {
             panic!("Expected error")

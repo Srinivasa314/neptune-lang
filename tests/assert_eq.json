@@ -1,3 +1,3 @@
 {
-  "UncaughtException": "In <Task> Error: Assertion failed: 4===5\nat assert_eq (assert.np:12)\nat <script> (assert_eq.np:3)"
+  "UncaughtException": "In <Task> Error: Assertion failed: 4===5\nat assert_eq (assert.np:12)\nat <main> (assert_eq.np:3)"
 }
