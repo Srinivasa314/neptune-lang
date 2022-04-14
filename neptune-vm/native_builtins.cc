@@ -830,6 +830,7 @@ void VM::declare_native_builtins() {
   DECL_NATIVE_METHOD(Task, getUncaughtException, 0,
                      task_get_uncaught_exception);
   DECL_NATIVE_METHOD(Resource, close, 0, resource_close);
+  DECL_NATIVE_METHOD(Object,toDebugString,0,object_toDebugString);
 
   create_module("vm");
   create_module("math");

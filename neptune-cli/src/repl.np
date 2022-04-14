@@ -7,12 +7,12 @@ while true {
             let {function,isExpr} = ecall(@compile, {moduleName: "<script>", eval: true, source})
             try {
                 if isExpr {
-                    print(function())
+                    print(function().toDebugString())
                 } else {
                     function()
                 }
             } catch e {
-                print("Uncaught exception:\n\(e)")
+                print("Uncaught exception:\n\(e.toDebugString())")
             }
         }catch e{
             print(e.message)
