@@ -49,3 +49,4 @@ export let x=0
 const {x,C,f} = import("./a.np")
 ```
 There are many inbuilt modules that can be used to generate random numbers, evaluate expressions at runtime,etc. They can be explored using the documentation.
+Functions/Classes that can be accessed from all modules are contained in the prelude module.
