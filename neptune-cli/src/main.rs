@@ -4,7 +4,7 @@ use std::{
 };
 use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncError, InterpretError, ModuleLoader, VM, ToNeptuneValue};
+use neptune_lang::{EFuncError, InterpretError, ModuleLoader, ToNeptuneValue, VM};
 use rustyline::{
     validate::{self, Validator},
     Editor,

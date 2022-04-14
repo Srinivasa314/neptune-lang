@@ -467,8 +467,8 @@ fn compile<'vm>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, VM, NeptuneError, Resource,
-        ToNeptuneValue,
+        EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, NeptuneError, Resource,
+        ToNeptuneValue, VM,
     };
     use std::{
         env,

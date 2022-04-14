@@ -1,7 +1,7 @@
 [package]
 name = "neptune-cli"
-version = "0.1.0"
-edition = "2018"
+version = "0.1.1"
+edition = "2021"
 license = "MIT"
 authors = ["Srinivasa Mahesh <m.srinivasa1234@gmail.com>","Srikanth Mahesh <srikanth.mahesh1234@gmail.com>"]
 description = "The official CLI for Neptune lang"
@@ -10,7 +10,7 @@ repository = "https://github.com/Srinivasa314/neptune-lang"
 
 [dependencies]
 dirs = "4.0.0"
-neptune-lang = {path=".."}
+neptune-lang = "0.1.2"
 rustyline = "9.1.2"
 rustyline-derive = "0.6.0"
 tokio = { version = "1.17.0", features = ["rt","time"] }

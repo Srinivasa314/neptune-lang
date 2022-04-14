@@ -789,12 +789,12 @@ impl<'a> EFuncContext<'a> {
 /// Example:
 /// ```
 /// use neptune_lang::*;
-/// 
+///
 /// struct Point {
 ///     x: i32,
 ///     y: i32
 /// }
-/// 
+///
 /// impl ToNeptuneValue for Point {
 ///     fn to_neptune_value(self, cx: &mut EFuncContext) {
 ///         cx.object();    // push an empty object to the stack

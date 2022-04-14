@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "neptune-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dirs",
  "neptune-lang",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "neptune-lang"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "cxx",
  "cxx-build",
