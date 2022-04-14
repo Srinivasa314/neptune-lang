@@ -450,12 +450,12 @@ Value VM::to_string(Value val) {
       }
       return Value(allocate<String>(StringSlice{buffer, len}));
     }
-  } else if (val.is_object()) {
-    if (val.as_object()->is<String>()) {
+  } else if (val.is_ptr()) {
+    if (val.as_ptr()->is<String>()) {
       return val;
-    } else if (val.as_object()->is<Symbol>()) {
+    } else if (val.as_ptr()->is<Symbol>()) {
       return Value(
-          allocate<String>(StringSlice(*val.as_object()->as<Symbol>())));
+          allocate<String>(StringSlice(*val.as_ptr()->as<Symbol>())));
     } else {
       std::ostringstream os;
       os << val;
@@ -515,18 +515,18 @@ void VM::collect() {
     current_handle = current_handle->next;
   }
   for (auto root : temp_roots)
-    if (root.is_object())
-      mark(root.as_object());
+    if (root.is_ptr())
+      mark(root.as_ptr());
   for (auto v : module_variables) {
-    if (v.is_object())
-      mark(v.as_object());
+    if (v.is_ptr())
+      mark(v.as_ptr());
   }
   for (auto module : modules) {
     mark(module.first);
     mark(module.second);
   }
-  if (return_value.is_object())
-    mark(return_value.as_object());
+  if (return_value.is_ptr())
+    mark(return_value.as_ptr());
   mark(last_native_function);
   mark(current_task);
   mark(main_task);
@@ -534,8 +534,8 @@ void VM::collect() {
     mark(efunc.first);
   for (auto entry : tasks_queue) {
     mark(entry.task);
-    if (entry.accumulator.is_object())
-      mark(entry.accumulator.as_object());
+    if (entry.accumulator.is_ptr())
+      mark(entry.accumulator.as_ptr());
   }
   while (!greyobjects.empty()) {
     Object *o = greyobjects.back();
@@ -573,29 +573,29 @@ void VM::trace(Object *o) {
   switch (o->type) {
   case Type::Array:
     for (auto v : o->as<Array>()->inner) {
-      if (v.is_object())
-        mark(v.as_object());
+      if (v.is_ptr())
+        mark(v.as_ptr());
     }
     bytes_allocated += sizeof(Array);
     break;
   case Type::Map:
     for (auto pair : o->as<Map>()->inner) {
-      if (pair.first.is_object())
-        mark(pair.first.as_object());
-      if (pair.second.is_object())
-        mark(pair.second.as_object());
+      if (pair.first.is_ptr())
+        mark(pair.first.as_ptr());
+      if (pair.second.is_ptr())
+        mark(pair.second.as_ptr());
     }
     bytes_allocated += sizeof(Map);
     break;
   case Type::FunctionInfo:
     for (auto constant : o->as<FunctionInfo>()->constants) {
-      if (constant.is_object())
-        mark(constant.as_object());
+      if (constant.is_ptr())
+        mark(constant.as_ptr());
     }
     for (auto &jump_table : o->as<FunctionInfo>()->jump_tables) {
       for (auto pair : jump_table) {
-        if (pair.first.is_object())
-          mark(pair.first.as_object());
+        if (pair.first.is_ptr())
+          mark(pair.first.as_ptr());
       }
     }
     bytes_allocated += sizeof(FunctionInfo);
@@ -615,8 +615,8 @@ void VM::trace(Object *o) {
     break;
   case Type::UpValue:
     bytes_allocated += sizeof(UpValue);
-    if (o->as<UpValue>()->closed.is_object())
-      mark(o->as<UpValue>()->closed.as_object());
+    if (o->as<UpValue>()->closed.is_ptr())
+      mark(o->as<UpValue>()->closed.as_ptr());
     break;
   case Type::NativeFunction:
     bytes_allocated += sizeof(NativeFunction);
@@ -637,11 +637,11 @@ void VM::trace(Object *o) {
   case Type::Task: {
     bytes_allocated += sizeof(Task);
     auto task = o->as<Task>();
-    if (task->uncaught_exception.is_object())
-      mark(task->uncaught_exception.as_object());
+    if (task->uncaught_exception.is_ptr())
+      mark(task->uncaught_exception.as_ptr());
     for (auto v = task->stack.get(); v < task->stack_top; v++)
-      if (v->is_object())
-        mark(v->as_object());
+      if (v->is_ptr())
+        mark(v->as_ptr());
     for (auto frame : task->frames)
       mark(frame.f);
     auto upvalue = task->open_upvalues;
@@ -660,8 +660,8 @@ void VM::trace(Object *o) {
     mark(o->as<Instance>()->class_);
     for (auto pair : o->as<Instance>()->properties) {
       mark(pair.first);
-      if (pair.second.is_object())
-        mark(pair.second.as_object());
+      if (pair.second.is_ptr())
+        mark(pair.second.as_ptr());
     }
     bytes_allocated += sizeof(Instance);
     break;
@@ -676,8 +676,8 @@ void VM::trace(Object *o) {
     bytes_allocated += sizeof(MapIterator);
     auto mi = o->as<MapIterator>();
     mark(mi->map);
-    if (mi->last_key.is_object())
-      mark(mi->last_key.as_object());
+    if (mi->last_key.is_ptr())
+      mark(mi->last_key.as_ptr());
     break;
   }
   case Type::StringIterator:
@@ -687,8 +687,8 @@ void VM::trace(Object *o) {
   case Type::Channel:
     bytes_allocated += sizeof(Channel);
     for (auto val : o->as<Channel>()->queue)
-      if (val.is_object())
-        mark(val.as_object());
+      if (val.is_ptr())
+        mark(val.as_ptr());
     for (auto waiter : o->as<Channel>()->wait_list)
       mark(waiter);
     break;
@@ -868,8 +868,8 @@ Module *VM::get_module(StringSlice module_name) const {
 }
 
 Class *VM::get_class(Value v) const {
-  if (v.is_object()) {
-    auto o = v.as_object();
+  if (v.is_ptr()) {
+    auto o = v.as_ptr();
     switch (o->type) {
     case Type::Class:
       return builtin_classes.Class_;
@@ -957,8 +957,8 @@ Value VM::create_error(StringSlice module, StringSlice type,
   try {
     auto class_val =
         module_variables[get_module_variable(module, type).position];
-    if (class_val.is_object() && class_val.as_object()->is<Class>()) {
-      Class *class_ = class_val.as_object()->as<Class>();
+    if (class_val.is_ptr() && class_val.as_ptr()->is<Class>()) {
+      Class *class_ = class_val.as_ptr()->as<Class>();
       if (class_->is_native)
         return Value::null();
       auto error = allocate<Instance>();
@@ -992,14 +992,14 @@ static bool is_descendant(Class *base, Class *c) {
 std::string VM::report_error(Value error) {
   auto error_class_val =
       module_variables[get_module_variable("<prelude>", "Error").position];
-  if (error_class_val.is_object() && error_class_val.as_object()->is<Class>()) {
-    auto error_class = error_class_val.as_object()->as<Class>();
+  if (error_class_val.is_ptr() && error_class_val.as_ptr()->is<Class>()) {
+    auto error_class = error_class_val.as_ptr()->as<Class>();
     if (error_class->is_native)
       throw std::runtime_error("Expect Error class to not be native");
     auto class_ = get_class(error);
     if (is_descendant(error_class, class_)) {
       std::ostringstream os;
-      auto error_object = error.as_object()->as<Instance>();
+      auto error_object = error.as_ptr()->as<Instance>();
       auto task_iter = error_object->properties.find(builtin_symbols.task);
       if (task_iter != error_object->properties.end()) {
         os << "In " << task_iter->second << " ";
@@ -1009,8 +1009,8 @@ std::string VM::report_error(Value error) {
           error_object->properties.find(builtin_symbols.message);
       if (message_iter != error_object->properties.end()) {
         auto message = message_iter->second;
-        if (message.is_object() && message.as_object()->is<String>())
-          os << StringSlice(*message.as_object()->as<String>());
+        if (message.is_ptr() && message.as_ptr()->is<String>())
+          os << StringSlice(*message.as_ptr()->as<String>());
         else
           os << message;
       }
@@ -1018,8 +1018,8 @@ std::string VM::report_error(Value error) {
       auto stack_iter = error_object->properties.find(builtin_symbols.stack);
       if (stack_iter != error_object->properties.end()) {
         auto stack = stack_iter->second;
-        if (stack.is_object() && stack.as_object()->is<String>())
-          os << StringSlice(*stack.as_object()->as<String>());
+        if (stack.is_ptr() && stack.as_ptr()->is<String>())
+          os << StringSlice(*stack.as_ptr()->as<String>());
         else
           os << stack;
       }

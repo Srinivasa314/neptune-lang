@@ -41,7 +41,7 @@ public:
   union {
     int32_t as_int;
     double as_float;
-    Object *as_object;
+    Object *as_ptr;
   } value;
 
   ALWAYS_INLINE explicit Value(Tag t) { tag = t; }
@@ -55,7 +55,7 @@ public:
 
   ALWAYS_INLINE explicit Value() {
     tag = Tag::Object;
-    value.as_object = nullptr;
+    value.as_ptr = nullptr;
   }
 
 #endif
@@ -69,8 +69,8 @@ public:
   ALWAYS_INLINE bool is_float() const;
   ALWAYS_INLINE double as_float() const;
   ALWAYS_INLINE bool is_null_or_false() const;
-  ALWAYS_INLINE bool is_object() const;
-  ALWAYS_INLINE Object *as_object() const;
+  ALWAYS_INLINE bool is_ptr() const;
+  ALWAYS_INLINE Object *as_ptr() const;
   ALWAYS_INLINE bool is_null() const;
   ALWAYS_INLINE bool is_bool() const;
   ALWAYS_INLINE bool is_true() const;

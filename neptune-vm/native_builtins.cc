@@ -41,12 +41,12 @@ static VMStatus object_getclass(VM *vm, Value *args) {
 
 static VMStatus class_name(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<String>(args[0].as_object()->as<Class>()->name));
+      Value(vm->allocate<String>(args[0].as_ptr()->as<Class>()->name));
   return VMStatus::Success;
 }
 
 static VMStatus class_getsuper(VM *vm, Value *args) {
-  auto super = args[0].as_object()->as<Class>()->super;
+  auto super = args[0].as_ptr()->as<Class>()->super;
   if (super == nullptr)
     vm->return_value = Value::null();
   else
@@ -55,7 +55,7 @@ static VMStatus class_getsuper(VM *vm, Value *args) {
 }
 
 static VMStatus array_pop(VM *vm, Value *args) {
-  auto &arr = args[0].as_object()->as<Array>()->inner;
+  auto &arr = args[0].as_ptr()->as<Array>()->inner;
   if (arr.empty()) {
     THROW("IndexError", "Cannot pop from empty array");
   }
@@ -65,20 +65,20 @@ static VMStatus array_pop(VM *vm, Value *args) {
 }
 
 static VMStatus array_push(VM *vm, Value *args) {
-  args[0].as_object()->as<Array>()->inner.push_back(args[1]);
+  args[0].as_ptr()->as<Array>()->inner.push_back(args[1]);
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
 static VMStatus array_len(VM *vm, Value *args) {
   vm->return_value = Value(
-      static_cast<int32_t>(args[0].as_object()->as<Array>()->inner.size()));
+      static_cast<int32_t>(args[0].as_ptr()->as<Array>()->inner.size()));
   return VMStatus::Success;
 }
 
 static VMStatus array_insert(VM *vm, Value *args) {
   if (args[1].is_int()) {
-    auto &arr = args[0].as_object()->as<Array>()->inner;
+    auto &arr = args[0].as_ptr()->as<Array>()->inner;
     auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) > arr.size())
       THROW("IndexError", "Array index out of range");
@@ -92,7 +92,7 @@ static VMStatus array_insert(VM *vm, Value *args) {
 
 static VMStatus array_remove(VM *vm, Value *args) {
   if (args[1].is_int()) {
-    auto &arr = args[0].as_object()->as<Array>()->inner;
+    auto &arr = args[0].as_ptr()->as<Array>()->inner;
     auto index = args[1].as_int();
     if (index < 0 || static_cast<size_t>(index) >= arr.size())
       THROW("IndexError", "Array index out of range");
@@ -105,7 +105,7 @@ static VMStatus array_remove(VM *vm, Value *args) {
 }
 
 static VMStatus array_clear(VM *vm, Value *args) {
-  args[0].as_object()->as<Array>()->inner.clear();
+  args[0].as_ptr()->as<Array>()->inner.clear();
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
@@ -136,9 +136,9 @@ static VMStatus string_construct(VM *vm, Value *) {
 }
 
 static VMStatus string_find(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<String>()) {
-    auto haystack = args[0].as_object()->as<String>();
-    auto needle = args[1].as_object()->as<String>();
+  if (args[1].is_ptr() && args[1].as_ptr()->is<String>()) {
+    auto haystack = args[0].as_ptr()->as<String>();
+    auto needle = args[1].as_ptr()->as<String>();
     auto pos = String::find(haystack, needle, 0);
     if (pos == haystack->get_len())
       vm->return_value = Value(-1);
@@ -151,11 +151,11 @@ static VMStatus string_find(VM *vm, Value *args) {
 }
 
 static VMStatus string_replace(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<String>() &&
-      args[2].is_object() && args[2].as_object()->is<String>()) {
-    vm->return_value = Value(args[0].as_object()->as<String>()->replace(
-        vm, args[1].as_object()->as<String>(),
-        args[2].as_object()->as<String>()));
+  if (args[1].is_ptr() && args[1].as_ptr()->is<String>() &&
+      args[2].is_ptr() && args[2].as_ptr()->is<String>()) {
+    vm->return_value = Value(args[0].as_ptr()->as<String>()->replace(
+        vm, args[1].as_ptr()->as<String>(),
+        args[2].as_ptr()->as<String>()));
     return VMStatus::Success;
   } else
     THROW("TypeError",
@@ -202,8 +202,8 @@ static VMStatus range_construct(VM *vm, Value *args) {
 }
 
 static VMStatus symbol_construct(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<String>()) {
-    vm->return_value = Value(vm->intern(*args[1].as_object()->as<String>()));
+  if (args[1].is_ptr() && args[1].as_ptr()->is<String>()) {
+    vm->return_value = Value(vm->intern(*args[1].as_ptr()->as<String>()));
     return VMStatus::Success;
   } else {
     THROW("TypeError",
@@ -212,7 +212,7 @@ static VMStatus symbol_construct(VM *vm, Value *args) {
 }
 
 static VMStatus range_next(VM *vm, Value *args) {
-  auto &range = *args[0].as_object()->as<Range>();
+  auto &range = *args[0].as_ptr()->as<Range>();
   vm->return_value = Value(range.start);
   if (range.start != range.end)
     range.start++;
@@ -220,37 +220,37 @@ static VMStatus range_next(VM *vm, Value *args) {
 }
 
 static VMStatus range_hasnext(VM *vm, Value *args) {
-  auto &range = *args[0].as_object()->as<Range>();
+  auto &range = *args[0].as_ptr()->as<Range>();
   vm->return_value = Value(range.start < range.end);
   return VMStatus::Success;
 }
 
 static VMStatus array_iter(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<ArrayIterator>(args[0].as_object()->as<Array>()));
+      Value(vm->allocate<ArrayIterator>(args[0].as_ptr()->as<Array>()));
   return VMStatus::Success;
 }
 
 static VMStatus map_keys(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<MapIterator>(args[0].as_object()->as<Map>()));
+      Value(vm->allocate<MapIterator>(args[0].as_ptr()->as<Map>()));
   return VMStatus::Success;
 }
 
 static VMStatus string_chars(VM *vm, Value *args) {
   vm->return_value =
-      Value(vm->allocate<StringIterator>(args[0].as_object()->as<String>()));
+      Value(vm->allocate<StringIterator>(args[0].as_ptr()->as<String>()));
   return VMStatus::Success;
 }
 
 static VMStatus mapiterator_hasnext(VM *vm, Value *args) {
   vm->return_value =
-      Value(!args[0].as_object()->as<MapIterator>()->last_key.is_empty());
+      Value(!args[0].as_ptr()->as<MapIterator>()->last_key.is_empty());
   return VMStatus::Success;
 }
 
 static VMStatus mapiterator_next(VM *vm, Value *args) {
-  auto mi = args[0].as_object()->as<MapIterator>();
+  auto mi = args[0].as_ptr()->as<MapIterator>();
   if (mi->last_key.is_empty())
     vm->return_value = Value::null();
   else {
@@ -270,13 +270,13 @@ static VMStatus mapiterator_next(VM *vm, Value *args) {
 }
 
 static VMStatus arrayiterator_hasnext(VM *vm, Value *args) {
-  auto ai = args[0].as_object()->as<ArrayIterator>();
+  auto ai = args[0].as_ptr()->as<ArrayIterator>();
   vm->return_value = Value(ai->position < ai->array->inner.size());
   return VMStatus::Success;
 }
 
 static VMStatus arrayiterator_next(VM *vm, Value *args) {
-  auto ai = args[0].as_object()->as<ArrayIterator>();
+  auto ai = args[0].as_ptr()->as<ArrayIterator>();
   if (ai->position < ai->array->inner.size()) {
     vm->return_value = ai->array->inner[ai->position];
     ai->position++;
@@ -287,14 +287,14 @@ static VMStatus arrayiterator_next(VM *vm, Value *args) {
 }
 
 static VMStatus stringiterator_hasnext(VM *vm, Value *args) {
-  auto si = args[0].as_object()->as<StringIterator>();
+  auto si = args[0].as_ptr()->as<StringIterator>();
   auto str = static_cast<StringSlice>(*si->string);
   vm->return_value = Value(si->position < str.len);
   return VMStatus::Success;
 }
 
 static VMStatus stringiterator_next(VM *vm, Value *args) {
-  auto si = args[0].as_object()->as<StringIterator>();
+  auto si = args[0].as_ptr()->as<StringIterator>();
   auto str = static_cast<StringSlice>(*si->string);
   if (si->position < str.len) {
     auto old_pos = si->position;
@@ -366,14 +366,14 @@ static VMStatus abs(VM *vm, Value *args) {
 
 static VMStatus disassemble(VM *vm, Value *args) {
   auto fn = args[0];
-  if (fn.is_object() && fn.as_object()->is<Function>()) {
+  if (fn.is_ptr() && fn.as_ptr()->is<Function>()) {
     std::ostringstream os;
-    neptune_vm::disassemble(os, *fn.as_object()->as<Function>()->function_info);
+    neptune_vm::disassemble(os, *fn.as_ptr()->as<Function>()->function_info);
     vm->return_value = Value(vm->allocate<String>(os.str()));
     return VMStatus::Success;
-  } else if (fn.is_object() && fn.as_object()->is<NativeFunction>()) {
+  } else if (fn.is_ptr() && fn.as_ptr()->is<NativeFunction>()) {
     THROW("TypeError", "Cannot disassemble native function "
-                           << fn.as_object()->as<NativeFunction>()->name);
+                           << fn.as_ptr()->as<NativeFunction>()->name);
   } else {
     THROW("TypeError", "The first argument must be a Function, not "
                            << args[0].type_string());
@@ -387,9 +387,9 @@ static VMStatus gc(VM *vm, Value *) {
 }
 
 static VMStatus _getModule(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<String>()) {
+  if (args[0].is_ptr() && args[0].as_ptr()->is<String>()) {
     auto module =
-        vm->get_module(StringSlice(*args[0].as_object()->as<String>()));
+        vm->get_module(StringSlice(*args[0].as_ptr()->as<String>()));
     if (module == nullptr)
       vm->return_value = Value::null();
     else
@@ -413,11 +413,11 @@ static VMStatus _getCallerModule(VM *vm, Value *) {
 }
 
 static VMStatus ecall(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<Symbol>()) {
-    auto efunc_iter = vm->efuncs.find(args[0].as_object()->as<Symbol>());
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Symbol>()) {
+    auto efunc_iter = vm->efuncs.find(args[0].as_ptr()->as<Symbol>());
     if (efunc_iter == vm->efuncs.end()) {
       THROW("Error", "Cannot find EFunc "
-                         << StringSlice(*args[0].as_object()->as<Symbol>()));
+                         << StringSlice(*args[0].as_ptr()->as<Symbol>()));
 
     } else {
       auto task = vm->current_task;
@@ -458,10 +458,10 @@ static VMStatus generateStackTrace(VM *vm, Value *args) {
 }
 
 static VMStatus _extendClass(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<Class>() &&
-      args[1].is_object() && args[1].as_object()->is<Class>()) {
-    auto class0 = args[0].as_object()->as<Class>();
-    auto class1 = args[1].as_object()->as<Class>();
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() &&
+      args[1].is_ptr() && args[1].as_ptr()->is<Class>()) {
+    auto class0 = args[0].as_ptr()->as<Class>();
+    auto class1 = args[1].as_ptr()->as<Class>();
     if (class1->is_native && class1 != vm->builtin_classes.Object)
       THROW("TypeError", "Cannot inherit from native class");
     class0->super = class1;
@@ -475,10 +475,10 @@ static VMStatus _extendClass(VM *vm, Value *args) {
 }
 
 static VMStatus _copyMethods(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<Class>() &&
-      args[1].is_object() && args[1].as_object()->is<Class>()) {
-    auto class0 = args[0].as_object()->as<Class>();
-    auto class1 = args[1].as_object()->as<Class>();
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() &&
+      args[1].is_ptr() && args[1].as_ptr()->is<Class>()) {
+    auto class0 = args[0].as_ptr()->as<Class>();
+    auto class1 = args[1].as_ptr()->as<Class>();
     if (class1->is_native)
       THROW("TypeError", "Cannot copy methods from native class");
     class0->copy_methods(*class1);
@@ -498,8 +498,8 @@ static VMStatus random(VM *vm, Value *) {
 }
 
 static VMStatus shuffle(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<Array>()) {
-    auto &array = args[0].as_object()->as<Array>()->inner;
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Array>()) {
+    auto &array = args[0].as_ptr()->as<Array>()->inner;
     std::shuffle(array.begin(), array.end(), vm->rng);
     vm->return_value = Value::null();
     return VMStatus::Success;
@@ -524,37 +524,37 @@ static VMStatus random_range(VM *vm, Value *args) {
 }
 
 static VMStatus map_clear(VM *vm, Value *args) {
-  args[0].as_object()->as<Map>()->inner.clear();
+  args[0].as_ptr()->as<Map>()->inner.clear();
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
 static VMStatus map_len(VM *vm, Value *args) {
   vm->return_value =
-      Value(static_cast<int32_t>(args[0].as_object()->as<Map>()->inner.size()));
+      Value(static_cast<int32_t>(args[0].as_ptr()->as<Map>()->inner.size()));
   return VMStatus::Success;
 }
 
 static VMStatus map_contains(VM *vm, Value *args) {
   vm->return_value =
-      Value(args[0].as_object()->as<Map>()->inner.count(args[1]) == 1);
+      Value(args[0].as_ptr()->as<Map>()->inner.count(args[1]) == 1);
   return VMStatus::Success;
 }
 
 static VMStatus map_remove(VM *vm, Value *args) {
-  if (!args[0].as_object()->as<Map>()->inner.erase(args[1]))
+  if (!args[0].as_ptr()->as<Map>()->inner.erase(args[1]))
     THROW("KeyError", "Key " << args[1] << " does not exist in map.");
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
 static VMStatus range_start(VM *vm, Value *args) {
-  vm->return_value = Value(args[0].as_object()->as<Range>()->start);
+  vm->return_value = Value(args[0].as_ptr()->as<Range>()->start);
   return VMStatus::Success;
 }
 
 static VMStatus range_end(VM *vm, Value *args) {
-  vm->return_value = Value(args[0].as_object()->as<Range>()->end);
+  vm->return_value = Value(args[0].as_ptr()->as<Range>()->end);
   return VMStatus::Success;
 }
 static VMStatus float_toint(VM *vm, Value *args) {
@@ -578,7 +578,7 @@ static VMStatus float_isnan(VM *vm, Value *args) {
 
 static VMStatus string_len(VM *vm, Value *args) {
   vm->return_value =
-      Value(int32_t(args[0].as_object()->as<String>()->get_len()));
+      Value(int32_t(args[0].as_ptr()->as<String>()->get_len()));
   return VMStatus::Success;
 }
 
@@ -588,8 +588,8 @@ static VMStatus suspendCurrentTask(VM *vm, Value *) {
 }
 
 static VMStatus spawn(VM *vm, Value *args) {
-  if (args[0].is_object() && args[0].as_object()->is<Function>()) {
-    Task *t = vm->allocate<Task>(args[0].as_object()->as<Function>());
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Function>()) {
+    Task *t = vm->allocate<Task>(args[0].as_ptr()->as<Function>());
     vm->return_value = Value(t);
     vm->tasks_queue.push_back({t, Value::null(), false});
     vm->main_task->links.insert(t);
@@ -602,7 +602,7 @@ static VMStatus spawn(VM *vm, Value *args) {
 static VMStatus spawn_link(VM *vm, Value *args) {
   auto status = spawn(vm, args);
   if (status == VMStatus::Success) {
-    auto task = vm->return_value.as_object()->as<Task>();
+    auto task = vm->return_value.as_ptr()->as<Task>();
     task->links.insert(vm->current_task);
     vm->current_task->links.insert(task);
   }
@@ -610,7 +610,7 @@ static VMStatus spawn_link(VM *vm, Value *args) {
 }
 
 static VMStatus task_kill(VM *vm, Value *args) {
-  vm->kill(args[0].as_object()->as<Task>(), args[1]);
+  vm->kill(args[0].as_ptr()->as<Task>(), args[1]);
   if (vm->current_task->status == VMStatus::Error) {
     return VMStatus::Suspend;
   }
@@ -623,13 +623,13 @@ static VMStatus channel_construct(VM *vm, Value *) {
 }
 
 static VMStatus channel_send(VM *vm, Value *args) {
-  args[0].as_object()->as<Channel>()->send(args[1], vm);
+  args[0].as_ptr()->as<Channel>()->send(args[1], vm);
   vm->return_value = Value::null();
   return VMStatus::Success;
 }
 
 static VMStatus channel_recv(VM *vm, Value *args) {
-  auto chan = args[0].as_object()->as<Channel>();
+  auto chan = args[0].as_ptr()->as<Channel>();
   if (chan->queue.empty()) {
     chan->wait_list.push_back(vm->current_task);
     return VMStatus::Suspend;
@@ -641,7 +641,7 @@ static VMStatus channel_recv(VM *vm, Value *args) {
 }
 
 static VMStatus task_name(VM *vm, Value *args) {
-  auto name = args[0].as_object()->as<Task>()->name;
+  auto name = args[0].as_ptr()->as<Task>()->name;
   if (name == nullptr)
     vm->return_value = Value::null();
   else
@@ -650,8 +650,8 @@ static VMStatus task_name(VM *vm, Value *args) {
 }
 
 static VMStatus task_setname(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<String>()) {
-    args[0].as_object()->as<Task>()->name = args[1].as_object()->as<String>();
+  if (args[1].is_ptr() && args[1].as_ptr()->is<String>()) {
+    args[0].as_ptr()->as<Task>()->name = args[1].as_ptr()->as<String>();
     return VMStatus::Success;
   } else
     THROW("TypeError",
@@ -659,11 +659,11 @@ static VMStatus task_setname(VM *vm, Value *args) {
 }
 
 static VMStatus task_monitor(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<Channel>()) {
-    auto task = args[0].as_object()->as<Task>();
-    auto chan = args[1].as_object()->as<Channel>();
+  if (args[1].is_ptr() && args[1].as_ptr()->is<Channel>()) {
+    auto task = args[0].as_ptr()->as<Task>();
+    auto chan = args[1].as_ptr()->as<Channel>();
     if (task->status == VMStatus::Suspend)
-      args[0].as_object()->as<Task>()->monitors.push_back(chan);
+      args[0].as_ptr()->as<Task>()->monitors.push_back(chan);
     else
       chan->send(Value(task), vm);
     return VMStatus::Success;
@@ -673,9 +673,9 @@ static VMStatus task_monitor(VM *vm, Value *args) {
 }
 
 static VMStatus task_link(VM *vm, Value *args) {
-  if (args[1].is_object() && args[1].as_object()->is<Task>()) {
-    auto task0 = args[0].as_object()->as<Task>();
-    auto task1 = args[1].as_object()->as<Task>();
+  if (args[1].is_ptr() && args[1].as_ptr()->is<Task>()) {
+    auto task0 = args[0].as_ptr()->as<Task>();
+    auto task1 = args[1].as_ptr()->as<Task>();
     task0->links.insert(task1);
     task1->links.insert(task0);
     return VMStatus::Success;
@@ -690,7 +690,7 @@ static VMStatus currentTask(VM *vm, Value *) {
 }
 
 static VMStatus task_status(VM *vm, Value *args) {
-  switch (args[0].as_object()->as<Task>()->status) {
+  switch (args[0].as_ptr()->as<Task>()->status) {
   case VMStatus::Suspend:
     vm->return_value = Value(vm->builtin_symbols.running);
     break;
@@ -704,7 +704,7 @@ static VMStatus task_status(VM *vm, Value *args) {
 }
 
 static VMStatus task_get_uncaught_exception(VM *vm, Value *args) {
-  auto task = args[0].as_object()->as<Task>();
+  auto task = args[0].as_ptr()->as<Task>();
   if (task->status == VMStatus::Error)
     vm->return_value = task->uncaught_exception;
   else
@@ -713,7 +713,7 @@ static VMStatus task_get_uncaught_exception(VM *vm, Value *args) {
 }
 
 static VMStatus resource_close(VM *, Value *args) {
-  args[0].as_object()->as<Resource>()->close();
+  args[0].as_ptr()->as<Resource>()->close();
   return VMStatus::Success;
 }
 #undef THROW

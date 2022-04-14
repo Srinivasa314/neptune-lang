@@ -48,8 +48,8 @@ EFuncStatus EFuncContext::push_to_array() {
   auto elem = pop_value();
   CHECK_STACK_UNDERFLOW;
   auto v = peek();
-  if (v.is_object() && v.as_object()->is<Array>()) {
-    auto &array = v.as_object()->as<Array>()->inner;
+  if (v.is_ptr() && v.as_ptr()->is<Array>()) {
+    auto &array = v.as_ptr()->as<Array>()->inner;
     array.push_back(elem);
     return EFuncStatus::Ok;
   } else
@@ -62,8 +62,8 @@ EFuncStatus EFuncContext::set_object_property(StringSlice s) {
   vm->temp_roots.push_back(elem);
   CHECK_STACK_UNDERFLOW;
   auto obj = peek();
-  if (obj.is_object() && obj.as_object()->is<Instance>()) {
-    auto &map = obj.as_object()->as<Instance>()->properties;
+  if (obj.is_ptr() && obj.as_ptr()->is<Instance>()) {
+    auto &map = obj.as_ptr()->as<Instance>()->properties;
     map.insert({vm->intern(s), elem});
     vm->temp_roots.pop_back();
     return EFuncStatus::Ok;
@@ -100,8 +100,8 @@ EFuncStatus EFuncContext::insert_in_map() {
   auto key = pop_value();
   CHECK_STACK_UNDERFLOW;
   auto m = peek();
-  if (m.is_object() && m.as_object()->is<Map>()) {
-    auto &map = m.as_object()->as<Map>()->inner;
+  if (m.is_ptr() && m.as_ptr()->is<Map>()) {
+    auto &map = m.as_ptr()->as<Map>()->inner;
     map.insert({key, value});
     return EFuncStatus::Ok;
   } else
@@ -150,8 +150,8 @@ EFuncStatus EFuncContext::is_null() {
 EFuncStatus EFuncContext::as_string(StringSlice &s) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
-  if (v.is_object() && v.as_object()->is<String>()) {
-    s = StringSlice(*v.as_object()->as<String>());
+  if (v.is_ptr() && v.as_ptr()->is<String>()) {
+    s = StringSlice(*v.as_ptr()->as<String>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
@@ -160,8 +160,8 @@ EFuncStatus EFuncContext::as_string(StringSlice &s) {
 EFuncStatus EFuncContext::as_symbol(StringSlice &s) {
   CHECK_STACK_UNDERFLOW;
   Value v = pop_value();
-  if (v.is_object() && v.as_object()->is<Symbol>()) {
-    s = StringSlice(*v.as_object()->as<Symbol>());
+  if (v.is_ptr() && v.as_ptr()->is<Symbol>()) {
+    s = StringSlice(*v.as_ptr()->as<Symbol>());
     return EFuncStatus::Ok;
   } else
     return EFuncStatus::TypeError;
@@ -178,8 +178,8 @@ bool EFuncContext::pop() {
 EFuncStatus EFuncContext::get_array_length(size_t &len) const {
   CHECK_STACK_UNDERFLOW;
   auto v = peek();
-  if (v.is_object() && v.as_object()->is<Array>()) {
-    auto &array = v.as_object()->as<Array>()->inner;
+  if (v.is_ptr() && v.as_ptr()->is<Array>()) {
+    auto &array = v.as_ptr()->as<Array>()->inner;
     len = array.size();
     return EFuncStatus::Ok;
   } else
@@ -189,8 +189,8 @@ EFuncStatus EFuncContext::get_array_length(size_t &len) const {
 EFuncStatus EFuncContext::get_array_element(size_t pos) {
   CHECK_STACK_UNDERFLOW;
   auto v = peek();
-  if (v.is_object() && v.as_object()->is<Array>()) {
-    auto &array = v.as_object()->as<Array>()->inner;
+  if (v.is_ptr() && v.as_ptr()->is<Array>()) {
+    auto &array = v.as_ptr()->as<Array>()->inner;
     if (pos >= array.size())
       return EFuncStatus::OutOfBoundsError;
     else {
@@ -204,8 +204,8 @@ EFuncStatus EFuncContext::get_array_element(size_t pos) {
 EFuncStatus EFuncContext::get_object_property(StringSlice prop) {
   CHECK_STACK_UNDERFLOW;
   auto obj = peek();
-  if (obj.is_object() && obj.as_object()->is<Instance>()) {
-    auto &map = obj.as_object()->as<Instance>()->properties;
+  if (obj.is_ptr() && obj.as_ptr()->is<Instance>()) {
+    auto &map = obj.as_ptr()->as<Instance>()->properties;
     auto key = vm->intern(prop);
     auto iter = map.find(key);
     if (iter == map.end())
@@ -228,9 +228,9 @@ Data* EFuncContext::as_resource(EFuncStatus &status) {
     return nullptr;
   }
   Value v = pop_value();
-  if (v.is_object()&&v.as_object()->is<Resource>()) {
+  if (v.is_ptr()&&v.as_ptr()->is<Resource>()) {
     status=EFuncStatus::Ok;
-    return v.as_object()->as<Resource>()->data;
+    return v.as_ptr()->as<Resource>()->data;
   } else{
     status=EFuncStatus::TypeError;
     return nullptr;

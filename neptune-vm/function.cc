@@ -162,9 +162,9 @@ void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
   if (class_ >= hf->object->constants.size())
     throw std::overflow_error("Index out of bounds");
   auto val = hf->object->constants[class_];
-  if (!val.is_object() || !val.as_object()->is<Class>())
+  if (!val.is_ptr() || !val.as_ptr()->is<Class>())
     throw std::runtime_error("Expected class");
-  val.as_object()->as<Class>()->methods.insert(
+  val.as_ptr()->as<Class>()->methods.insert(
       {vm->intern(name), f.hf->object});
   f.release();
 }
@@ -698,9 +698,9 @@ void disassemble(std::ostream &os, const FunctionInfo &f) {
        << "\nerror register: " << handler.error_reg << '\n';
   }
   for (auto constant : f.constants) {
-    if (constant.is_object() && constant.as_object()->is<FunctionInfo>()) {
+    if (constant.is_ptr() && constant.as_ptr()->is<FunctionInfo>()) {
       os << '\n';
-      disassemble(os, *constant.as_object()->as<FunctionInfo>());
+      disassemble(os, *constant.as_ptr()->as<FunctionInfo>());
     }
   }
 }

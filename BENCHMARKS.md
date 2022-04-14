@@ -1,5 +1,7 @@
 # Benchmarks
 
+These benchmarks were run on an Intel® Core™ i5-1035G1 processor.
+
 ## Collatz
 ![Collatz](bench/collatz.png)
 

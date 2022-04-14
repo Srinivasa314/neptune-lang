@@ -76,10 +76,10 @@ handler(ModRegister, {
 });
 handler(ConcatRegister, {
   auto reg = READ(utype);
-  if (likely(accumulator.is_object() && accumulator.as_object()->is<String>() &&
-             bp[reg].is_object() && bp[reg].as_object()->is<String>())) {
-    accumulator = Value(concat(bp[reg].as_object()->as<String>(),
-                               accumulator.as_object()->as<String>()));
+  if (likely(accumulator.is_ptr() && accumulator.as_ptr()->is<String>() &&
+             bp[reg].is_ptr() && bp[reg].as_ptr()->is<String>())) {
+    accumulator = Value(concat(bp[reg].as_ptr()->as<String>(),
+                               accumulator.as_ptr()->as<String>()));
   } else {
     THROW("TypeError", "Cannot concat types " << bp[reg].type_string()
                                               << " and "
@@ -98,9 +98,9 @@ handler(LesserThanOrEqual, COMPARE_OP_REGISTER(<=););
 uint8_t callop_actual_nargs, callop_nargs;
 uint32_t callop_offset;
 callop : {
-  if (likely(accumulator.is_object())) {
-    if (accumulator.as_object()->is<Function>()) {
-      auto f = accumulator.as_object()->as<Function>();
+  if (likely(accumulator.is_ptr())) {
+    if (accumulator.as_ptr()->is<Function>()) {
+      auto f = accumulator.as_ptr()->as<Function>();
       auto arity = f->function_info->arity;
       if (unlikely(arity != callop_nargs))
         THROW("ArgumentError",
@@ -120,8 +120,8 @@ callop : {
            i++)
         bp[i] = Value(nullptr);
       task->frames.push_back(Frame{bp, f, ip});
-    } else if (accumulator.as_object()->is<NativeFunction>()) {
-      auto f = accumulator.as_object()->as<NativeFunction>();
+    } else if (accumulator.as_ptr()->is<NativeFunction>()) {
+      auto f = accumulator.as_ptr()->as<NativeFunction>();
       auto arity = f->arity;
       if (unlikely(arity != callop_nargs))
         THROW("ArgumentError",
@@ -177,7 +177,7 @@ handler(Call, {
 
 handler(CallMethod, {
   auto object = bp[READ(utype)];
-  auto member = constants[READ(utype)].as_object()->as<Symbol>();
+  auto member = constants[READ(utype)].as_ptr()->as<Symbol>();
   callop_offset = READ(utype);
   auto n = READ(uint8_t);
 
@@ -190,8 +190,8 @@ handler(CallMethod, {
     callop_nargs = n;
     goto callop;
 
-  } else if (object.is_object() && object.as_object()->is<Module>()) {
-    auto module = object.as_object()->as<Module>();
+  } else if (object.is_ptr() && object.as_ptr()->is<Module>()) {
+    auto module = object.as_ptr()->as<Module>();
     auto iter = module->module_variables.find(member);
     if (unlikely(iter == module->module_variables.end() ||
                  !iter->second.exported))
@@ -205,8 +205,8 @@ handler(CallMethod, {
     callop_nargs = n;
     goto callop;
 
-  } else if (object.is_object() && object.as_object()->is<Instance>()) {
-    auto instance = object.as_object()->as<Instance>();
+  } else if (object.is_ptr() && object.as_ptr()->is<Instance>()) {
+    auto instance = object.as_ptr()->as<Instance>();
     auto iter = instance->properties.find(member);
     if (iter == instance->properties.end())
       THROW("NoMethodError", "object does not have any method named "
@@ -226,7 +226,7 @@ handler(CallMethod, {
 
 handler(SuperCall, {
   auto object = bp[0];
-  auto member = constants[READ(utype)].as_object()->as<Symbol>();
+  auto member = constants[READ(utype)].as_ptr()->as<Symbol>();
   callop_offset = READ(utype);
   auto n = READ(uint8_t);
 
@@ -248,9 +248,9 @@ handler(SuperCall, {
 handler(Construct, {
   callop_offset = READ(utype);
   auto n = READ(uint8_t);
-  if (likely(accumulator.is_object() && accumulator.as_object()->is<Class>())) {
+  if (likely(accumulator.is_ptr() && accumulator.as_ptr()->is<Class>())) {
     auto construct_sym = builtin_symbols.construct;
-    auto class_ = accumulator.as_object()->as<Class>();
+    auto class_ = accumulator.as_ptr()->as<Class>();
     temp_roots.push_back(Value(class_));
     Value obj;
     if (class_->is_native) {
@@ -287,21 +287,21 @@ handler(NewArray, {
 
 handler(LoadSubscript, {
   auto obj = bp[READ(utype)];
-  if (likely(obj.is_object())) {
-    if (obj.as_object()->is<Array>()) {
+  if (likely(obj.is_ptr())) {
+    if (obj.as_ptr()->is<Array>()) {
       if (likely(accumulator.is_int())) {
         auto i = accumulator.as_int();
-        auto a = obj.as_object()->as<Array>();
+        auto a = obj.as_ptr()->as<Array>();
         if (unlikely(i < 0 || static_cast<size_t>(i) >= a->inner.size()))
           THROW("IndexError", "Array index out of range");
         else
           accumulator = a->inner[static_cast<size_t>(i)];
-      } else if (accumulator.is_object() &&
-                 accumulator.as_object()->is<Range>()) {
-        auto &r = *accumulator.as_object()->as<Range>();
+      } else if (accumulator.is_ptr() &&
+                 accumulator.as_ptr()->is<Range>()) {
+        auto &r = *accumulator.as_ptr()->as<Range>();
         auto start = r.start;
         auto end = r.end;
-        auto a = obj.as_object()->as<Array>();
+        auto a = obj.as_ptr()->as<Array>();
         if (start < 0 || static_cast<size_t>(start) >= a->inner.size() ||
             end < 0 || static_cast<size_t>(end) > a->inner.size()) {
           THROW("IndexError", "Array index out of range");
@@ -321,18 +321,18 @@ handler(LoadSubscript, {
         THROW("TypeError", "Array indices must be Int or Range not "
                                << accumulator.type_string());
       }
-    } else if (obj.as_object()->is<Map>()) {
-      auto &m = obj.as_object()->as<Map>()->inner;
+    } else if (obj.as_ptr()->is<Map>()) {
+      auto &m = obj.as_ptr()->as<Map>()->inner;
       auto it = m.find(accumulator);
       if (likely(it != m.end()))
         accumulator = it->second;
       else
         THROW("KeyError", "Key " << accumulator << " does not exist in map");
-    } else if (obj.as_object()->is<String>()) {
-      if (likely(accumulator.is_object() &&
-                 accumulator.as_object()->is<Range>())) {
-        auto str = obj.as_object()->as<String>();
-        auto &r = *accumulator.as_object()->as<Range>();
+    } else if (obj.as_ptr()->is<String>()) {
+      if (likely(accumulator.is_ptr() &&
+                 accumulator.as_ptr()->is<Range>())) {
+        auto str = obj.as_ptr()->as<String>();
+        auto &r = *accumulator.as_ptr()->as<Range>();
         if (r.start < 0 || static_cast<size_t>(r.start) >= str->len ||
             r.end < 0 || static_cast<size_t>(r.end) > str->len) {
           THROW("IndexError", "String index out of range");
@@ -355,10 +355,10 @@ handler(LoadSubscript, {
         THROW("TypeError",
               "String indices must be Range not " << accumulator.type_string());
       }
-    } else if (obj.as_object()->is<Instance>()) {
-      if (accumulator.is_object() && accumulator.as_object()->is<Symbol>()) {
-        auto &props = obj.as_object()->as<Instance>()->properties;
-        auto it = props.find(accumulator.as_object()->as<Symbol>());
+    } else if (obj.as_ptr()->is<Instance>()) {
+      if (accumulator.is_ptr() && accumulator.as_ptr()->is<Symbol>()) {
+        auto &props = obj.as_ptr()->as<Instance>()->properties;
+        auto it = props.find(accumulator.as_ptr()->as<Symbol>());
         if (likely(it != props.end()))
           accumulator = it->second;
         else
@@ -377,7 +377,7 @@ handler(LoadSubscript, {
 });
 
 handler(StoreArrayUnchecked, {
-  auto &array = bp[READ(utype)].as_object()->as<Array>()->inner;
+  auto &array = bp[READ(utype)].as_ptr()->as<Array>()->inner;
   auto index = READ(utype);
   array[index] = accumulator;
 });
@@ -385,11 +385,11 @@ handler(StoreArrayUnchecked, {
 handler(StoreSubscript, {
   auto obj = bp[READ(utype)];
   auto subscript = bp[READ(utype)];
-  if (likely(obj.is_object())) {
-    if (obj.as_object()->is<Array>()) {
+  if (likely(obj.is_ptr())) {
+    if (obj.as_ptr()->is<Array>()) {
       if (likely(subscript.is_int())) {
         auto i = subscript.as_int();
-        auto &a = obj.as_object()->as<Array>()->inner;
+        auto &a = obj.as_ptr()->as<Array>()->inner;
         if (unlikely(i < 0 || static_cast<size_t>(i) >= a.size()))
           THROW("IndexError", "Array index out of range");
         else
@@ -398,13 +398,13 @@ handler(StoreSubscript, {
         THROW("TypeError",
               "Array indices must be Int not" << subscript.type_string());
       }
-    } else if (obj.as_object()->is<Map>()) {
-      auto m = obj.as_object()->as<Map>();
+    } else if (obj.as_ptr()->is<Map>()) {
+      auto m = obj.as_ptr()->as<Map>();
       m->inner.insert({subscript, accumulator});
-    } else if (obj.as_object()->is<Instance>()) {
-      if (subscript.is_object() && subscript.as_object()->is<Symbol>()) {
-        obj.as_object()->as<Instance>()->properties.insert(
-            {subscript.as_object()->as<Symbol>(), accumulator});
+    } else if (obj.as_ptr()->is<Instance>()) {
+      if (subscript.is_ptr() && subscript.as_ptr()->is<Symbol>()) {
+        obj.as_ptr()->as<Instance>()->properties.insert(
+            {subscript.as_ptr()->as<Symbol>(), accumulator});
       } else {
         THROW("TypeError", obj.type_string() << " indices must be Symbol not "
                                              << subscript.type_string());
@@ -511,16 +511,16 @@ handler(BeginForLoopConstant, {
 });
 
 handler(MakeFunction, {
-  auto function = constants[READ(utype)].as_object()->as<FunctionInfo>();
+  auto function = constants[READ(utype)].as_ptr()->as<FunctionInfo>();
   accumulator = Value(make_function(bp, function));
 });
 
 handler(MakeClass, {
   auto class_ =
-      allocate<Class>(*constants[READ(utype)].as_object()->as<Class>());
+      allocate<Class>(*constants[READ(utype)].as_ptr()->as<Class>());
   temp_roots.push_back(Value(class_));
-  if (accumulator.is_object() && accumulator.as_object()->is<Class>()) {
-    auto parent = accumulator.as_object()->as<Class>();
+  if (accumulator.is_ptr() && accumulator.as_ptr()->is<Class>()) {
+    auto parent = accumulator.as_ptr()->as<Class>();
     if (parent != builtin_classes.Object && parent->is_native)
       THROW("TypeError", "Cannot inherit from native class " << parent->name);
     class_->super = parent;
@@ -531,7 +531,7 @@ handler(MakeClass, {
     if (p.second->is<FunctionInfo>()) {
       p.second = make_function(bp, p.second->as<FunctionInfo>());
       p.second->as<Function>()->super_class =
-          accumulator.as_object()->as<Class>();
+          accumulator.as_ptr()->as<Class>();
     }
   temp_roots.pop_back();
   accumulator = Value(class_);
@@ -545,17 +545,17 @@ handler(Close, CLOSE(READ(utype)););
 
 handler(LoadProperty, {
   auto object = bp[READ(utype)];
-  auto property = constants[READ(utype)].as_object()->as<Symbol>();
-  if (likely(object.is_object() && object.as_object()->is<Instance>())) {
-    auto instance = object.as_object()->as<Instance>();
+  auto property = constants[READ(utype)].as_ptr()->as<Symbol>();
+  if (likely(object.is_ptr() && object.as_ptr()->is<Instance>())) {
+    auto instance = object.as_ptr()->as<Instance>();
     auto iter = instance->properties.find(property);
     if (unlikely(iter == instance->properties.end()))
       THROW("PropertyError", "object does not have any property named "
                                  << static_cast<StringSlice>(*property));
     else
       accumulator = iter->second;
-  } else if (object.is_object() && object.as_object()->is<Module>()) {
-    auto module = object.as_object()->as<Module>();
+  } else if (object.is_ptr() && object.as_ptr()->is<Module>()) {
+    auto module = object.as_ptr()->as<Module>();
     auto iter = module->module_variables.find(property);
     if (unlikely(iter == module->module_variables.end() ||
                  !iter->second.exported))
@@ -572,9 +572,9 @@ handler(LoadProperty, {
 
 handler(StoreProperty, {
   auto object = bp[READ(utype)];
-  auto property = constants[READ(utype)].as_object()->as<Symbol>();
-  if (likely(object.is_object() && object.as_object()->is<Instance>())) {
-    auto instance = object.as_object()->as<Instance>();
+  auto property = constants[READ(utype)].as_ptr()->as<Symbol>();
+  if (likely(object.is_ptr() && object.as_ptr()->is<Instance>())) {
+    auto instance = object.as_ptr()->as<Instance>();
     instance->properties.insert({property, accumulator});
   } else {
     THROW("TypeError", "Cannot set property for type " << object.type_string());

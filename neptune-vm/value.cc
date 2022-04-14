@@ -71,13 +71,13 @@ ALWAYS_INLINE bool Value::is_null_or_false() const {
   return (inner == VALUE_NULL) || (inner == VALUE_FALSE);
 }
 
-ALWAYS_INLINE bool Value::is_object() const {
+ALWAYS_INLINE bool Value::is_ptr() const {
   // return ((inner >> 48) == 0) && ((inner % 4) == 0);
   return !(inner & OBJECT_MASK);
 }
 
-ALWAYS_INLINE Object *Value::as_object() const {
-  assert(is_object());
+ALWAYS_INLINE Object *Value::as_ptr() const {
+  assert(is_ptr());
   return reinterpret_cast<Object *>(inner);
 }
 
@@ -110,7 +110,7 @@ ALWAYS_INLINE Value::Value(double d) {
 
 ALWAYS_INLINE Value::Value(Object *o) {
   tag = Tag::Object;
-  value.as_object = o;
+  value.as_ptr = o;
 }
 
 ALWAYS_INLINE Value::Value(bool b) {
@@ -139,11 +139,11 @@ ALWAYS_INLINE bool Value::is_null_or_false() const {
   return (tag == Tag::Null) || (tag == Tag::False);
 }
 
-ALWAYS_INLINE bool Value::is_object() const { return tag == Tag::Object; }
+ALWAYS_INLINE bool Value::is_ptr() const { return tag == Tag::Object; }
 
-ALWAYS_INLINE Object *Value::as_object() const {
-  assert(is_object());
-  return value.as_object;
+ALWAYS_INLINE Object *Value::as_ptr() const {
+  assert(is_ptr());
+  return value.as_ptr;
 }
 
 ALWAYS_INLINE bool Value::is_null() const { return tag == Tag::Null; }
@@ -157,7 +157,7 @@ ALWAYS_INLINE bool Value::is_true() const { return tag == Tag::True; }
 ALWAYS_INLINE bool Value::is_false() const { return tag == Tag::False; }
 
 ALWAYS_INLINE bool Value::is_empty() const {
-  return tag == Tag::Object && value.as_object == nullptr;
+  return tag == Tag::Object && value.as_ptr == nullptr;
 }
 
 ALWAYS_INLINE void Value::inc() {
@@ -182,18 +182,18 @@ ALWAYS_INLINE bool Value::operator==(Value rhs) const {
       return as_float() == double(rhs.as_int());
     else
       return false;
-  } else if (is_object() && rhs.is_object()) {
-    if (as_object()->is<Symbol>() && rhs.as_object()->is<Symbol>())
-      return as_object() == rhs.as_object();
-    if (as_object()->is<String>() && rhs.as_object()->is<String>()) {
-      return StringEquality{}(as_object()->as<String>(),
-                              rhs.as_object()->as<String>());
-    } else if (as_object()->is<Range>() && rhs.as_object()->is<Range>()) {
-      auto r1 = as_object()->as<Range>();
-      auto r2 = rhs.as_object()->as<Range>();
+  } else if (is_ptr() && rhs.is_ptr()) {
+    if (as_ptr()->is<Symbol>() && rhs.as_ptr()->is<Symbol>())
+      return as_ptr() == rhs.as_ptr();
+    if (as_ptr()->is<String>() && rhs.as_ptr()->is<String>()) {
+      return StringEquality{}(as_ptr()->as<String>(),
+                              rhs.as_ptr()->as<String>());
+    } else if (as_ptr()->is<Range>() && rhs.as_ptr()->is<Range>()) {
+      auto r1 = as_ptr()->as<Range>();
+      auto r2 = rhs.as_ptr()->as<Range>();
       return r1->start == r2->start && r1->end == r2->end;
     } else {
-      return as_object() == rhs.as_object();
+      return as_ptr() == rhs.as_ptr();
     }
   }
 #ifdef NANBOX
@@ -214,8 +214,8 @@ const char *Value::type_string() const {
     return "Null";
   else if (is_bool())
     return "Bool";
-  else if (is_object())
-    return as_object()->type_string();
+  else if (is_ptr())
+    return as_ptr()->type_string();
   else
     unreachable();
 }
@@ -240,8 +240,8 @@ void operator<<(ValueFormatter vf, Value v) {
     vf.os << "true";
   else if (v.is_false())
     vf.os << "false";
-  else if (v.is_object())
-    vf << v.as_object();
+  else if (v.is_ptr())
+    vf << v.as_ptr();
   else
     unreachable();
 }
@@ -281,8 +281,8 @@ template <typename T> uint32_t PointerHash<T>::operator()(T *ptr) const {
 
 uint32_t ValueHasher::operator()(Value v) const {
 #ifdef NANBOX
-  if (v.is_object()) {
-    auto o = v.as_object();
+  if (v.is_ptr()) {
+    auto o = v.as_ptr();
     if (o->is<Symbol>())
       return StringHasher{}(o->as<Symbol>());
     else if (o->is<String>())
@@ -307,7 +307,7 @@ uint32_t ValueHasher::operator()(Value v) const {
     return intHash(u);
   }
   case Tag::Object: {
-    auto o = v.as_object();
+    auto o = v.as_ptr();
     if (o->is<Symbol>())
       return StringHasher{}(o->as<Symbol>());
     else if (o->is<String>())
@@ -326,9 +326,9 @@ uint32_t ValueHasher::operator()(Value v) const {
 
 #ifdef NANBOX
 bool ValueStrictEquality::operator()(Value a, Value b) const {
-  if (a.is_object() && b.is_object()) {
-    auto o1 = a.as_object();
-    auto o2 = b.as_object();
+  if (a.is_ptr() && b.is_ptr()) {
+    auto o1 = a.as_ptr();
+    auto o2 = b.as_ptr();
     if (unlikely(o1 == nullptr || o2 == nullptr))
       return o1 == o2;
     if (o1->is<Symbol>() && o2->is<Symbol>())
@@ -356,9 +356,9 @@ bool ValueStrictEquality::operator()(Value a, Value b) const {
     memcpy(&u1, &d1, sizeof(u1));
     memcpy(&u2, &d2, sizeof(u2));
     return u1 == u2;
-  } else if (a.is_object() && b.is_object()) {
-    auto o1 = a.as_object();
-    auto o2 = b.as_object();
+  } else if (a.is_ptr() && b.is_ptr()) {
+    auto o1 = a.as_ptr();
+    auto o2 = b.as_ptr();
     if (unlikely(o1 == nullptr || o2 == nullptr))
       return o1 == o2;
     if (o1->is<Symbol>() && o2->is<Symbol>())
