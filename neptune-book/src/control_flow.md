@@ -30,13 +30,12 @@ for i in 0..10{
 They are used to exit a loop early. Break exits the loop while continue starts a new iteration of a loop.
 
 ## Switch
- 
-String,Symbol,Int,Float,Bool and Null literals or default can be used as cases of the switch
+The switch statement can be used instead of an if else ladder. Unlike an if else ladder the time taken to go to the required statement is independent of the number of cases. Constant literals must be used as cases of the switch statement. `default` is used to execute a statement if nothing is matched. The `or` keyword can be used in a case as shown below.
 
 ```
 switch 1+1{
-    1 or 2:print('1 or 2')
-    default:print('other')
+    1 or 2: print('1 or 2')
+    default: print('other')
 }
 ```
 ## Exception handling

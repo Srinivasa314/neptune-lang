@@ -45,6 +45,6 @@ To embed it in rust you can use the library from crates.io.
 The C++ compiler can be set using the CXX environment variable. Clang is recommended for best performance.
 
 ### Todo
-* Standard library for the CLI
+* CLI - Standard library, external modules 
 * Preemptiveness?
 * Buffer type
