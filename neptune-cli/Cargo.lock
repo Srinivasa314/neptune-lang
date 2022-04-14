@@ -351,6 +351,8 @@ dependencies = [
 [[package]]
 name = "neptune-lang"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42b8d8f6d1101368b79c764529a1c54bbfd8b703addb5bb2f24a62830b1f9416"
 dependencies = [
  "cxx",
  "cxx-build",
