@@ -4,7 +4,9 @@ name = "neptune-lang"
 version = "0.1.0"
 license = "MIT"
 authors = ["Srinivasa Mahesh <m.srinivasa1234@gmail.com>","Srikanth Mahesh <srikanth.mahesh1234@gmail.com>"]
-
+description = "An embeddable scripting language"
+readme = "README.md"
+repository = "https://github.com/Srinivasa314/neptune-lang"
 
 [dependencies]
 cxx = "1.0.66"
