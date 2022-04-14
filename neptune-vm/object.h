@@ -236,11 +236,11 @@ public:
 struct BuiltinClasses {
   Class *Object, *Class_, *Int, *Float, *Bool, *Null, *String, *Symbol, *Array,
       *Map, *Function, *Module, *Task, *Range, *ArrayIterator, *MapIterator,
-      *StringIterator, *Channel,*Resource;
+      *StringIterator, *Channel, *Resource;
   BuiltinClasses() {
     Object = Class_ = Int = Float = Bool = Null = String = Symbol = Array =
         Map = Function = Module = Task = Range = ArrayIterator = MapIterator =
-            StringIterator = Channel =Resource= nullptr;
+            StringIterator = Channel = Resource = nullptr;
   }
 };
 struct BuiltinSymbols {

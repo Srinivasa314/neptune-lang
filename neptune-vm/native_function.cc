@@ -222,17 +222,17 @@ void EFuncContext::push_resource(Data *data, FreeDataCallback *free_data) {
   push(Value(vm->allocate<Resource>(data, free_data)));
 }
 
-Data* EFuncContext::as_resource(EFuncStatus &status) {
-  if(task->stack_top==arg){
-    status=EFuncStatus::Underflow;
+Data *EFuncContext::as_resource(EFuncStatus &status) {
+  if (task->stack_top == arg) {
+    status = EFuncStatus::Underflow;
     return nullptr;
   }
   Value v = pop_value();
-  if (v.is_ptr()&&v.as_ptr()->is<Resource>()) {
-    status=EFuncStatus::Ok;
+  if (v.is_ptr() && v.as_ptr()->is<Resource>()) {
+    status = EFuncStatus::Ok;
     return v.as_ptr()->as<Resource>()->data;
-  } else{
-    status=EFuncStatus::TypeError;
+  } else {
+    status = EFuncStatus::TypeError;
     return nullptr;
   }
 }

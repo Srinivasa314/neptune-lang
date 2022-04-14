@@ -454,8 +454,7 @@ Value VM::to_string(Value val) {
     if (val.as_ptr()->is<String>()) {
       return val;
     } else if (val.as_ptr()->is<Symbol>()) {
-      return Value(
-          allocate<String>(StringSlice(*val.as_ptr()->as<Symbol>())));
+      return Value(allocate<String>(StringSlice(*val.as_ptr()->as<Symbol>())));
     } else {
       std::ostringstream os;
       os << val;

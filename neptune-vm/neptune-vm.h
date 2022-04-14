@@ -6,7 +6,7 @@ using std::size_t;
 
 #include "rust/cxx.h"
 namespace neptune_vm {
-    struct UserData;
+struct UserData;
 };
 
 #include "function.h"

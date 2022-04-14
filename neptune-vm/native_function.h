@@ -68,8 +68,8 @@ struct EFuncContext {
   Value pop_value();
   Value peek() const;
   const VM &get_vm() const { return *vm; }
-  void push_resource(Data* data,FreeDataCallback* free_data);
-  Data* as_resource(EFuncStatus& status);
+  void push_resource(Data *data, FreeDataCallback *free_data);
+  Data *as_resource(EFuncStatus &status);
 };
 
 using EFuncCallback = VMStatus(EFuncContext cx, Data *data);

@@ -252,7 +252,7 @@ void operator<<(ValueFormatter vf, Object *obj) {
     vf.os << "<Channel>";
     break;
   case Type::Resource:
-    vf.os<<"<Resource>";
+    vf.os << "<Resource>";
     break;
   default:
     unreachable();

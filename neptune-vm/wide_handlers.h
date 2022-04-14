@@ -296,8 +296,7 @@ handler(LoadSubscript, {
           THROW("IndexError", "Array index out of range");
         else
           accumulator = a->inner[static_cast<size_t>(i)];
-      } else if (accumulator.is_ptr() &&
-                 accumulator.as_ptr()->is<Range>()) {
+      } else if (accumulator.is_ptr() && accumulator.as_ptr()->is<Range>()) {
         auto &r = *accumulator.as_ptr()->as<Range>();
         auto start = r.start;
         auto end = r.end;
@@ -329,8 +328,7 @@ handler(LoadSubscript, {
       else
         THROW("KeyError", "Key " << accumulator << " does not exist in map");
     } else if (obj.as_ptr()->is<String>()) {
-      if (likely(accumulator.is_ptr() &&
-                 accumulator.as_ptr()->is<Range>())) {
+      if (likely(accumulator.is_ptr() && accumulator.as_ptr()->is<Range>())) {
         auto str = obj.as_ptr()->as<String>();
         auto &r = *accumulator.as_ptr()->as<Range>();
         if (r.start < 0 || static_cast<size_t>(r.start) >= str->len ||
@@ -516,8 +514,7 @@ handler(MakeFunction, {
 });
 
 handler(MakeClass, {
-  auto class_ =
-      allocate<Class>(*constants[READ(utype)].as_ptr()->as<Class>());
+  auto class_ = allocate<Class>(*constants[READ(utype)].as_ptr()->as<Class>());
   temp_roots.push_back(Value(class_));
   if (accumulator.is_ptr() && accumulator.as_ptr()->is<Class>()) {
     auto parent = accumulator.as_ptr()->as<Class>();
@@ -530,8 +527,7 @@ handler(MakeClass, {
   for (auto &p : class_->methods)
     if (p.second->is<FunctionInfo>()) {
       p.second = make_function(bp, p.second->as<FunctionInfo>());
-      p.second->as<Function>()->super_class =
-          accumulator.as_ptr()->as<Class>();
+      p.second->as<Function>()->super_class = accumulator.as_ptr()->as<Class>();
     }
   temp_roots.pop_back();
   accumulator = Value(class_);

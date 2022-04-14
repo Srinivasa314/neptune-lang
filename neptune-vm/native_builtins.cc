@@ -71,8 +71,8 @@ static VMStatus array_push(VM *vm, Value *args) {
 }
 
 static VMStatus array_len(VM *vm, Value *args) {
-  vm->return_value = Value(
-      static_cast<int32_t>(args[0].as_ptr()->as<Array>()->inner.size()));
+  vm->return_value =
+      Value(static_cast<int32_t>(args[0].as_ptr()->as<Array>()->inner.size()));
   return VMStatus::Success;
 }
 
@@ -151,11 +151,10 @@ static VMStatus string_find(VM *vm, Value *args) {
 }
 
 static VMStatus string_replace(VM *vm, Value *args) {
-  if (args[1].is_ptr() && args[1].as_ptr()->is<String>() &&
-      args[2].is_ptr() && args[2].as_ptr()->is<String>()) {
+  if (args[1].is_ptr() && args[1].as_ptr()->is<String>() && args[2].is_ptr() &&
+      args[2].as_ptr()->is<String>()) {
     vm->return_value = Value(args[0].as_ptr()->as<String>()->replace(
-        vm, args[1].as_ptr()->as<String>(),
-        args[2].as_ptr()->as<String>()));
+        vm, args[1].as_ptr()->as<String>(), args[2].as_ptr()->as<String>()));
     return VMStatus::Success;
   } else
     THROW("TypeError",
@@ -388,8 +387,7 @@ static VMStatus gc(VM *vm, Value *) {
 
 static VMStatus _getModule(VM *vm, Value *args) {
   if (args[0].is_ptr() && args[0].as_ptr()->is<String>()) {
-    auto module =
-        vm->get_module(StringSlice(*args[0].as_ptr()->as<String>()));
+    auto module = vm->get_module(StringSlice(*args[0].as_ptr()->as<String>()));
     if (module == nullptr)
       vm->return_value = Value::null();
     else
@@ -458,8 +456,8 @@ static VMStatus generateStackTrace(VM *vm, Value *args) {
 }
 
 static VMStatus _extendClass(VM *vm, Value *args) {
-  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() &&
-      args[1].is_ptr() && args[1].as_ptr()->is<Class>()) {
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() && args[1].is_ptr() &&
+      args[1].as_ptr()->is<Class>()) {
     auto class0 = args[0].as_ptr()->as<Class>();
     auto class1 = args[1].as_ptr()->as<Class>();
     if (class1->is_native && class1 != vm->builtin_classes.Object)
@@ -475,8 +473,8 @@ static VMStatus _extendClass(VM *vm, Value *args) {
 }
 
 static VMStatus _copyMethods(VM *vm, Value *args) {
-  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() &&
-      args[1].is_ptr() && args[1].as_ptr()->is<Class>()) {
+  if (args[0].is_ptr() && args[0].as_ptr()->is<Class>() && args[1].is_ptr() &&
+      args[1].as_ptr()->is<Class>()) {
     auto class0 = args[0].as_ptr()->as<Class>();
     auto class1 = args[1].as_ptr()->as<Class>();
     if (class1->is_native)
@@ -577,8 +575,7 @@ static VMStatus float_isnan(VM *vm, Value *args) {
 }
 
 static VMStatus string_len(VM *vm, Value *args) {
-  vm->return_value =
-      Value(int32_t(args[0].as_ptr()->as<String>()->get_len()));
+  vm->return_value = Value(int32_t(args[0].as_ptr()->as<String>()->get_len()));
   return VMStatus::Success;
 }
 
@@ -714,6 +711,15 @@ static VMStatus task_get_uncaught_exception(VM *vm, Value *args) {
 
 static VMStatus resource_close(VM *, Value *args) {
   args[0].as_ptr()->as<Resource>()->close();
+  return VMStatus::Success;
+}
+
+static VMStatus object_toDebugString(VM *vm, Value *args) {
+  std::ostringstream os;
+  os << args[0];
+  auto s = os.str();
+  vm->return_value =
+      Value(vm->allocate<String>(StringSlice{s.data(), s.length()}));
   return VMStatus::Success;
 }
 #undef THROW

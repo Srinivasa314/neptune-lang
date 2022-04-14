@@ -164,8 +164,7 @@ void FunctionInfoWriter::add_method(uint32_t class_, StringSlice name,
   auto val = hf->object->constants[class_];
   if (!val.is_ptr() || !val.as_ptr()->is<Class>())
     throw std::runtime_error("Expected class");
-  val.as_ptr()->as<Class>()->methods.insert(
-      {vm->intern(name), f.hf->object});
+  val.as_ptr()->as<Class>()->methods.insert({vm->intern(name), f.hf->object});
   f.release();
 }
 
