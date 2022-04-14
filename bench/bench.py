@@ -25,5 +25,6 @@ for benchmark in benchmarks:
     ax.barh(langs, [results[benchmark][l]for l in langs])
     plt.tight_layout()
     ax.set_title(benchmark)
+    plt.ylabel('Time in milliseconds')
     plt.savefig(f'{benchmark}.png')
     pass
