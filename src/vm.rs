@@ -786,6 +786,25 @@ impl<'a> EFuncContext<'a> {
 }
 
 /// Types that can be converted to Neptune values implement this trait
+/// Example:
+/// ```
+/// use neptune_lang::*;
+/// 
+/// struct Point {
+///     x: i32,
+///     y: i32
+/// }
+/// 
+/// impl ToNeptuneValue for Point {
+///     fn to_neptune_value(self, cx: &mut EFuncContext) {
+///         cx.object();    // push an empty object to the stack
+///         cx.int(self.x); // push self.x to the stack
+///         cx.set_object_property("x").unwrap(); // pop self.x and set it as property x
+///         self.y.to_neptune_value(cx); // an alternate way to push to the stack
+///         cx.set_object_property("y").unwrap();
+///     }
+/// }
+/// ```
 pub trait ToNeptuneValue {
     /// Pushes the value on the stack
     fn to_neptune_value(self, cx: &mut EFuncContext);

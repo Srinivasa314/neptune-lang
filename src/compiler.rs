@@ -33,7 +33,7 @@ impl<'vm> Compiler<'vm> {
         ast: Vec<Statement>,
     ) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
         self.register_module_variables(&ast);
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
+        let mut b = BytecodeCompiler::new(&mut self, "<main>", BytecodeType::Script, 0);
         b.compile_statments(&ast);
         b.bc_writer.write_u8(Op::Return.repr);
         let bytecode = b.bc_writer;
@@ -64,7 +64,7 @@ impl<'vm> Compiler<'vm> {
     }
 
     pub fn eval(mut self, ast: &Expr) -> Result<FunctionInfoWriter<'vm>, Vec<CompileError>> {
-        let mut b = BytecodeCompiler::new(&mut self, "<script>", BytecodeType::Script, 0);
+        let mut b = BytecodeCompiler::new(&mut self, "<main>", BytecodeType::Script, 0);
         match b.evaluate_expr(ast) {
             Ok(er) => {
                 b.store_in_accumulator(er, 1);

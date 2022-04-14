@@ -1,3 +1,9 @@
+//! # Example
+//! ```
+//! use neptune_lang::*;
+//! let vm = VM::new(NoopModuleLoader);
+//! vm.exec_sync("<script>", "/*do nothing*/").unwrap();
+//! ```
 use crate::vm::VMStatus;
 use compiler::Compiler;
 use cxx::UniquePtr;
@@ -11,7 +17,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Display;
 use vm::UserData;
-use vm::{new_vm, FunctionInfoWriter, VM};
+use vm::{new_vm, FunctionInfoWriter, VM as VMInner};
 pub use vm::{EFuncContext, EFuncError, Resource, ToNeptuneValue};
 mod compiler;
 mod parser;
@@ -153,8 +159,8 @@ impl ToNeptuneValue for ModuleNotFound {
 }
 
 /// Instance of a Neptune VM
-pub struct Neptune {
-    vm: UniquePtr<VM>,
+pub struct VM {
+    vm: UniquePtr<VMInner>,
 }
 
 /// The embedder needs to implement this trait to specify how to resolve import paths
@@ -168,8 +174,9 @@ pub trait ModuleLoader: Clone {
 }
 
 #[derive(Clone, Copy)]
-struct NoopModuleLoader;
+pub struct NoopModuleLoader;
 
+/// A module loader that always returns None
 impl ModuleLoader for NoopModuleLoader {
     fn resolve(&self, _: &str, _: &str) -> Option<String> {
         None
@@ -180,7 +187,7 @@ impl ModuleLoader for NoopModuleLoader {
     }
 }
 
-impl Neptune {
+impl VM {
     pub fn new<M: ModuleLoader + 'static>(module_loader: M) -> Self {
         let n = Self {
             vm: new_vm(Box::new(UserData {
@@ -361,6 +368,24 @@ impl Neptune {
 
     /// Creates an synchronous efunc.
     /// Returns Err(EFuncAlreadyExists) if an existing efunc is named `name`
+    /// Example:
+    /// ```
+    /// use neptune_lang::*;
+    /// let n = VM::new(NoopModuleLoader);
+    /// // Methods of EFuncContext usually return EFuncError on error. To return NeptuneError(the
+    /// // Error class of Neptune) or EFuncError we can use the EFuncErrorOr enum.
+    /// n.create_efunc("inverse", |cx /*: &mut EFuncContext*/ | -> Result<f64,EFuncErrorOr<NeptuneError>> {
+    ///     // pop an int from the stack
+    ///     let i = cx.as_int()?;
+    ///     if i == 0 {
+    ///         // It would be better to create our own Error type and implement ToNeptuneValue for it.
+    ///         Err(EFuncErrorOr::Other(NeptuneError("Cannot divide by zero".into())))
+    ///     }else{
+    ///         Ok(1.0 / (i as f64))
+    ///     }
+    /// }).unwrap();
+    /// //This can now be called by ecall(@inverse, 6)
+    /// ```
     pub fn create_efunc<F, T1, T2>(&self, name: &str, mut callback: F) -> Result<(), Error>
     where
         F: FnMut(&mut EFuncContext) -> Result<T1, T2> + 'static,
@@ -402,7 +427,7 @@ impl Neptune {
 }
 
 fn compile<'vm>(
-    vm: &'vm VM,
+    vm: &'vm VMInner,
     module: String,
     source: &str,
     eval: bool,
@@ -442,8 +467,8 @@ fn compile<'vm>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, Neptune, NeptuneError,
-        ToNeptuneValue, Resource,
+        EFuncError, EFuncErrorOr, InterpretError, ModuleLoader, VM, NeptuneError, Resource,
+        ToNeptuneValue,
     };
     use std::{
         env,
@@ -478,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        let n = Neptune::new(TestModuleLoader);
+        let n = VM::new(TestModuleLoader);
         n.create_efunc("test_str", |cx| -> Result<(), ()> {
             let s = cx.as_string().unwrap();
             assert_eq!(s, "\n\r\t\0\'\"");
@@ -497,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_runtime() {
-        let n = Neptune::new(TestModuleLoader);
+        let n = VM::new(TestModuleLoader);
         if let InterpretError::UncaughtException(e) =
             n.exec_sync("<script>", "throw 'abc'").unwrap_err()
         {
@@ -559,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_errors() {
-        let n = Neptune::new(TestModuleLoader);
+        let n = VM::new(TestModuleLoader);
         let errors: Vec<String> = serde_json::from_str(&read("errors.json").unwrap()).unwrap();
         for error in errors {
             let fname = format!("{}.np", error);
@@ -637,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_efunc() {
-        let n = Neptune::new(TestModuleLoader);
+        let n = VM::new(TestModuleLoader);
         n.create_efunc("add", |ctx| -> Result<i32, EFuncError> {
             ctx.get_property("a")?;
             let i1 = ctx.as_int()?;
@@ -705,12 +730,13 @@ mod tests {
             Result::<_, ()>::Ok(Resource("hello".to_owned()))
         })
         .unwrap();
-        n.create_efunc("create_int_resource", |_|{
-            Result::<_, ()>::Ok(Resource(1))
-        }).unwrap();
-        n.create_efunc("string_resource_inner", |cx|->Result<String, EFuncError>{
-            Ok(cx.as_resource::<String>()?.clone())
-        }).unwrap();
+        n.create_efunc("create_int_resource", |_| Result::<_, ()>::Ok(Resource(1)))
+            .unwrap();
+        n.create_efunc(
+            "string_resource_inner",
+            |cx| -> Result<String, EFuncError> { Ok(cx.as_resource::<String>()?.clone()) },
+        )
+        .unwrap();
         if let Err(e) =
             futures::executor::block_on(n.exec("test_efunc.np", &read("test_efunc.np").unwrap()))
         {

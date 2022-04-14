@@ -26,4 +26,5 @@
     - [Module 'time'](./documentation/time.md)
     - [Module 'vm'](./documentation/vm.md)
 
+- [Embedding API](./embed.md)
 - [Neptune Language Internals](./internals.md)

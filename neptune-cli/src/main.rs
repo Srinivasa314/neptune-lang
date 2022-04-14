@@ -4,7 +4,7 @@ use std::{
 };
 use tokio::time::{sleep, Duration};
 
-use neptune_lang::{EFuncError, InterpretError, ModuleLoader, Neptune, ToNeptuneValue};
+use neptune_lang::{EFuncError, InterpretError, ModuleLoader, VM, ToNeptuneValue};
 use rustyline::{
     validate::{self, Validator},
     Editor,
@@ -12,30 +12,30 @@ use rustyline::{
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 
 fn main() {
-    if let Err(e) = _main() {
+    if let Err(e) = try_main() {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn _main() -> Result<(), Box<dyn std::error::Error>> {
-    let n = Neptune::new(FileSystemModuleLoader);
-    n.create_efunc("print", |cx| -> Result<(), EFuncError> {
+fn try_main() -> Result<(), Box<dyn std::error::Error>> {
+    let vm = VM::new(FileSystemModuleLoader);
+    vm.create_efunc("print", |cx| -> Result<(), EFuncError> {
         println!("{}", cx.as_string()?);
         Ok(())
     })
     .unwrap();
-    n.exec_sync("<prelude>", include_str!("prelude.np"))
+    vm.exec_sync("<prelude>", include_str!("prelude.np"))
         .unwrap();
 
-    n.create_efunc("timeNow", |_| -> Result<f64, ()> {
+    vm.create_efunc("timeNow", |_| -> Result<f64, ()> {
         Ok(std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f64())
     })
     .unwrap();
-    n.create_efunc_async("sleep", |cx| {
+    vm.create_efunc_async("sleep", |cx| {
         let time = cx.as_int();
         async move {
             sleep(Duration::from_millis(time? as u64)).await;
@@ -43,7 +43,7 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })
     .unwrap();
-    n.exec_sync("time", include_str!("time.np")).unwrap();
+    vm.exec_sync("time", include_str!("time.np")).unwrap();
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -53,14 +53,14 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
     runtime.block_on(async move {
         match std::env::args().nth(1) {
             Some(file) => {
-                n.exec(
+                vm.exec(
                     std::fs::canonicalize(&file)?.to_string_lossy().into_owned(),
                     &std::fs::read_to_string(&file)?,
                 )
                 .await?;
             }
             None => {
-                repl(&n).await?;
+                repl(&vm).await?;
             }
         }
         Ok(())
@@ -114,7 +114,7 @@ impl Validator for ReplValidator {
     }
 }
 
-async fn repl(n: &Neptune) -> Result<(), InterpretError> {
+async fn repl(vm: &VM) -> Result<(), InterpretError> {
     let mut rl = Editor::new();
     rl.set_helper(Some(ReplValidator {}));
     let histfile = dirs::cache_dir().map(|mut dir| {
@@ -124,7 +124,7 @@ async fn repl(n: &Neptune) -> Result<(), InterpretError> {
     });
     println!("Welcome to the Neptune Programming Language!");
     let rl = Arc::new(Mutex::new(rl));
-    n.create_efunc_async("replReadline", {
+    vm.create_efunc_async("replReadline", {
         let rl = rl.clone();
         move |_| {
             let rl = rl.clone();
@@ -145,7 +145,7 @@ async fn repl(n: &Neptune) -> Result<(), InterpretError> {
         }
     })
     .unwrap();
-    if let Err(e) = n.exec("<repl>", include_str!("repl.np")).await {
+    if let Err(e) = vm.exec("<repl>", include_str!("repl.np")).await {
         return Err(e);
     }
     if let Some(file) = histfile {
@@ -159,8 +159,8 @@ async fn repl(n: &Neptune) -> Result<(), InterpretError> {
 struct ReadlineError(rustyline::error::ReadlineError);
 
 impl ToNeptuneValue for ReadlineError {
-    fn to_neptune_value(&self, cx: &mut neptune_lang::EFuncContext) {
-        match &self.0 {
+    fn to_neptune_value(self, cx: &mut neptune_lang::EFuncContext) {
+        match self.0 {
             rustyline::error::ReadlineError::Eof => cx.symbol("eof"),
             rustyline::error::ReadlineError::Interrupted => cx.symbol("interrupted"),
             rustyline::error::ReadlineError::Utf8Error => cx.symbol("utf8"),
@@ -262,7 +262,7 @@ mod tests {
 
     use super::are_brackets_balanced;
     use crate::FileSystemModuleLoader;
-    use neptune_lang::{EFuncError, Neptune};
+    use neptune_lang::{EFuncError, VM};
     use tokio::time::sleep;
 
     #[test]
@@ -277,8 +277,8 @@ mod tests {
 
     #[test]
     fn test_import() {
-        let n = Neptune::new(FileSystemModuleLoader);
-        n.exec_sync(
+        let vm = VM::new(FileSystemModuleLoader);
+        vm.exec_sync(
             concat!(env!("CARGO_MANIFEST_DIR"), "/test/test_import1.np"),
             include_str!("../test/test_import1.np"),
         )
@@ -291,8 +291,8 @@ mod tests {
             .enable_all()
             .build()
             .unwrap();
-        let n = Neptune::new(FileSystemModuleLoader);
-        n.create_efunc_async("sleep", |cx| {
+        let vm = VM::new(FileSystemModuleLoader);
+        vm.create_efunc_async("sleep", |cx| {
             let time = cx.as_int();
             async move {
                 sleep(Duration::from_millis(time? as u64)).await;
@@ -301,7 +301,7 @@ mod tests {
         })
         .unwrap();
         runtime
-            .block_on(n.exec(
+            .block_on(vm.exec(
                 concat!(env!("CARGO_MANIFEST_DIR"), "/test/test_sleep.np"),
                 include_str!("../test/test_sleep.np"),
             ))
