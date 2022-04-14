@@ -4,8 +4,7 @@ Neptune is a dynamically typed scripting language
 
 [Documentation](https://docs.rs/neptune-lang/)
 [crates.io](https://crates.io/crates/neptune-lang)
-
-TODO: link to book
+[Book](https://srinivasa314.github.io/neptune-lang/)
 
 ## Goals
 1. Embeddability: It can be embedded in any rust application. Synchronous or asynchronous rust functions can be used by a neptune script.
