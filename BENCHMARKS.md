@@ -1,6 +1,9 @@
 # Benchmarks
 
-These benchmarks were run on an Intel® Core™ i5-1035G1 processor and are present in the bench directory.
+These benchmarks were run on Github Actions and are present in the bench directory.
+
+## Geometric Mean of All Benchmarks
+![Geometric Mean](bench/Geometric%20Mean.png)
 
 ## Collatz
 ![Collatz](bench/collatz.png)
