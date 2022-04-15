@@ -6,7 +6,7 @@ env:
   CXX: clang-12
 
 jobs:
-  build:
+  benchmark:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -14,6 +14,7 @@ jobs:
         run: |
           sudo apt install luajit lua5.3
           cargo install neptune-cli
+          pip install matplotlib
       - name: Run benchmark
         run: |
           cd bench;python bench.py
