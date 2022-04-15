@@ -135,7 +135,21 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="tasks-and-channels"><a class="header" href="#tasks-and-channels">Tasks and Channels</a></h1>
-<p>Tasks are lightweight units of concurrent execution. Tasks are created by the <code>spawn()</code> or <code>spawn_link()</code> functions . A task is killed when an uncaught exception is thrown but can also be killed by the <code>kill()</code> method. If a task fails it does not crash other tasks. <code>spawn_link()</code> links the newly created task with the task that created it. If two tasks are linked then one if one of them dies then the other will be killed. Tasks can be manually linked too.  Tasks can also be given names for debugging purposes. Channels can be used to <code>send()</code> and <code>recv()</code> messages. If a task is waiting on a channel, it is woken up once the message is received. The <code>join</code> function can be used to wait for multiple tasks to complete. It throws an exception and if one of them fails. Errors from multiple tasks can be handled gracefully using the <code>monitor()</code> method of <code>Task</code>. An example is given below.</p>
+<p>Tasks are lightweight units of concurrent execution. Tasks are created by the <code>spawn()</code> or <code>spawn_link()</code> functions . A task is killed when an uncaught exception is thrown but can also be killed by the <code>kill()</code> method. If a task fails it does not crash other tasks. <code>spawn_link()</code> links the newly created task with the task that created it. If two tasks are linked then one if one of them dies then the other will be killed. Tasks can be manually linked too.  Tasks can also be given names for debugging purposes. Channels can be used to <code>send()</code> and <code>recv()</code> messages. If a task is waiting on a channel, it is woken up once the message is received. The <code>join</code> function can be used to wait for multiple tasks to complete. It throws an exception and if one of them fails. </p>
+<pre><code>const {sleep} = import('time')
+let task1 = spawn(||{
+	sleep(200)
+	print('Bye')
+})
+
+let task2 = spawn(||{
+	sleep(100)
+	print('Hello')
+})
+
+join([task1,task2])
+</code></pre>
+<p>Errors from multiple tasks can be handled gracefully using the <code>monitor()</code> method of <code>Task</code>. An example is given below.</p>
 <pre><code>class MySupervisor{
 	construct(){
 		this.monitorChan=new Channel()
