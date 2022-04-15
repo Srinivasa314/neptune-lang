@@ -2,9 +2,13 @@
 All values have a type and the type is associated with a class. The primitive types are listed below. These classes have many useful methods that can be seen in the documentation section of the book.
 
 ## Object
-All classes inherit Object.Objects can be directly created using object literals
+All classes inherit Object. Objects can be directly created using object literals
 ```
 let point = {x:1, y:2}
+// or
+let x = 1
+let y = 2
+let point2 = {x,y}
 ```
 The point has two properties x and y. 
 
