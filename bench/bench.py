@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 benchmarks = ['ack', 'btree', 'collatz', 'fib', 'nbody',
               'nested', 'selection-sort', 'sieve', 'spect']
 
-languages = {'Neptune': ['../neptune-cli/target/release/neptune-cli', '.np'],
+languages = {'Neptune': ['neptune-cli', '.np'],
              'NodeJS(JIT off)': ['node', '-jitless', '.js'],
              'Ruby': ['ruby', '.rb'],  'Lua': ['lua', '.lua'], 'NodeJS(JIT)': ['node', '.js'], 'LuaJIT(JIT off)': ['luajit', '-joff', '.lua'], 'LuaJIT(JIT)': ['luajit', '.lua']}
 
