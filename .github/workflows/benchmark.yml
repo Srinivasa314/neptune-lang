@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install required languages
         run: |
-          apt install luajit lua5.3
+          sudo apt install luajit lua5.3
           cargo install neptune-cli
       - name: Run benchmark
         run: |
