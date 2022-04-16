@@ -203,6 +203,9 @@ throw_end:
 end:
   for (auto chan : current_task->monitors)
     chan->send(Value(task), this);
+  for(auto link:task->links)
+    link->links.erase(task);
+  main_task->links.erase(task);
   current_task = nullptr;
 }
 #undef READ
@@ -1066,6 +1069,7 @@ void VM::kill(Task *task, Value uncaught_exception) {
     kill(link, uncaught_exception);
   for (auto chan : task->monitors)
     chan->send(Value(task), this);
+  main_task->links.erase(task);
 }
 
 rust::String VM::kill_main_task(StringSlice error, StringSlice message) const {
