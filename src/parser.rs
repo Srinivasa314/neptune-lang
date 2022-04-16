@@ -1247,6 +1247,11 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
             }
             loop {
                 match &self.current.token_type {
+                    TokenType::IntLiteral(-1) => {
+                        return Err(
+                            self.error_at_current("Cannot parse integer 2147483648".to_string())
+                        )
+                    }
                     TokenType::IntLiteral(i) => literals.push(Literal::Int(*i)),
                     TokenType::FloatLiteral(f) => literals.push(Literal::Float(*f)),
                     TokenType::String(s) => literals.push(Literal::String(s.clone())),
@@ -1262,6 +1267,19 @@ impl<'src, Tokens: Iterator<Item = Token<'src>>> Parser<'src, Tokens> {
                             return Err(self.error_at_current(
                                 "Cannot repeat cases in switch statement".into(),
                             ));
+                        }
+                    }
+                    TokenType::Minus => {
+                        self.advance();
+                        match self.current.token_type {
+                            TokenType::IntLiteral(-1) => literals.push(Literal::Int(i32::MIN)),
+                            TokenType::IntLiteral(i) => literals.push(Literal::Int(-i)),
+                            TokenType::FloatLiteral(f) => literals.push(Literal::Float(-f)),
+                            _ => {
+                                return Err(
+                                    self.error_at_current("Expect literal or default".to_string())
+                                )
+                            }
                         }
                     }
                     _ => return Err(self.error_at_current("Expect literal or default".to_string())),
