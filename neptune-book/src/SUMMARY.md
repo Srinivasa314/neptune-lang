@@ -7,6 +7,8 @@
 - [Control flow](./control_flow.md)
 - [Classes and Objects](./class_object.md)
 - [Tasks and Channels](./tasks_channels.md)
+- [Embedding API](./embed.md)
+- [Neptune Language Internals](./internals.md)
 
 - [Documentation](./documentation.md)
     - [Object](./documentation/object.md)
@@ -25,6 +27,3 @@
     - [Module 'random'](./documentation/random.md)
     - [Module 'time'](./documentation/time.md)
     - [Module 'vm'](./documentation/vm.md)
-
-- [Embedding API](./embed.md)
-- [Neptune Language Internals](./internals.md)
