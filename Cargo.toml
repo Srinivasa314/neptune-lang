@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "neptune-lang"
-version = "0.1.2"
+version = "0.1.3"
 license = "MIT"
 authors = ["Srinivasa Mahesh <m.srinivasa1234@gmail.com>","Srikanth Mahesh <srikanth.mahesh1234@gmail.com>"]
 description = "An embeddable scripting language"

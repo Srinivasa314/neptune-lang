@@ -1,6 +1,6 @@
 [package]
 name = "neptune-cli"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 authors = ["Srinivasa Mahesh <m.srinivasa1234@gmail.com>","Srikanth Mahesh <srikanth.mahesh1234@gmail.com>"]
