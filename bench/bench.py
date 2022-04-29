@@ -2,7 +2,7 @@
 import subprocess
 from matplotlib import pyplot as plt
 
-benchmarks = ['ack', 'btree', 'collatz', 'fib', 'nbody',
+benchmarks = ['btree', 'collatz', 'fib', 'nbody',
               'nested', 'selection-sort', 'sieve', 'spect']
 
 languages = {'Neptune': ['neptune-cli', '.np'],

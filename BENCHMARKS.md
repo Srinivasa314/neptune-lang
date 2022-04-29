@@ -8,8 +8,8 @@ These benchmarks were run on Github Actions and are present in the bench directo
 ## Collatz
 ![Collatz](bench/collatz.png)
 
-## Ackermann
-![Ackermann](bench/ack.png)
+## Fibonacci
+![Fibonacci](bench/fib.png)
 
 ## Binary Trees
 ![Binary Trees](bench/btree.png)
